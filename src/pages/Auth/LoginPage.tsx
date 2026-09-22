@@ -50,7 +50,7 @@ const LoginPage = () => {
         {/* Brand Logo Header */}
         <div className="login-header">
           <img src={`${import.meta.env.BASE_URL}logo-synera.png`} alt="Logo Synera Koperasi" className="login-logo-img" />
-          <h1 className="login-welcome-title">Selamat Datang Web-App<br/>Synera Koperasi</h1>
+          <h1 className="login-welcome-title">Web-App Synera Koperasi</h1>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
@@ -61,11 +61,10 @@ const LoginPage = () => {
             <input
               id="username"
               type="text"
-              placeholder="Masukkan username akun Anda"
+              placeholder="Masukkan username..."
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
-              autoFocus
             />
           </div>
 
@@ -74,7 +73,7 @@ const LoginPage = () => {
             <input
               id="password"
               type="password"
-              placeholder="Masukkan password Anda"
+              placeholder="Masukkan password..."
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
@@ -82,7 +81,7 @@ const LoginPage = () => {
           </div>
 
           <button type="submit" className="login-btn" disabled={isLoading}>
-            {isLoading ? 'Memproses...' : 'Masuk ke Sistem'}
+            {isLoading ? 'Memeriksa...' : 'Login'}
           </button>
         </form>
 
