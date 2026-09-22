@@ -96,6 +96,7 @@ const SchoolDashboard = () => {
   // Day Restriction Logic
   const currentDay = new Date().getDay(); // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
   const isInputAllowed = () => {
+    if (orderPhase === 'Tahap 1' || orderPhase === 'Tahap 2') return true;
     if (!user || user.role !== 'sekolah') return true;
     if (user.schoolLevel === 'TK' && currentDay !== 1) return false;
     if (user.schoolLevel === 'SD' && currentDay !== 2) return false;
@@ -423,31 +424,11 @@ const SchoolDashboard = () => {
             
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button 
-                className={`btn-primary ${!phase1Open || hasPhase1Order ? 'btn-disabled' : ''}`} 
-                onClick={() => { resetCreateForm('Tahap 1'); setShowCreateModal(true); }}
-                disabled={!phase1Open || hasPhase1Order}
-                title={!phase1Open ? 'Tahap 1 Ditutup Admin' : hasPhase1Order ? 'Sudah pesan Tahap 1' : ''}
-                style={(!phase1Open || hasPhase1Order) ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
-              >
-                + Tahap 1
-              </button>
-
-              <button 
-                className={`btn-primary ${!phase2Open || hasPhase2Order ? 'btn-disabled' : ''}`} 
-                onClick={() => { resetCreateForm('Tahap 2'); setShowCreateModal(true); }}
-                disabled={!phase2Open || hasPhase2Order}
-                title={!phase2Open ? 'Tahap 2 Ditutup Admin' : hasPhase2Order ? 'Sudah pesan Tahap 2' : ''}
-                style={(!phase2Open || hasPhase2Order) ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
-              >
-                + Tahap 2
-              </button>
-
-              <button 
                 className="btn-primary" 
                 onClick={() => { resetCreateForm('Tambahan'); setShowCreateModal(true); }}
                 style={{ padding: '8px 12px' }}
               >
-                + Tambahan
+                + Buat Pesanan
               </button>
             </div>
           </div>
@@ -1086,13 +1067,37 @@ const SchoolDashboard = () => {
                 )}
               </div>
 
-              <div className="modal-actions" style={{ marginTop: '24px', justifyContent: 'flex-end' }}>
-                <button 
-                  type="submit" 
-                  className="btn-primary"
-                >
-                  🛒 Tambahkan ke Keranjang
-                </button>
+              <div className="modal-actions" style={{ marginTop: '24px', flexDirection: 'column', alignItems: 'stretch' }}>
+                {(orderPhase === 'Tahap 1' && !phase1Open) && (
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                    <strong>Tahap 1 Ditutup:</strong> Admin belum mengaktifkan pemesanan Tahap 1.
+                  </div>
+                )}
+                {(orderPhase === 'Tahap 2' && !phase2Open) && (
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                    <strong>Tahap 2 Ditutup:</strong> Admin belum mengaktifkan pemesanan Tahap 2.
+                  </div>
+                )}
+                {(orderPhase === 'Tahap 1' && hasPhase1Order) && (
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                    <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 1.
+                  </div>
+                )}
+                {(orderPhase === 'Tahap 2' && hasPhase2Order) && (
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                    <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 2.
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button 
+                    type="submit" 
+                    className="btn-primary"
+                    disabled={(orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) || (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order))}
+                    style={((orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) || (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order))) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                  >
+                    🛒 Tambahkan ke Keranjang
+                  </button>
+                </div>
               </div>
             </form>
           </div>
