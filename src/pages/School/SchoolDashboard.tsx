@@ -398,40 +398,33 @@ const SchoolDashboard = () => {
           <div className="order-toolbar" style={{ alignItems: 'flex-start' }}>
             <div style={{ flex: 1 }}>
               <h3>Daftar Pesanan Sedang Berjalan</h3>
-              {!isAllowedToInput && (
-                <div style={{ marginTop: '8px', padding: '10px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e' }}>
-                  <strong>Perhatian:</strong> Jadwal penginputan pesanan untuk jenjang {user?.schoolLevel} tidak tersedia pada hari ini. (Jadwal: TK=Senin, SD=Selasa, SMP=Rabu, SMA=Kamis).
-                </div>
-              )}
             </div>
             
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button 
-                className={`btn-primary ${!isAllowedToInput || !phase1Open || hasPhase1Order ? 'btn-disabled' : ''}`} 
+                className={`btn-primary ${!phase1Open || hasPhase1Order ? 'btn-disabled' : ''}`} 
                 onClick={() => { resetCreateForm('Tahap 1'); setShowCreateModal(true); }}
-                disabled={!isAllowedToInput || !phase1Open || hasPhase1Order}
-                title={!isAllowedToInput ? 'Di luar jadwal' : !phase1Open ? 'Tahap 1 Ditutup Admin' : hasPhase1Order ? 'Sudah pesan Tahap 1' : ''}
-                style={(!isAllowedToInput || !phase1Open || hasPhase1Order) ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
+                disabled={!phase1Open || hasPhase1Order}
+                title={!phase1Open ? 'Tahap 1 Ditutup Admin' : hasPhase1Order ? 'Sudah pesan Tahap 1' : ''}
+                style={(!phase1Open || hasPhase1Order) ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
               >
                 + Tahap 1
               </button>
 
               <button 
-                className={`btn-primary ${!isAllowedToInput || !phase2Open || hasPhase2Order ? 'btn-disabled' : ''}`} 
+                className={`btn-primary ${!phase2Open || hasPhase2Order ? 'btn-disabled' : ''}`} 
                 onClick={() => { resetCreateForm('Tahap 2'); setShowCreateModal(true); }}
-                disabled={!isAllowedToInput || !phase2Open || hasPhase2Order}
-                title={!isAllowedToInput ? 'Di luar jadwal' : !phase2Open ? 'Tahap 2 Ditutup Admin' : hasPhase2Order ? 'Sudah pesan Tahap 2' : ''}
-                style={(!isAllowedToInput || !phase2Open || hasPhase2Order) ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
+                disabled={!phase2Open || hasPhase2Order}
+                title={!phase2Open ? 'Tahap 2 Ditutup Admin' : hasPhase2Order ? 'Sudah pesan Tahap 2' : ''}
+                style={(!phase2Open || hasPhase2Order) ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
               >
                 + Tahap 2
               </button>
 
               <button 
-                className={`btn-primary ${!isAllowedToInput ? 'btn-disabled' : ''}`} 
+                className="btn-primary" 
                 onClick={() => { resetCreateForm('Tambahan'); setShowCreateModal(true); }}
-                disabled={!isAllowedToInput}
-                title={!isAllowedToInput ? 'Di luar jadwal' : ''}
-                style={!isAllowedToInput ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
+                style={{ padding: '8px 12px' }}
               >
                 + Tambahan
               </button>
@@ -1061,17 +1054,26 @@ const SchoolDashboard = () => {
                 />
               </div>
 
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setShowCreateModal(false)}
-                >
-                  Batal
-                </button>
-                <button type="submit" className="btn-primary">
-                  Kirim Pesanan
-                </button>
+              <div className="modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                {!isAllowedToInput && (
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                    <strong>Tombol "Kirim Pesanan" Dikunci:</strong> Hari ini BUKAN jadwal jenjang {user?.schoolLevel} untuk memesan. 
+                    (Jadwal: TK=Senin, SD=Selasa, SMP=Rabu, SMA=Kamis). Anda hanya dapat merancang pesanan (sebagai keranjang) saat ini.
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button type="button" className="btn-secondary" onClick={() => setShowCreateModal(false)}>
+                    Tutup Modal
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn-primary"
+                    disabled={!isAllowedToInput}
+                    style={!isAllowedToInput ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                  >
+                    🚀 Kirim Pesanan
+                  </button>
+                </div>
               </div>
             </form>
           </div>
