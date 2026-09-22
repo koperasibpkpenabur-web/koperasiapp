@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { Order, ShippingInfo, ReceiveInfo, CancellationInfo } from '../types';
+import type { Order, OrderItem, ShippingInfo, ReceiveInfo, CancellationInfo } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface OrderContextType {
@@ -17,12 +17,18 @@ interface OrderContextType {
   deleteOrder: (orderId: string) => Promise<void>;
   getOrdersBySchoolId: (schoolUserId: string) => Order[];
   fetchOrders: () => Promise<void>;
+  cartItems: OrderItem[];
+  setCartItems: React.Dispatch<React.SetStateAction<OrderItem[]>>;
+  showCartModal: boolean;
+  setShowCartModal: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const OrderContext = createContext<OrderContextType | null>(null);
 
 export function OrderProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [cartItems, setCartItems] = useState<OrderItem[]>([]);
+  const [showCartModal, setShowCartModal] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     const { data, error } = await supabase
@@ -278,6 +284,10 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         deleteOrder,
         getOrdersBySchoolId,
         fetchOrders,
+        cartItems,
+        setCartItems,
+        showCartModal,
+        setShowCartModal,
       }}
     >
       {children}

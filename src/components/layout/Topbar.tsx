@@ -1,10 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useUI } from '../../context/UIContext';
+import { useOrders } from '../../context/OrderContext';
 
 const Topbar = () => {
   const { user, logout, isMaintenanceMode } = useAuth();
   const { toggleSidebar } = useUI();
+  const { cartItems, setShowCartModal } = useOrders() || { cartItems: [], setShowCartModal: () => {} };
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -67,9 +69,23 @@ const Topbar = () => {
                 <span className="user-level-tag">{user.schoolLevel}</span>
               )}
             </span>
-            <button className="logout-btn" onClick={handleLogout} title="Keluar dari Aplikasi">
-              Keluar
-            </button>
+            <div className="header-actions">
+              {user.role === 'sekolah' && (
+                <button 
+                  className="cart-icon-btn" 
+                  onClick={() => setShowCartModal(true)}
+                  title="Lihat Keranjang Pesanan"
+                >
+                  🛒
+                  {cartItems.length > 0 && (
+                    <span className="cart-badge">{cartItems.length}</span>
+                  )}
+                </button>
+              )}
+              <button className="logout-btn" onClick={handleLogout} title="Keluar dari Aplikasi">
+                Logout
+              </button>
+            </div>
           </div>
         )}
       </div>

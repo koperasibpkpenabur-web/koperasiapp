@@ -975,3 +975,120 @@ html.force-mobile .btn-remove-item {
   width: 100% !important;
   height: 36px !important;
 }
+
+/* Cart and Dropdown Custom Styles */
+
+/* Modal Close Button */
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary, #586b84);
+  cursor: pointer;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+.btn-close-modal:hover {
+  color: var(--color-danger, #e11d48);
+  background: var(--bg-danger, #fff1f2);
+}
+
+/* Header Cart Icon */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cart-icon-btn {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid var(--border-subtle, #d5deef);
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(57, 88, 134, 0.05);
+  transition: all 0.2s ease;
+  color: var(--primary-blue, #395886);
+}
+
+.cart-icon-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(57, 88, 134, 0.1);
+  border-color: var(--primary-blue, #395886);
+}
+
+.cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--color-danger, #e11d48);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 12px;
+  border: 2px solid #ffffff;
+}
+
+/* Action Menu Dropdown */
+.action-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid var(--border-subtle, #d5deef);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(30, 45, 66, 0.12);
+  min-width: 160px;
+  z-index: 50;
+  overflow: hidden;
+  animation: dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e2d42);
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid var(--border-light, #e4ebf5);
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: var(--bluish-white, #F0F3FA);
+}
+
+.dropdown-item.delete {
+  color: var(--color-danger, #e11d48);
+}
+
+.dropdown-item.delete:hover {
+  background: var(--bg-danger, #fff1f2);
+}

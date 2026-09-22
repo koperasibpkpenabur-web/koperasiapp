@@ -10,7 +10,7 @@ import './school.css';
 
 const SchoolDashboard = () => {
   const { user } = useAuth();
-  const { getOrdersBySchoolId, createOrder, receiveOrder, requestCancelOrder, deleteOrder } = useOrders();
+  const { getOrdersBySchoolId, createOrder, receiveOrder, requestCancelOrder, deleteOrder, cartItems, setCartItems, showCartModal, setShowCartModal } = useOrders();
   const { products, getProductsByLevel } = useProducts();
   const { getReturnsBySchoolId } = useReturns();
   const { phase1Open, phase2Open } = useSettings();
@@ -20,7 +20,6 @@ const SchoolDashboard = () => {
 
   // Modal Create Order
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [cartStep, setCartStep] = useState<1 | 2>(1); // 1 = Pilih, 2 = Keranjang
   const [orderLevelFilter, setOrderLevelFilter] = useState<SchoolLevel>(
     user?.schoolLevel || 'SMP'
   );
@@ -91,8 +90,12 @@ const SchoolDashboard = () => {
 
   // Calculate live financial summary for modal
   const formTotalStudent = selectedItems.reduce((acc, it) => acc + (it.priceStudent * it.quantity), 0);
-  const formTotalFee = selectedItems.reduce((acc, it) => acc + (it.feeSchool * it.quantity), 0);
   const formTotalKopkar = selectedItems.reduce((acc, it) => acc + (it.priceKopkar * it.quantity), 0);
+  const formTotalFee = selectedItems.reduce((acc, it) => acc + (it.feeSchool * it.quantity), 0);
+
+  const cartTotalStudent = cartItems.reduce((acc, it) => acc + (it.priceStudent * it.quantity), 0);
+  const cartTotalKopkar = cartItems.reduce((acc, it) => acc + (it.priceKopkar * it.quantity), 0);
+  const cartTotalFee = cartItems.reduce((acc, it) => acc + (it.feeSchool * it.quantity), 0);
 
   // Day Restriction Logic
   const currentDay = new Date().getDay(); // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
@@ -170,7 +173,6 @@ const SchoolDashboard = () => {
     const defaultLevel = user?.schoolLevel || 'SMP';
     setOrderLevelFilter(defaultLevel);
     setOrderPhase(phase);
-    setCartStep(1); // Reset to step 1
     const cat = getProductsByLevel(defaultLevel);
     
     // Bulk fill all products for Tahap 1/2
@@ -192,12 +194,10 @@ const SchoolDashboard = () => {
     setFormError('');
   };
 
-  const handleCreateSubmit = async (e: FormEvent) => {
+  const handleCreateSubmit = (e: FormEvent) => {
     e.preventDefault();
     setFormError('');
 
-    if (!user) return;
-    
     // Filter out items with 0 quantity if it's Tahap 1/2
     const itemsToSubmit = selectedItems.filter(it => it.quantity > 0);
 
@@ -213,18 +213,36 @@ const SchoolDashboard = () => {
       }
     }
 
+    // Add to global cart state
+    setCartItems(prev => [...prev, ...itemsToSubmit]);
+    setShowCreateModal(false);
+    resetCreateForm(orderPhase);
+  };
+
+  const handleCartSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+
+    if (!user) return;
+    
+    if (cartItems.length === 0) {
+      setFormError('Keranjang masih kosong');
+      return;
+    }
+
     const result = await createOrder({
       schoolUserId: user.id,
       schoolName: user.schoolName || user.name,
-      schoolLevel: user.schoolLevel || orderLevelFilter,
+      schoolLevel: user.schoolLevel || orderLevelFilter, // default to user's level
       orderPhase: orderPhase,
-      items: itemsToSubmit,
+      items: cartItems,
       notes: notes.trim(),
     });
 
     if (result.success) {
-      setShowCreateModal(false);
-      resetCreateForm(orderPhase);
+      setCartItems([]);
+      setNotes('');
+      setShowCartModal(false);
     } else {
       setFormError(result.error || 'Gagal membuat pesanan');
     }
@@ -917,7 +935,10 @@ const SchoolDashboard = () => {
       {showCreateModal && (
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div className="modal order-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <h3>Form Pemesanan Seragam & Buku</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0 }}>Form Pemesanan Seragam & Buku</h3>
+              <button className="btn-close-modal" onClick={() => setShowCreateModal(false)}>✕</button>
+            </div>
 
             <form className="modal-form" onSubmit={handleCreateSubmit}>
               {formError && <div className="modal-error">{formError}</div>}
@@ -1004,9 +1025,6 @@ const SchoolDashboard = () => {
                 </div>
               </div>
 
-              {cartStep === 1 && (
-                <>
-                  {/* Dynamic Product Item Rows */}
               <div className="form-group">
                 <label>Pilih Barang dari Katalog Jenjang {orderLevelFilter}:</label>
 
@@ -1072,42 +1090,51 @@ const SchoolDashboard = () => {
                 )}
               </div>
 
-                <div className="modal-actions" style={{ marginTop: '24px', justifyContent: 'flex-end' }}>
-                  <button type="button" className="btn-secondary" onClick={() => setShowCreateModal(false)}>
-                    Tutup Modal
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn-primary"
-                    onClick={() => setCartStep(2)}
-                  >
-                    🛒 Lihat Keranjang
-                  </button>
+              <div className="modal-actions" style={{ marginTop: '24px', justifyContent: 'flex-end' }}>
+                <button 
+                  type="submit" 
+                  className="btn-primary"
+                >
+                  🛒 Tambahkan ke Keranjang
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Keranjang */}
+      {showCartModal && (
+        <div className="modal-overlay" onClick={() => setShowCartModal(false)}>
+          <div className="modal order-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0 }}>Keranjang Pesanan 🛒</h3>
+              <button className="btn-close-modal" onClick={() => setShowCartModal(false)}>✕</button>
+            </div>
+
+            <form className="modal-form" onSubmit={handleCartSubmit}>
+              {formError && <div className="modal-error">{formError}</div>}
+
+              <div className="verification-item-box" style={{ marginBottom: '20px' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '8px', color: '#334155' }}>
+                  Ringkasan Keranjang Pesanan:
                 </div>
-                </>
-              )}
+                {cartItems.length === 0 ? (
+                  <div style={{ color: '#dc2626', fontSize: '0.9rem' }}>Keranjang masih kosong. Harap kembali ke Dashboard dan buat pesanan.</div>
+                ) : (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {cartItems.map((it, idx) => (
+                      <li key={idx} style={{ padding: '6px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem' }}>
+                        <span className={`item-type ${it.type}`} style={{ marginRight: '8px' }}>{it.type}</span>
+                        <strong>{it.name}</strong> — {it.quantity} pcs
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
-              {cartStep === 2 && (
+              {cartItems.length > 0 && (
                 <>
-                  <div className="verification-item-box" style={{ marginBottom: '20px' }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '8px', color: '#334155' }}>
-                      Ringkasan Keranjang Pesanan:
-                    </div>
-                    {selectedItems.filter(it => it.quantity > 0).length === 0 ? (
-                      <div style={{ color: '#dc2626', fontSize: '0.9rem' }}>Keranjang masih kosong. Harap kembali dan isi kuantitas barang.</div>
-                    ) : (
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        {selectedItems.filter(it => it.quantity > 0).map((it, idx) => (
-                          <li key={idx} style={{ padding: '6px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem' }}>
-                            <span className={`item-type ${it.type}`} style={{ marginRight: '8px' }}>{it.type}</span>
-                            <strong>{it.name}</strong> — {it.quantity} pcs
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-
-                  {/* Financial Live Calculation Summary */}
                   <div className="order-live-summary-card">
                     <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1e293b', marginBottom: '8px' }}>
                       Ringkasan Estimasi Biaya & Fee:
@@ -1115,19 +1142,19 @@ const SchoolDashboard = () => {
                     <div className="live-summary-grid">
                       <div className="summary-item">
                         <span className="sum-label">Total Tagihan Siswa (Wajib Dilunasi):</span>
-                        <span className="sum-value primary">{formatRupiah(formTotalStudent)}</span>
+                        <span className="sum-value primary">{formatRupiah(cartTotalStudent)}</span>
                       </div>
                       <div className="summary-item">
                         <span className="sum-label">Estimasi Fee Hak Sekolah (Dikembalikan Setelah Lunas):</span>
-                        <span className="sum-value success">+{formatRupiah(formTotalFee)}</span>
+                        <span className="sum-value success">+{formatRupiah(cartTotalFee)}</span>
                       </div>
                       <div className="summary-item">
                         <span className="sum-label">Total Biaya Pengadaan Koperasi (HPP):</span>
-                        <span className="sum-value secondary">{formatRupiah(formTotalKopkar)}</span>
+                        <span className="sum-value secondary">{formatRupiah(cartTotalKopkar)}</span>
                       </div>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '8px', lineHeight: 1.4 }}>
-                      ℹ️ Sekolah menagihkan <strong>{formatRupiah(formTotalStudent)}</strong> kepada siswa/wali murid dan membayarkannya ke Koperasi. Setelah diverifikasi lunas, Koperasi akan membayarkan fee hak sekolah sebesar <strong>{formatRupiah(formTotalFee)}</strong>.
+                      ℹ️ Sekolah menagihkan <strong>{formatRupiah(cartTotalStudent)}</strong> kepada siswa/wali murid dan membayarkannya ke Koperasi. Setelah diverifikasi lunas, Koperasi akan membayarkan fee hak sekolah sebesar <strong>{formatRupiah(cartTotalFee)}</strong>.
                     </div>
                   </div>
 
@@ -1141,32 +1168,29 @@ const SchoolDashboard = () => {
                       rows={2}
                     />
                   </div>
-
-                  <div className="modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                    {!isAllowedToInput && (
-                      <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
-                        <strong>Tombol "Pesan Sekarang" Dikunci:</strong> Hari ini BUKAN jadwal jenjang {user?.schoolLevel} untuk memesan. 
-                        (Jadwal: TK=Senin, SD=Selasa, SMP=Rabu, SMA=Kamis).
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <button type="button" className="btn-secondary" onClick={() => setCartStep(1)}>
-                        ← Kembali ke Katalog
-                      </button>
-                      <div style={{ display: 'flex', gap: '12px' }}>
-                        <button 
-                          type="submit" 
-                          className="btn-primary"
-                          disabled={!isAllowedToInput || selectedItems.filter(it => it.quantity > 0).length === 0}
-                          style={(!isAllowedToInput || selectedItems.filter(it => it.quantity > 0).length === 0) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
-                        >
-                          🚀 Pesan Sekarang
-                        </button>
-                      </div>
-                    </div>
-                  </div>
                 </>
               )}
+
+              <div className="modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                {!isAllowedToInput && (
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                    <strong>Tombol "Pesan Sekarang" Dikunci:</strong> Hari ini BUKAN jadwal jenjang {user?.schoolLevel} untuk memesan. 
+                    (Jadwal: TK=Senin, SD=Selasa, SMP=Rabu, SMA=Kamis).
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button 
+                      type="submit" 
+                      className="btn-primary"
+                      disabled={!isAllowedToInput || cartItems.length === 0}
+                      style={(!isAllowedToInput || cartItems.length === 0) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                    >
+                      🚀 Pesan Sekarang
+                    </button>
+                  </div>
+                </div>
+              </div>
             </form>
           </div>
         </div>
