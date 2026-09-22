@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ProductProvider } from './context/ProductContext';
 import { OrderProvider } from './context/OrderContext';
 import { ReturnProvider } from './context/ReturnContext';
+import { SettingsProvider } from './context/SettingsContext';
 import { UIProvider } from './context/UIContext';
 import AppRoutes from './routes/AppRoutes';
 import './index.css';
@@ -11,15 +12,17 @@ function App() {
   return (
     <BrowserRouter basename="/koperasiapp">
       <UIProvider>
-        <AuthProvider>
-          <ProductProvider>
-            <OrderProvider>
-              <ReturnProvider>
-                <AppRoutes />
-              </ReturnProvider>
-            </OrderProvider>
-          </ProductProvider>
-        </AuthProvider>
+        <SettingsProvider>
+          <AuthProvider>
+            <ProductProvider>
+              <OrderProvider>
+                <ReturnProvider>
+                  <AppRoutes />
+                </ReturnProvider>
+              </OrderProvider>
+            </ProductProvider>
+          </AuthProvider>
+        </SettingsProvider>
       </UIProvider>
     </BrowserRouter>
   );

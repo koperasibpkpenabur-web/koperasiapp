@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useProducts } from '../../context/ProductContext';
 import { useReturns } from '../../context/ReturnContext';
+import { useSettings } from '../../context/SettingsContext';
 import type { Order, OrderItem, SchoolLevel } from '../../types';
 import './school.css';
 
@@ -12,6 +13,7 @@ const SchoolDashboard = () => {
   const { getOrdersBySchoolId, createOrder, receiveOrder, requestCancelOrder } = useOrders();
   const { products, getProductsByLevel } = useProducts();
   const { getReturnsBySchoolId } = useReturns();
+  const { phase1Open, phase2Open } = useSettings();
 
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima), 'cancellations' (Riwayat Pembatalan)
   const [activeTab, setActiveTab] = useState<'active' | 'received' | 'cancellations'>('active');
@@ -98,6 +100,9 @@ const SchoolDashboard = () => {
   };
   const isAllowedToInput = isInputAllowed();
 
+  const hasPhase1Order = allSchoolOrders.some(o => o.orderPhase === 'Tahap 1' && o.status !== 'cancelled' && o.status !== 'rejected');
+  const hasPhase2Order = allSchoolOrders.some(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected');
+
   const handleAddItem = () => {
     const firstProd = availableCatalog[0] || products[0];
     setSelectedItems((prev) => [
@@ -155,14 +160,14 @@ const SchoolDashboard = () => {
     );
   };
 
-  const resetCreateForm = () => {
+  const resetCreateForm = (phase: 'Tahap 1' | 'Tahap 2' | 'Tambahan') => {
     const defaultLevel = user?.schoolLevel || 'SMP';
     setOrderLevelFilter(defaultLevel);
-    setOrderPhase('Tahap 1');
+    setOrderPhase(phase);
     const cat = getProductsByLevel(defaultLevel);
     
     // Bulk fill all products for Tahap 1/2
-    if (cat.length > 0) {
+    if (phase !== 'Tambahan' && cat.length > 0) {
       setSelectedItems(cat.map(prod => ({
         name: prod.name,
         type: prod.category,
@@ -396,8 +401,8 @@ const SchoolDashboard = () => {
       {/* TAB 1: PESANAN BERJALAN */}
       {activeTab === 'active' && (
         <div className="tab-pane">
-          <div className="order-toolbar">
-            <div>
+          <div className="order-toolbar" style={{ alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
               <h3>Daftar Pesanan Sedang Berjalan</h3>
               {!isAllowedToInput && (
                 <div style={{ marginTop: '8px', padding: '10px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e' }}>
@@ -405,15 +410,38 @@ const SchoolDashboard = () => {
                 </div>
               )}
             </div>
-            <button 
-              className={`btn-primary ${!isAllowedToInput ? 'btn-disabled' : ''}`} 
-              onClick={() => { resetCreateForm(); setShowCreateModal(true); }}
-              disabled={!isAllowedToInput}
-              title={!isAllowedToInput ? 'Tidak dapat menginput di luar jadwal' : ''}
-              style={!isAllowedToInput ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
-            >
-              + Buat Order Baru
-            </button>
+            
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button 
+                className={`btn-primary ${!isAllowedToInput || !phase1Open || hasPhase1Order ? 'btn-disabled' : ''}`} 
+                onClick={() => { resetCreateForm('Tahap 1'); setShowCreateModal(true); }}
+                disabled={!isAllowedToInput || !phase1Open || hasPhase1Order}
+                title={!isAllowedToInput ? 'Di luar jadwal' : !phase1Open ? 'Tahap 1 Ditutup Admin' : hasPhase1Order ? 'Sudah pesan Tahap 1' : ''}
+                style={(!isAllowedToInput || !phase1Open || hasPhase1Order) ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
+              >
+                + Tahap 1
+              </button>
+
+              <button 
+                className={`btn-primary ${!isAllowedToInput || !phase2Open || hasPhase2Order ? 'btn-disabled' : ''}`} 
+                onClick={() => { resetCreateForm('Tahap 2'); setShowCreateModal(true); }}
+                disabled={!isAllowedToInput || !phase2Open || hasPhase2Order}
+                title={!isAllowedToInput ? 'Di luar jadwal' : !phase2Open ? 'Tahap 2 Ditutup Admin' : hasPhase2Order ? 'Sudah pesan Tahap 2' : ''}
+                style={(!isAllowedToInput || !phase2Open || hasPhase2Order) ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
+              >
+                + Tahap 2
+              </button>
+
+              <button 
+                className={`btn-primary ${!isAllowedToInput ? 'btn-disabled' : ''}`} 
+                onClick={() => { resetCreateForm('Tambahan'); setShowCreateModal(true); }}
+                disabled={!isAllowedToInput}
+                title={!isAllowedToInput ? 'Di luar jadwal' : ''}
+                style={!isAllowedToInput ? { background: '#94a3b8', cursor: 'not-allowed', padding: '8px 12px' } : { padding: '8px 12px' }}
+              >
+                + Tambahan
+              </button>
+            </div>
           </div>
 
           {activeOrders.length > 0 ? (

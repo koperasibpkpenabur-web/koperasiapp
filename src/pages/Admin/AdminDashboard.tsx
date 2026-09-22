@@ -1,8 +1,10 @@
 import { useAuth } from '../../context/AuthContext';
+import { useSettings } from '../../context/SettingsContext';
 import './admin.css';
 
 const AdminDashboard = () => {
   const { getUsers, isMaintenanceMode, toggleMaintenanceMode } = useAuth();
+  const { phase1Open, phase2Open, updatePhaseStatus } = useSettings();
   const users = getUsers();
 
   const totalAdmin = users.filter((u) => u.role === 'admin').length;
@@ -89,6 +91,75 @@ const AdminDashboard = () => {
           >
             {isMaintenanceMode ? '✓ Matikan Maintenance (Buka Akses)' : '⚠️ Aktifkan Mode Maintenance'}
           </button>
+        </div>
+      </div>
+
+      {/* Control Panel Pesanan Sekolah */}
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1.5px solid #d5deef',
+          borderRadius: '16px',
+          padding: '20px 24px',
+          marginBottom: '26px',
+          boxShadow: '0 2px 8px rgba(57, 88, 134, 0.05)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+          <span style={{ fontSize: '1.4rem' }}>🛒</span>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e2d42', margin: 0 }}>
+            Pengaturan Fase Pemesanan Sekolah
+          </h3>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+          {/* Phase 1 Toggle */}
+          <div style={{ flex: '1 1 300px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: '4px' }}>Pemesanan Tahap 1</div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                Status: <strong style={{ color: phase1Open ? '#059669' : '#dc2626' }}>{phase1Open ? 'DIBUKA' : 'DITUTUP'}</strong>
+              </div>
+            </div>
+            <button
+              onClick={() => updatePhaseStatus(1, !phase1Open)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: phase1Open ? '#dc2626' : '#059669',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {phase1Open ? 'Tutup Tahap 1' : 'Buka Tahap 1'}
+            </button>
+          </div>
+
+          {/* Phase 2 Toggle */}
+          <div style={{ flex: '1 1 300px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: '4px' }}>Pemesanan Tahap 2</div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                Status: <strong style={{ color: phase2Open ? '#059669' : '#dc2626' }}>{phase2Open ? 'DIBUKA' : 'DITUTUP'}</strong>
+              </div>
+            </div>
+            <button
+              onClick={() => updatePhaseStatus(2, !phase2Open)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: phase2Open ? '#dc2626' : '#059669',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {phase2Open ? 'Tutup Tahap 2' : 'Buka Tahap 2'}
+            </button>
+          </div>
         </div>
       </div>
 
