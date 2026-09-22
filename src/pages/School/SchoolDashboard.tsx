@@ -1079,16 +1079,6 @@ const SchoolDashboard = () => {
               </div>
 
               <div className="modal-actions" style={{ marginTop: '24px', flexDirection: 'column', alignItems: 'stretch' }}>
-                {(orderPhase === 'Tahap 1' && !phase1Open) && (
-                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
-                    <strong>Tahap 1 Ditutup:</strong> Admin belum mengaktifkan pemesanan Tahap 1.
-                  </div>
-                )}
-                {(orderPhase === 'Tahap 2' && !phase2Open) && (
-                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
-                    <strong>Tahap 2 Ditutup:</strong> Admin belum mengaktifkan pemesanan Tahap 2.
-                  </div>
-                )}
                 {(orderPhase === 'Tahap 1' && hasPhase1Order) && (
                   <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
                     <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 1.
@@ -1099,22 +1089,12 @@ const SchoolDashboard = () => {
                     <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 2.
                   </div>
                 )}
-                {(orderPhase === 'Tambahan' && !tambahanOpen) && (
-                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
-                    <strong>Fase Tambahan Ditutup:</strong> Admin sedang menutup akses pesanan Tambahan.
-                  </div>
-                )}
-                {(orderPhase === 'Tambahan' && tambahanOpen && !isAllowedToInput) && (
-                  <div style={{ padding: '12px 16px', background: '#fee2e2', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.9rem', color: '#b91c1c', marginBottom: '16px' }}>
-                    <strong>Akses Dibatasi:</strong> Pemesanan tidak dapat dilakukan saat ini karena belum memasuki periode waktu (tanggal) pemesanan yang ditetapkan atau bukan jadwal hari pesanan jenjang Anda.
-                  </div>
-                )}
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button 
                     type="submit" 
                     className="btn-primary"
-                    disabled={(orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) || (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order)) || (orderPhase === 'Tambahan' && (!tambahanOpen || !isAllowedToInput))}
-                    style={((orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) || (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order)) || (orderPhase === 'Tambahan' && (!tambahanOpen || !isAllowedToInput))) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                    disabled={(orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order)}
+                    style={((orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order)) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
                   >
                     🛒 Tambahkan ke Keranjang
                   </button>
@@ -1194,10 +1174,24 @@ const SchoolDashboard = () => {
               )}
 
               <div className="modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                {!isAllowedToInput && (
+                {(orderPhase === 'Tahap 1' && !phase1Open) && (
                   <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
-                    <strong>Tombol "Pesan Sekarang" Dikunci:</strong> Hari ini BUKAN jadwal jenjang {user?.schoolLevel} untuk memesan. 
-                    (Jadwal: TK=Senin, SD=Selasa, SMP=Rabu, SMA=Kamis).
+                    <strong>Tahap 1 Ditutup:</strong> Admin belum mengaktifkan pemesanan Tahap 1.
+                  </div>
+                )}
+                {(orderPhase === 'Tahap 2' && !phase2Open) && (
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                    <strong>Tahap 2 Ditutup:</strong> Admin belum mengaktifkan pemesanan Tahap 2.
+                  </div>
+                )}
+                {(orderPhase === 'Tambahan' && !tambahanOpen) && (
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                    <strong>Fase Tambahan Ditutup:</strong> Admin sedang menutup akses pesanan Tambahan.
+                  </div>
+                )}
+                {(orderPhase === 'Tambahan' && tambahanOpen && !isAllowedToInput) && (
+                  <div style={{ padding: '12px 16px', background: '#fee2e2', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.9rem', color: '#b91c1c', marginBottom: '16px' }}>
+                    <strong>Akses Dibatasi:</strong> Checkout tidak dapat dilakukan saat ini karena belum memasuki periode waktu pemesanan yang ditetapkan atau bukan jadwal hari pesanan jenjang Anda.
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -1205,8 +1199,8 @@ const SchoolDashboard = () => {
                     <button 
                       type="submit" 
                       className="btn-primary"
-                      disabled={!isAllowedToInput || cartItems.length === 0}
-                      style={(!isAllowedToInput || cartItems.length === 0) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                      disabled={(orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase === 'Tambahan' && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0}
+                      style={((orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase === 'Tambahan' && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
                     >
                       🚀 Pesan Sekarang
                     </button>

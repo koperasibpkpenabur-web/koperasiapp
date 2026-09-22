@@ -18,7 +18,7 @@ const Sidebar = () => {
     >
       <div className="sidebar-header">
         <div className="sidebar-logo-wrap" style={{ textAlign: 'left', marginBottom: '8px' }}>
-          <img src="/logo-synera.png" alt="SYNERA" className="sidebar-logo" style={{ height: '40px', width: 'auto' }} />
+          <img src={`${import.meta.env.BASE_URL}logo-synera.png`} alt="SYNERA" className="sidebar-logo" style={{ height: '40px', width: 'auto' }} />
         </div>
         <div className="sidebar-title-row">
           <h2>Menu Utama</h2>
