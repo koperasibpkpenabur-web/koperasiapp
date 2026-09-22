@@ -14,6 +14,7 @@ interface OrderContextType {
   kopkarCancelOrder: (orderId: string, reason: string, stafName: string) => Promise<void>;
   markOrderAsPaid: (orderId: string, notes?: string) => Promise<void>;
   disburseSchoolFee: (orderId: string, stafName: string, notes?: string) => Promise<void>;
+  deleteOrder: (orderId: string) => Promise<void>;
   getOrdersBySchoolId: (schoolUserId: string) => Order[];
   fetchOrders: () => Promise<void>;
 }
@@ -245,6 +246,14 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     });
   }, [fetchOrders]);
 
+  const deleteOrder = async (orderId: string) => {
+    // Delete order_items first due to foreign key
+    await supabase.from('order_items').delete().eq('order_id', orderId);
+    // Then delete order
+    await supabase.from('orders').delete().eq('id', orderId);
+    await fetchOrders();
+  };
+
   const getOrdersBySchoolId = useCallback(
     (schoolUserId: string) => {
       return orders.filter((ord) => ord.schoolUserId === schoolUserId);
@@ -266,8 +275,9 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         kopkarCancelOrder,
         markOrderAsPaid,
         disburseSchoolFee,
+        deleteOrder,
         getOrdersBySchoolId,
-        fetchOrders
+        fetchOrders,
       }}
     >
       {children}
