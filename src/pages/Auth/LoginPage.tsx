@@ -31,8 +31,8 @@ const LoginPage = () => {
     setIsLoading(true);
 
     // Simulate small delay for UX
-    setTimeout(() => {
-      const result = login(username.trim(), password);
+    setTimeout(async () => {
+      const result = await login(username.trim(), password);
       if (result.success) {
         const users = JSON.parse(localStorage.getItem('koperasi_auth') || '{}');
         const destination = roleHome[users.role as UserRole] || '/';

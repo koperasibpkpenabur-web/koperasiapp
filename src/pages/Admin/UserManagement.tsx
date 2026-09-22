@@ -51,7 +51,7 @@ const UserManagement = () => {
     resetForm();
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -70,7 +70,7 @@ const UserManagement = () => {
       return;
     }
 
-    const result = addUser({
+    const result = await addUser({
       name: formName.trim(),
       username: formUsername.trim(),
       password: formPassword,
@@ -86,9 +86,9 @@ const UserManagement = () => {
     }
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (window.confirm(`Hapus akun "${name}"? Tindakan ini tidak dapat dibatalkan.`)) {
-      deleteUser(id);
+      await deleteUser(id);
     }
   };
 

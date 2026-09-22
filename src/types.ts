@@ -88,6 +88,7 @@ export interface Order {
   schoolUserId: string;   // ID of the school user who created this order
   schoolName: string;      // Name of the school
   schoolLevel?: SchoolLevel; // Jenjang sekolah pemesan (TK/SD/SMP/SMA)
+  orderPhase?: 'Tahap 1' | 'Tahap 2' | 'Tambahan';
   items: OrderItem[];
   status: OrderStatus;
   notes: string;           // Notes from school
