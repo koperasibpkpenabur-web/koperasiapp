@@ -1,0 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Elegant Color Palette (#395886 & #F0F3FA) */
+  --primary-blue: #395886;
+  --primary-dark: #243956;
+  --primary-hover: #2b4468;
+  --primary-light: #5275a5;
+  --primary-subtle: #dce4f2;
+  --primary-tint: #eaf0f9;
+  
+  --bluish-white: #F0F3FA;
+  --bluish-surface: #f8fafd;
+  --border-subtle: #d5deef;
+  --border-light: #e4ebf5;
+
+  /* Neutrals & Text */
+  --text-primary: #1e2d42;
+  --text-secondary: #586b84;
+  --text-muted: #8494a8;
+  --card-bg: #ffffff;
+  --bg-app: #F0F3FA;
+
+  /* Status Colors */
+  --color-success: #0d9488;
+  --bg-success: #e6f7f5;
+  --border-success: #99f6e4;
+
+  --color-warning: #d97706;
+  --bg-warning: #fef3c7;
+  --border-warning: #fde68a;
+
+  --color-danger: #e11d48;
+  --bg-danger: #fff1f2;
+  --border-danger: #fecdd3;
+
+  /* Typography scale */
+  --font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --shadow-xs: 0 1px 2px rgba(57, 88, 134, 0.05);
+  --shadow-sm: 0 2px 6px rgba(57, 88, 134, 0.06);
+  --shadow-md: 0 6px 16px rgba(57, 88, 134, 0.08);
+  --shadow-lg: 0 12px 28px rgba(57, 88, 134, 0.12);
+  --shadow-modal: 0 24px 60px rgba(30, 45, 66, 0.2);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+button, a, input, select, textarea {
+  touch-action: manipulation;
+  font-family: inherit;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bluish-white);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-light);
+}
+
+/* Base Dashboard Page Styles */
+.dashboard-page {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dashboard-page h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 20px;
+  color: var(--primary-blue);
+  display: inline-block;
+}
+
+.dashboard-content p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 28px;
+}
+
+.placeholder-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  min-height: 110px;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-light);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Print Styles --- */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: white;
+    color: black;
+    z-index: 9999;
+  }
+  
+  /* Hide the rest of the application when printing */
+  .sidebar, .topbar {
+    display: none !important;
+  }
+  
+  .kopkar-dashboard > *:not(.print-only) {
+    display: none !important;
+  }
+  
+  /* Reset some body styles for better printing */
+  body, #root {
+    background: white;
+    height: auto;
+    overflow: visible;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}

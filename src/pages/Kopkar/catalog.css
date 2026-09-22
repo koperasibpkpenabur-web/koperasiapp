@@ -1,0 +1,308 @@
+/* Product Catalog Page */
+.catalog-page {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.catalog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.catalog-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-blue, #395886);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+
+.catalog-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary, #586b84);
+}
+
+.catalog-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-template {
+  padding: 8px 16px;
+  background: var(--bluish-white, #F0F3FA);
+  color: var(--primary-blue, #395886);
+  border: 1px solid var(--border-subtle, #d5deef);
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-template:hover {
+  background: #e2e8f4;
+}
+
+.btn-export {
+  padding: 8px 16px;
+  background: var(--primary-blue, #395886);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(57, 88, 134, 0.22);
+  transition: all 0.2s;
+}
+
+.btn-export:hover {
+  background: var(--primary-hover, #2b4468);
+}
+
+/* Drag and Drop Zone */
+.excel-dropzone {
+  border: 2px dashed var(--primary-blue, #395886);
+  background: var(--bluish-white, #F0F3FA);
+  border-radius: 16px;
+  padding: 24px 20px;
+  text-align: center;
+  margin-bottom: 24px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.excel-dropzone:hover,
+.excel-dropzone.drag-active {
+  background: #eaf0f9;
+  border-color: var(--primary-hover, #2b4468);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(57, 88, 134, 0.1);
+}
+
+.dropzone-icon {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+}
+
+.dropzone-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--primary-blue, #395886);
+  margin-bottom: 4px;
+}
+
+.dropzone-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #586b84);
+  margin-bottom: 12px;
+}
+
+.dropzone-input {
+  display: none;
+}
+
+.btn-browse {
+  display: inline-block;
+  padding: 6px 16px;
+  background: #ffffff;
+  border: 1.5px solid var(--primary-blue, #395886);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--primary-blue, #395886);
+  box-shadow: 0 1px 3px rgba(57, 88, 134, 0.08);
+  transition: all 0.2s;
+}
+
+.btn-browse:hover {
+  background: var(--primary-blue, #395886);
+  color: #ffffff;
+}
+
+.drop-status-alert {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.drop-status-alert.success {
+  background: var(--bg-success, #e6f7f5);
+  color: var(--color-success, #0d9488);
+  border: 1px solid var(--border-success, #99f6e4);
+}
+
+.drop-status-alert.error {
+  background: var(--bg-danger, #fff1f2);
+  color: var(--color-danger, #e11d48);
+  border: 1px solid var(--border-danger, #fecdd3);
+}
+
+/* Toolbar & Filters */
+.catalog-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.catalog-filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.catalog-filters input,
+.catalog-filters select {
+  padding: 8px 14px;
+  border: 1.5px solid var(--border-subtle, #d5deef);
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-family: inherit;
+  outline: none;
+  color: var(--text-primary, #1e2d42);
+  background: #ffffff;
+  transition: all 0.2s;
+}
+
+.catalog-filters input:focus,
+.catalog-filters select:focus {
+  border-color: var(--primary-blue, #395886);
+  box-shadow: 0 0 0 3px rgba(57, 88, 134, 0.12);
+}
+
+/* Product Table */
+.catalog-table-container {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle, #d5deef);
+  border-radius: 14px;
+  overflow-x: auto;
+  box-shadow: 0 2px 6px rgba(57, 88, 134, 0.04);
+}
+
+.catalog-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.catalog-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--primary-blue, #395886);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--bluish-white, #F0F3FA);
+  border-bottom: 1.5px solid var(--border-subtle, #d5deef);
+}
+
+.catalog-table td {
+  padding: 13px 16px;
+  font-size: 0.86rem;
+  border-bottom: 1px solid var(--border-light, #e4ebf5);
+  color: var(--text-primary, #1e2d42);
+  vertical-align: middle;
+}
+
+.catalog-table tr:hover {
+  background: #f8fafd;
+}
+
+/* Price Columns Highlight */
+.price-kopkar {
+  font-weight: 600;
+  color: var(--primary-blue, #395886);
+}
+
+.price-fee {
+  font-weight: 600;
+  color: var(--color-success, #0d9488);
+}
+
+.price-student {
+  font-weight: 700;
+  color: var(--text-primary, #1e2d42);
+  font-size: 0.92rem;
+}
+
+/* Jenjang Level Badges */
+.badge-level {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-level.TK {
+  background: var(--bg-warning, #fef3c7);
+  color: var(--color-warning, #d97706);
+}
+
+.badge-level.SD {
+  background: var(--bg-danger, #fff1f2);
+  color: var(--color-danger, #e11d48);
+}
+
+.badge-level.SMP {
+  background: var(--bluish-white, #F0F3FA);
+  color: var(--primary-blue, #395886);
+  border: 1px solid var(--border-subtle, #d5deef);
+}
+
+.badge-level.SMA {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.badge-level.SEMUA {
+  background: #f1f5f9;
+  color: var(--text-secondary, #586b84);
+}
+
+/* Mobile Responsiveness for Catalog */
+@media (max-width: 860px) {
+  .catalog-header {
+    flex-direction: column;
+  }
+
+  .catalog-header-actions {
+    width: 100%;
+  }
+
+  .catalog-header-actions button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .catalog-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .catalog-filters {
+    flex-direction: column;
+  }
+
+  .catalog-table {
+    min-width: 650px;
+  }
+}

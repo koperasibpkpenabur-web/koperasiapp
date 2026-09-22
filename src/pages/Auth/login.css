@@ -1,0 +1,166 @@
+.login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(145deg, #395886 0%, #243956 100%);
+  padding: 24px;
+}
+
+.login-card {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid var(--border-subtle, #d5deef);
+  box-shadow: 0 24px 60px rgba(20, 35, 58, 0.22);
+  padding: 44px 38px 36px;
+  width: 100%;
+  max-width: 440px;
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* Actual CYNERA logo image on login */
+.login-logo-img {
+  width: 180px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  filter: drop-shadow(0 4px 16px rgba(57, 88, 134, 0.22));
+}
+
+.synera-title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--primary-blue, #395886);
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+/* Elegant Tagline */
+.synera-tagline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.synera-tagline span:first-child {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e2d42);
+  letter-spacing: 0.02em;
+}
+
+.synera-subtag {
+  font-size: 0.76rem;
+  color: var(--text-secondary, #586b84);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--primary-blue, #395886);
+}
+
+.form-group input {
+  padding: 11px 16px;
+  border: 1.5px solid var(--border-subtle, #d5deef);
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  outline: none;
+  color: var(--text-primary, #1e2d42);
+  background: var(--bluish-white, #F0F3FA);
+}
+
+.form-group input:focus {
+  border-color: var(--primary-blue, #395886);
+  box-shadow: 0 0 0 3px rgba(57, 88, 134, 0.14);
+  background: #ffffff;
+}
+
+.form-group input::placeholder {
+  color: var(--text-muted, #8494a8);
+}
+
+.login-error {
+  background: var(--bg-danger, #fff1f2);
+  color: var(--color-danger, #e11d48);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  border: 1px solid var(--border-danger, #fecdd3);
+  text-align: center;
+}
+
+.login-btn {
+  padding: 12px;
+  background: var(--primary-blue, #395886);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(57, 88, 134, 0.28);
+  transition: all 0.2s;
+  margin-top: 4px;
+}
+
+.login-btn:hover {
+  background: var(--primary-hover, #2b4468);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(57, 88, 134, 0.35);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+}
+
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login-footer {
+  text-align: center;
+  margin-top: 26px;
+  font-size: 0.74rem;
+  color: var(--text-muted, #8494a8);
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 32px 20px 24px;
+    border-radius: 16px;
+  }
+
+  .login-page {
+    padding: 14px;
+  }
+}
