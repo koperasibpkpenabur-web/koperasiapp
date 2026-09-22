@@ -217,7 +217,7 @@ const SchoolDashboard = () => {
 
     if (result.success) {
       setShowCreateModal(false);
-      resetCreateForm();
+      resetCreateForm(orderPhase);
     } else {
       setFormError(result.error || 'Gagal membuat pesanan');
     }
@@ -338,12 +338,6 @@ const SchoolDashboard = () => {
               </span>
             )}
           </Link>
-          <button
-            className="btn-primary btn-create-order-top"
-            onClick={() => { resetCreateForm(); setShowCreateModal(true); }}
-          >
-            + Buat Order Baru
-          </button>
         </div>
       </div>
 
