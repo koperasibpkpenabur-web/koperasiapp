@@ -9,7 +9,7 @@ import './index.css';
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/koperasiapp">
       <UIProvider>
         <AuthProvider>
           <ProductProvider>
