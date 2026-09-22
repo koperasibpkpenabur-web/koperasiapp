@@ -440,18 +440,7 @@ const SchoolDashboard = () => {
         <div className="tab-pane">
           <div className="order-toolbar" style={{ alignItems: 'flex-start' }}>
             <div style={{ flex: 1 }}>
-              <div className="tab-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div className="filter-group">
-                  <label>Filter Status:</label>
-                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                    <option value="all">Semua Status</option>
-                    <option value="draft">Draft</option>
-                    <option value="submitted">Disubmit (Menunggu Konfirmasi)</option>
-                    <option value="processing">Diproses</option>
-                    <option value="shipped">Dikirim</option>
-                  </select>
-                </div>
-              </div>
+              <h3>Daftar Pesanan Sedang Berjalan</h3>
             </div>
           </div>
 
