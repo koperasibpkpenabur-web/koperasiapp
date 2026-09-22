@@ -11,6 +11,7 @@ import KopkarDashboard from '../pages/Kopkar/KopkarDashboard';
 import ProductCatalog from '../pages/Kopkar/ProductCatalog';
 import StockManagement from '../pages/Kopkar/StockManagement';
 import KopkarReturn from '../pages/Kopkar/KopkarReturn';
+import KopkarRekap from '../pages/Kopkar/KopkarRekap';
 import SchoolReturn from '../pages/School/SchoolReturn';
 import type { UserRole } from '../types';
 
@@ -81,6 +82,11 @@ const AppRoutes = () => {
         <Route path="kopkar/retur" element={
           <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
             <KopkarReturn />
+          </ProtectedRoute>
+        } />
+        <Route path="kopkar/rekap" element={
+          <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
+            <KopkarRekap />
           </ProtectedRoute>
         } />
 
