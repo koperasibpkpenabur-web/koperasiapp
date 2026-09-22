@@ -77,8 +77,28 @@ const Sidebar = () => {
                   className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
                   onClick={closeMobileNav}
                 >
-                  <span className="nav-icon">🏪</span>
-                  <span className="nav-text">Pesanan & Pelunasan</span>
+                  <span className="nav-icon">🏠</span>
+                  <span className="nav-text">Dashboard Menu Utama</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/kopkar/pesanan"
+                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                  onClick={closeMobileNav}
+                >
+                  <span className="nav-icon">🛒</span>
+                  <span className="nav-text">Manajemen Pesanan</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/kopkar/pelunasan"
+                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                  onClick={closeMobileNav}
+                >
+                  <span className="nav-icon">💰</span>
+                  <span className="nav-text">Manajemen Pelunasan</span>
                 </NavLink>
               </li>
               <li>

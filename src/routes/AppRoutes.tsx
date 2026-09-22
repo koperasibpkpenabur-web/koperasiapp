@@ -8,6 +8,8 @@ import UserManagement from '../pages/Admin/UserManagement';
 import SchoolDashboard from '../pages/School/SchoolDashboard';
 import SchoolPayment from '../pages/School/SchoolPayment';
 import KopkarDashboard from '../pages/Kopkar/KopkarDashboard';
+import KopkarPesanan from '../pages/Kopkar/KopkarPesanan';
+import KopkarPelunasan from '../pages/Kopkar/KopkarPelunasan';
 import ProductCatalog from '../pages/Kopkar/ProductCatalog';
 import StockManagement from '../pages/Kopkar/StockManagement';
 import KopkarReturn from '../pages/Kopkar/KopkarReturn';
@@ -67,6 +69,16 @@ const AppRoutes = () => {
         <Route path="kopkar" element={
           <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
             <KopkarDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="kopkar/pesanan" element={
+          <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
+            <KopkarPesanan />
+          </ProtectedRoute>
+        } />
+        <Route path="kopkar/pelunasan" element={
+          <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
+            <KopkarPelunasan />
           </ProtectedRoute>
         } />
         <Route path="kopkar/catalog" element={
