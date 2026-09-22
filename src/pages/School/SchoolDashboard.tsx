@@ -21,6 +21,7 @@ const SchoolDashboard = () => {
   const [orderLevelFilter, setOrderLevelFilter] = useState<SchoolLevel>(
     user?.schoolLevel || 'SMP'
   );
+  const [orderPhase, setOrderPhase] = useState<'Tahap 1' | 'Tahap 2' | 'Tambahan'>('Tahap 1');
 
   // Available products for current school level
   const availableCatalog = getProductsByLevel(orderLevelFilter);
@@ -145,47 +146,55 @@ const SchoolDashboard = () => {
   const resetCreateForm = () => {
     const defaultLevel = user?.schoolLevel || 'SMP';
     setOrderLevelFilter(defaultLevel);
+    setOrderPhase('Tahap 1');
     const cat = getProductsByLevel(defaultLevel);
-    const firstProd = cat[0] || products[0];
-
-    setSelectedItems([
-      {
-        name: firstProd ? firstProd.name : 'Seragam',
-        type: firstProd ? firstProd.category : 'seragam',
-        quantity: 10,
-        priceKopkar: firstProd ? firstProd.priceKopkar : 80000,
-        feeSchool: firstProd ? firstProd.feeSchool : 15000,
-        priceStudent: firstProd ? firstProd.priceStudent : 95000,
-        productId: firstProd?.id,
-        code: firstProd?.code,
-      },
-    ]);
+    
+    // Bulk fill all products for Tahap 1/2
+    if (cat.length > 0) {
+      setSelectedItems(cat.map(prod => ({
+        name: prod.name,
+        type: prod.category,
+        quantity: 0,
+        priceKopkar: prod.priceKopkar,
+        feeSchool: prod.feeSchool,
+        priceStudent: prod.priceStudent,
+        productId: prod.id,
+        code: prod.code,
+      })));
+    } else {
+      setSelectedItems([]);
+    }
     setNotes('');
     setFormError('');
   };
 
-  const handleCreateSubmit = (e: FormEvent) => {
+  const handleCreateSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setFormError('');
 
     if (!user) return;
+    
+    // Filter out items with 0 quantity if it's Tahap 1/2
+    const itemsToSubmit = selectedItems.filter(it => it.quantity > 0);
 
-    for (const item of selectedItems) {
+    if (itemsToSubmit.length === 0) {
+      setFormError('Pilih minimal 1 item barang dengan kuantitas > 0');
+      return;
+    }
+
+    for (const item of itemsToSubmit) {
       if (!item.name.trim()) {
         setFormError('Nama item tidak boleh kosong');
         return;
       }
-      if (item.quantity <= 0) {
-        setFormError('Jumlah item harus lebih dari 0');
-        return;
-      }
     }
 
-    const result = createOrder({
+    const result = await createOrder({
       schoolUserId: user.id,
       schoolName: user.schoolName || user.name,
       schoolLevel: user.schoolLevel || orderLevelFilter,
-      items: selectedItems,
+      orderPhase: orderPhase,
+      items: itemsToSubmit,
       notes: notes.trim(),
     });
 
@@ -822,7 +831,7 @@ const SchoolDashboard = () => {
             <form className="modal-form" onSubmit={handleCreateSubmit}>
               {formError && <div className="modal-error">{formError}</div>}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px', gap: '12px' }}>
                 <div className="form-group">
                   <label>Nama Pemesan / Sekolah</label>
                   <input
@@ -840,6 +849,19 @@ const SchoolDashboard = () => {
                     onChange={(e) => {
                       const lvl = e.target.value as SchoolLevel;
                       setOrderLevelFilter(lvl);
+                      const cat = getProductsByLevel(lvl);
+                      if (orderPhase !== 'Tambahan') {
+                        setSelectedItems(cat.map(prod => ({
+                          name: prod.name,
+                          type: prod.category,
+                          quantity: 0,
+                          priceKopkar: prod.priceKopkar,
+                          feeSchool: prod.feeSchool,
+                          priceStudent: prod.priceStudent,
+                          productId: prod.id,
+                          code: prod.code,
+                        })));
+                      }
                     }}
                   >
                     <option value="TK">Jenjang TK</option>
@@ -847,6 +869,46 @@ const SchoolDashboard = () => {
                     <option value="SMP">Jenjang SMP</option>
                     <option value="SMA">Jenjang SMA</option>
                     <option value="SEMUA">Semua Jenjang</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Fase Pemesanan</label>
+                  <select
+                    value={orderPhase}
+                    onChange={(e) => {
+                      const p = e.target.value as 'Tahap 1' | 'Tahap 2' | 'Tambahan';
+                      setOrderPhase(p);
+                      const cat = getProductsByLevel(orderLevelFilter);
+                      if (p !== 'Tambahan') {
+                        setSelectedItems(cat.map(prod => ({
+                          name: prod.name,
+                          type: prod.category,
+                          quantity: 0,
+                          priceKopkar: prod.priceKopkar,
+                          feeSchool: prod.feeSchool,
+                          priceStudent: prod.priceStudent,
+                          productId: prod.id,
+                          code: prod.code,
+                        })));
+                      } else {
+                        const firstProd = cat[0] || products[0];
+                        setSelectedItems([{
+                          name: firstProd ? firstProd.name : 'Seragam',
+                          type: firstProd ? firstProd.category : 'seragam',
+                          quantity: 1,
+                          priceKopkar: firstProd ? firstProd.priceKopkar : 80000,
+                          feeSchool: firstProd ? firstProd.feeSchool : 15000,
+                          priceStudent: firstProd ? firstProd.priceStudent : 95000,
+                          productId: firstProd?.id,
+                          code: firstProd?.code,
+                        }]);
+                      }
+                    }}
+                  >
+                    <option value="Tahap 1">Tahap 1</option>
+                    <option value="Tahap 2">Tahap 2</option>
+                    <option value="Tambahan">Tambahan</option>
                   </select>
                 </div>
               </div>
@@ -859,34 +921,39 @@ const SchoolDashboard = () => {
                   {selectedItems.map((item, index) => (
                     <div key={index} className="school-order-row">
                       <div style={{ flexGrow: 1 }}>
-                        <select
-                          className="product-select"
-                          value={item.productId || ''}
-                          onChange={(e) => handleProductSelect(index, e.target.value)}
-                        >
-                          <option value="">-- Pilih Barang dari Katalog --</option>
-                          {availableCatalog.map((prod) => (
-                            <option key={prod.id} value={prod.id}>
-                              [{prod.level}] {prod.name} — Harga Siswa: {formatRupiah(prod.priceStudent)} (Fee: +{formatRupiah(prod.feeSchool)})
-                            </option>
-                          ))}
-                        </select>
+                        {orderPhase !== 'Tambahan' ? (
+                           <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
+                             <strong>{item.name}</strong> — Harga Siswa: {formatRupiah(item.priceStudent)}
+                           </div>
+                        ) : (
+                          <select
+                            className="product-select"
+                            value={item.productId || ''}
+                            onChange={(e) => handleProductSelect(index, e.target.value)}
+                          >
+                            <option value="">-- Pilih Barang dari Katalog --</option>
+                            {availableCatalog.map((prod) => (
+                              <option key={prod.id} value={prod.id}>
+                                [{prod.level}] {prod.name} — Harga Siswa: {formatRupiah(prod.priceStudent)} (Fee: +{formatRupiah(prod.feeSchool)})
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
 
                       <div style={{ width: '100px' }}>
                         <input
                           type="number"
-                          min="1"
+                          min="0"
                           placeholder="Jumlah"
-                          value={item.quantity}
-                          onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 1)}
+                          value={item.quantity || ''}
+                          onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
                           style={{ width: '100%', padding: '9px 12px', textAlign: 'center' }}
                           required
                         />
                       </div>
 
-
-                      {selectedItems.length > 1 && (
+                      {orderPhase === 'Tambahan' && selectedItems.length > 1 && (
                         <button
                           type="button"
                           className="btn-remove-item"
@@ -900,14 +967,16 @@ const SchoolDashboard = () => {
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  className="btn-add-item"
-                  onClick={handleAddItem}
-                  style={{ marginTop: '8px' }}
-                >
-                  + Tambah Item Barang Lainnya
-                </button>
+                {orderPhase === 'Tambahan' && (
+                  <button
+                    type="button"
+                    className="btn-add-item"
+                    onClick={handleAddItem}
+                    style={{ marginTop: '8px' }}
+                  >
+                    + Tambah Item Barang Lainnya
+                  </button>
+                )}
               </div>
 
               {/* Financial Live Calculation Summary */}

@@ -95,6 +95,11 @@ const KopkarDashboard = () => {
     .filter((o) => o.feeStatus === 'ready')
     .reduce((acc, o) => acc + (o.totalFeeSchool || 0), 0);
 
+  // Phase summaries
+  const countTahap1 = orders.filter(o => o.orderPhase === 'Tahap 1' && o.status !== 'cancelled' && o.status !== 'rejected').length;
+  const countTahap2 = orders.filter(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected').length;
+  const countTambahan = orders.filter(o => o.orderPhase === 'Tambahan' && o.status !== 'cancelled' && o.status !== 'rejected').length;
+
   const filteredActiveOrders = activeOrders.filter((ord) => {
     const matchesStatus = statusFilter === 'all' || ord.status === statusFilter;
     const matchesPayment = paymentFilter === 'all' || ord.paymentStatus === paymentFilter;
@@ -283,6 +288,15 @@ const KopkarDashboard = () => {
           <div className="stat-label">Fee Sekolah Siap Cair</div>
           <div className="stat-value" style={{ fontSize: '1.35rem', color: '#2563eb' }}>
             {formatRupiah(totalSchoolFeeToDisburse)}
+          </div>
+        </div>
+        <div className="kopkar-stat-card">
+          <div className="stat-icon">📊</div>
+          <div className="stat-label">Rekapitulasi Fase</div>
+          <div style={{ fontSize: '0.85rem', marginTop: '8px' }}>
+            <div>Tahap 1: <strong>{countTahap1}</strong> pesanan</div>
+            <div>Tahap 2: <strong>{countTahap2}</strong> pesanan</div>
+            <div>Tambahan: <strong>{countTambahan}</strong> pesanan</div>
           </div>
         </div>
         <div className="kopkar-stat-card">
