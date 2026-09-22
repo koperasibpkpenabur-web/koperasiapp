@@ -89,10 +89,6 @@ const SchoolDashboard = () => {
   const cancelledCount = cancelledOrders.length;
 
   // Calculate live financial summary for modal
-  const formTotalStudent = selectedItems.reduce((acc, it) => acc + (it.priceStudent * it.quantity), 0);
-  const formTotalKopkar = selectedItems.reduce((acc, it) => acc + (it.priceKopkar * it.quantity), 0);
-  const formTotalFee = selectedItems.reduce((acc, it) => acc + (it.feeSchool * it.quantity), 0);
-
   const cartTotalStudent = cartItems.reduce((acc, it) => acc + (it.priceStudent * it.quantity), 0);
   const cartTotalKopkar = cartItems.reduce((acc, it) => acc + (it.priceKopkar * it.quantity), 0);
   const cartTotalFee = cartItems.reduce((acc, it) => acc + (it.feeSchool * it.quantity), 0);
