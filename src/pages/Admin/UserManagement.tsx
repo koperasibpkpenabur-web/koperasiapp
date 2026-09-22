@@ -4,13 +4,23 @@ import type { UserRole, SchoolLevel } from '../../types';
 import './admin.css';
 
 const UserManagement = () => {
-  const { getUsers, addUser, deleteUser } = useAuth();
+  const { getUsers, addUser, deleteUser, updateUserPassword } = useAuth();
   const users = getUsers();
 
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterLevel, setFilterLevel] = useState<string>('all');
+  
+  // Menu action state
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Edit Password state
+  const [showEditPassModal, setShowEditPassModal] = useState(false);
+  const [editPassUserId, setEditPassUserId] = useState('');
+  const [editPassUserName, setEditPassUserName] = useState('');
+  const [editNewPassword, setEditNewPassword] = useState('');
+  const [editPassError, setEditPassError] = useState('');
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -89,6 +99,29 @@ const UserManagement = () => {
   const handleDelete = async (id: string, name: string) => {
     if (window.confirm(`Hapus akun "${name}"? Tindakan ini tidak dapat dibatalkan.`)) {
       await deleteUser(id);
+    }
+  };
+
+  const handleOpenEditPass = (id: string, name: string) => {
+    setEditPassUserId(id);
+    setEditPassUserName(name);
+    setEditNewPassword('');
+    setEditPassError('');
+    setShowEditPassModal(true);
+  };
+
+  const handleEditPassSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (editNewPassword.length < 6) {
+      setEditPassError('Password minimal 6 karakter');
+      return;
+    }
+    const result = await updateUserPassword(editPassUserId, editNewPassword);
+    if (result.success) {
+      setShowEditPassModal(false);
+      alert(`Password untuk ${editPassUserName} berhasil diubah.`);
+    } else {
+      setEditPassError(result.error || 'Gagal mengubah password');
     }
   };
 
@@ -187,14 +220,45 @@ const UserManagement = () => {
                   </td>
                   <td>{formatDate(u.createdAt)}</td>
                   <td>
-                    {u.id !== 'admin-001' && (
+                    <div style={{ position: 'relative' }}>
                       <button
-                        className="btn-danger"
-                        onClick={() => handleDelete(u.id, u.name)}
+                        onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', padding: '4px 10px' }}
+                        title="Opsi"
                       >
-                        Hapus
+                        ⋮
                       </button>
-                    )}
+                      {openMenuId === u.id && (
+                        <div style={{
+                          position: 'absolute',
+                          right: '100%',
+                          top: 0,
+                          marginRight: '8px',
+                          background: 'white',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '6px',
+                          zIndex: 10,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                          minWidth: '150px',
+                          overflow: 'hidden'
+                        }}>
+                          <button
+                            onClick={() => { handleOpenEditPass(u.id, u.name); setOpenMenuId(null); }}
+                            style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f1f5f9', textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: '#1e293b' }}
+                          >
+                            🔑 Edit Password
+                          </button>
+                          {u.id !== 'admin-001' && (
+                            <button
+                              onClick={() => { handleDelete(u.id, u.name); setOpenMenuId(null); }}
+                              style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: '#e11d48' }}
+                            >
+                              🗑️ Hapus User
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -305,6 +369,37 @@ const UserManagement = () => {
                 </button>
                 <button type="submit" className="btn-primary">
                   Simpan Akun
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Password Modal */}
+      {showEditPassModal && (
+        <div className="modal-overlay" onClick={() => setShowEditPassModal(false)}>
+          <div className="modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Ubah Password - {editPassUserName}</h3>
+            <form className="modal-form" onSubmit={handleEditPassSubmit}>
+              {editPassError && <div className="modal-error">{editPassError}</div>}
+              <div className="form-group">
+                <label htmlFor="editNewPassword">Password Baru</label>
+                <input
+                  id="editNewPassword"
+                  type="password"
+                  placeholder="Minimal 6 karakter"
+                  value={editNewPassword}
+                  onChange={(e) => setEditNewPassword(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setShowEditPassModal(false)}>
+                  Batal
+                </button>
+                <button type="submit" className="btn-primary">
+                  Simpan Password
                 </button>
               </div>
             </form>

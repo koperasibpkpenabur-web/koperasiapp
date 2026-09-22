@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   addUser: (userData: Omit<User, 'id' | 'createdAt'>) => Promise<{ success: boolean; error?: string }>;
+  updateUserPassword: (id: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   deleteUser: (id: string) => Promise<void>;
   getUsers: () => User[];
   getUsersByRole: (role: UserRole) => User[];
@@ -148,6 +149,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }, [fetchUsers]);
 
+  const updateUserPassword = useCallback(async (id: string, newPassword: string) => {
+    const { error } = await supabase
+      .from('app_users')
+      .update({ password: newPassword })
+      .eq('id', id);
+      
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    
+    await fetchUsers();
+    return { success: true };
+  }, [fetchUsers]);
+
   const deleteUser = useCallback(async (id: string) => {
     await supabase.from('app_users').delete().eq('id', id);
     await fetchUsers();
@@ -171,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         addUser,
+        updateUserPassword,
         deleteUser,
         getUsers,
         getUsersByRole,

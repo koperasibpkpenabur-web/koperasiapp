@@ -86,6 +86,18 @@ const SchoolDashboard = () => {
   const formTotalFee = selectedItems.reduce((acc, it) => acc + (it.feeSchool * it.quantity), 0);
   const formTotalKopkar = selectedItems.reduce((acc, it) => acc + (it.priceKopkar * it.quantity), 0);
 
+  // Day Restriction Logic
+  const currentDay = new Date().getDay(); // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
+  const isInputAllowed = () => {
+    if (!user || user.role !== 'sekolah') return true;
+    if (user.schoolLevel === 'TK' && currentDay !== 1) return false;
+    if (user.schoolLevel === 'SD' && currentDay !== 2) return false;
+    if (user.schoolLevel === 'SMP' && currentDay !== 3) return false;
+    if (user.schoolLevel === 'SMA' && currentDay !== 4) return false;
+    return true;
+  };
+  const isAllowedToInput = isInputAllowed();
+
   const handleAddItem = () => {
     const firstProd = availableCatalog[0] || products[0];
     setSelectedItems((prev) => [
@@ -385,8 +397,21 @@ const SchoolDashboard = () => {
       {activeTab === 'active' && (
         <div className="tab-pane">
           <div className="order-toolbar">
-            <h3>Daftar Pesanan Sedang Berjalan</h3>
-            <button className="btn-primary" onClick={() => { resetCreateForm(); setShowCreateModal(true); }}>
+            <div>
+              <h3>Daftar Pesanan Sedang Berjalan</h3>
+              {!isAllowedToInput && (
+                <div style={{ marginTop: '8px', padding: '10px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e' }}>
+                  <strong>Perhatian:</strong> Jadwal penginputan pesanan untuk jenjang {user?.schoolLevel} tidak tersedia pada hari ini. (Jadwal: TK=Senin, SD=Selasa, SMP=Rabu, SMA=Kamis).
+                </div>
+              )}
+            </div>
+            <button 
+              className={`btn-primary ${!isAllowedToInput ? 'btn-disabled' : ''}`} 
+              onClick={() => { resetCreateForm(); setShowCreateModal(true); }}
+              disabled={!isAllowedToInput}
+              title={!isAllowedToInput ? 'Tidak dapat menginput di luar jadwal' : ''}
+              style={!isAllowedToInput ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+            >
               + Buat Order Baru
             </button>
           </div>
