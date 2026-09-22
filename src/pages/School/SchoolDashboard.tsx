@@ -13,7 +13,7 @@ const SchoolDashboard = () => {
   const { getOrdersBySchoolId, createOrder, receiveOrder, requestCancelOrder, deleteOrder, cartItems, setCartItems, showCartModal, setShowCartModal } = useOrders();
   const { products, getProductsByLevel } = useProducts();
   const { getReturnsBySchoolId } = useReturns();
-  const { phase1Open, phase2Open } = useSettings();
+  const { phase1Open, phase2Open, tambahanOpen, tambahanUseDayRule, tambahanUseDateRule, tambahanStartDate, tambahanEndDate } = useSettings();
 
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima), 'cancellations' (Riwayat Pembatalan)
   const [activeTab, setActiveTab] = useState<'active' | 'received' | 'cancellations'>('active');
@@ -96,12 +96,26 @@ const SchoolDashboard = () => {
   // Day Restriction Logic
   const currentDay = new Date().getDay(); // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
   const isInputAllowed = () => {
-    if (orderPhase === 'Tahap 1' || orderPhase === 'Tahap 2') return true;
-    if (!user || user.role !== 'sekolah') return true;
-    if (user.schoolLevel === 'TK' && currentDay !== 1) return false;
-    if (user.schoolLevel === 'SD' && currentDay !== 2) return false;
-    if (user.schoolLevel === 'SMP' && currentDay !== 3) return false;
-    if (user.schoolLevel === 'SMA' && currentDay !== 4) return false;
+    if (orderPhase === 'Tambahan') {
+      if (!tambahanOpen) return false;
+      
+      let isAllowedByDate = true;
+      if (tambahanUseDateRule && tambahanStartDate && tambahanEndDate) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        isAllowedByDate = (todayStr >= tambahanStartDate && todayStr <= tambahanEndDate);
+      }
+      
+      let isAllowedByDay = true;
+      if (tambahanUseDayRule && user) {
+        if (user.schoolLevel === 'TK' && currentDay !== 1) isAllowedByDay = false;
+        if (user.schoolLevel === 'SD' && currentDay !== 2) isAllowedByDay = false;
+        if (user.schoolLevel === 'SMP' && currentDay !== 3) isAllowedByDay = false;
+        if (user.schoolLevel === 'SMA' && currentDay !== 4) isAllowedByDay = false;
+      }
+      
+      return isAllowedByDate && isAllowedByDay;
+    }
+    
     return true;
   };
   const isAllowedToInput = isInputAllowed();
@@ -331,6 +345,13 @@ const SchoolDashboard = () => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button 
+            className="btn-primary" 
+            onClick={() => { resetCreateForm('Tambahan'); setShowCreateModal(true); }}
+            style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>➕</span> Buat Pesanan
+          </button>
           <Link
             to="/school/retur"
             className="btn-primary"
@@ -419,17 +440,18 @@ const SchoolDashboard = () => {
         <div className="tab-pane">
           <div className="order-toolbar" style={{ alignItems: 'flex-start' }}>
             <div style={{ flex: 1 }}>
-              <h3>Daftar Pesanan Sedang Berjalan</h3>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <button 
-                className="btn-primary" 
-                onClick={() => { resetCreateForm('Tambahan'); setShowCreateModal(true); }}
-                style={{ padding: '8px 12px' }}
-              >
-                + Buat Pesanan
-              </button>
+              <div className="tab-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="filter-group">
+                  <label>Filter Status:</label>
+                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                    <option value="all">Semua Status</option>
+                    <option value="draft">Draft</option>
+                    <option value="submitted">Disubmit (Menunggu Konfirmasi)</option>
+                    <option value="processing">Diproses</option>
+                    <option value="shipped">Dikirim</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1088,12 +1110,22 @@ const SchoolDashboard = () => {
                     <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 2.
                   </div>
                 )}
+                {(orderPhase === 'Tambahan' && !tambahanOpen) && (
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                    <strong>Fase Tambahan Ditutup:</strong> Admin sedang menutup akses pesanan Tambahan.
+                  </div>
+                )}
+                {(orderPhase === 'Tambahan' && tambahanOpen && !isAllowedToInput) && (
+                  <div style={{ padding: '12px 16px', background: '#fee2e2', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.9rem', color: '#b91c1c', marginBottom: '16px' }}>
+                    <strong>Akses Dibatasi:</strong> Pemesanan tidak dapat dilakukan saat ini karena belum memasuki periode waktu (tanggal) pemesanan yang ditetapkan atau bukan jadwal hari pesanan jenjang Anda.
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button 
                     type="submit" 
                     className="btn-primary"
-                    disabled={(orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) || (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order))}
-                    style={((orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) || (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order))) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                    disabled={(orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) || (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order)) || (orderPhase === 'Tambahan' && (!tambahanOpen || !isAllowedToInput))}
+                    style={((orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) || (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order)) || (orderPhase === 'Tambahan' && (!tambahanOpen || !isAllowedToInput))) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
                   >
                     🛒 Tambahkan ke Keranjang
                   </button>

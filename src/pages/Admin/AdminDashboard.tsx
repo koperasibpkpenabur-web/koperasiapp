@@ -4,7 +4,8 @@ import './admin.css';
 
 const AdminDashboard = () => {
   const { getUsers, isMaintenanceMode, toggleMaintenanceMode } = useAuth();
-  const { phase1Open, phase2Open, updatePhaseStatus } = useSettings();
+  const settings = useSettings();
+  const { phase1Open, phase2Open, updatePhaseStatus } = settings;
   const users = getUsers();
 
   const totalAdmin = users.filter((u) => u.role === 'admin').length;
@@ -159,6 +160,82 @@ const AdminDashboard = () => {
             >
               {phase2Open ? 'Tutup Tahap 2' : 'Buka Tahap 2'}
             </button>
+          </div>
+          
+          {/* Tambahan Settings */}
+          <div style={{ flex: '1 1 100%', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: '4px' }}>Pemesanan Tambahan</div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  Status Akses Utama: <strong style={{ color: settings.tambahanOpen ? '#059669' : '#dc2626' }}>{settings.tambahanOpen ? 'DIBUKA' : 'DITUTUP'}</strong>
+                </div>
+              </div>
+              <button
+                onClick={() => settings.updateTambahanSettings({ isOpen: !settings.tambahanOpen })}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: settings.tambahanOpen ? '#dc2626' : '#059669',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {settings.tambahanOpen ? 'Tutup Fase Tambahan' : 'Buka Fase Tambahan'}
+              </button>
+            </div>
+            
+            {/* Additional Tambahan Rules */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#334155' }}>Persyaratan Pemesanan Tambahan</div>
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={settings.tambahanUseDayRule}
+                  onChange={(e) => settings.updateTambahanSettings({ useDayRule: e.target.checked })}
+                  style={{ width: '16px', height: '16px' }}
+                />
+                Gunakan Aturan Hari Jenjang (TK=Senin, SD=Selasa, dst)
+              </label>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={settings.tambahanUseDateRule}
+                    onChange={(e) => settings.updateTambahanSettings({ useDateRule: e.target.checked })}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  Gunakan Rentang Tanggal Khusus
+                </label>
+                
+                {settings.tambahanUseDateRule && (
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginLeft: '24px', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '4px' }}>Start Date</div>
+                      <input 
+                        type="date" 
+                        value={settings.tambahanStartDate}
+                        onChange={(e) => settings.updateTambahanSettings({ startDate: e.target.value })}
+                        style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '4px' }}>Finish Date</div>
+                      <input 
+                        type="date" 
+                        value={settings.tambahanEndDate}
+                        onChange={(e) => settings.updateTambahanSettings({ endDate: e.target.value })}
+                        style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
