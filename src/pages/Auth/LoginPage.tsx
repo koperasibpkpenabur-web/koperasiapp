@@ -49,7 +49,7 @@ const LoginPage = () => {
       <div className="login-card">
         {/* Brand Logo Header */}
         <div className="login-header">
-          <img src="/logo-synera.png" alt="Logo Synera Koperasi" className="login-logo-img" />
+          <img src={`${import.meta.env.BASE_URL}logo-synera.png`} alt="Logo Synera Koperasi" className="login-logo-img" />
           <h1 className="login-welcome-title">Selamat Datang Web-App<br/>Synera Koperasi</h1>
         </div>
 
