@@ -145,6 +145,19 @@ const SchoolDashboard = () => {
     setSelectedItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleUpdateCartQty = (index: number, newQty: number) => {
+    if (newQty < 1) return;
+    const updated = [...cartItems];
+    updated[index].quantity = newQty;
+    setCartItems(updated);
+  };
+
+  const handleRemoveCartItem = (index: number) => {
+    const updated = [...cartItems];
+    updated.splice(index, 1);
+    setCartItems(updated);
+  };
+
   const handleProductSelect = (index: number, productId: string) => {
     const prod = products.find((p) => p.id === productId);
     if (!prod) return;
@@ -1126,9 +1139,31 @@ const SchoolDashboard = () => {
                 ) : (
                   <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                     {cartItems.map((it, idx) => (
-                      <li key={idx} style={{ padding: '6px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem' }}>
-                        <span className={`item-type ${it.type}`} style={{ marginRight: '8px' }}>{it.type}</span>
-                        <strong>{it.name}</strong> — {it.quantity} pcs
+                      <li key={idx} style={{ padding: '8px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <span className={`item-type ${it.type}`} style={{ marginRight: '8px' }}>{it.type}</span>
+                          <strong>{it.name}</strong>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateCartQty(idx, it.quantity - 1)}
+                            disabled={it.quantity <= 1}
+                            style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: it.quantity <= 1 ? 'not-allowed' : 'pointer' }}
+                          >-</button>
+                          <span style={{ minWidth: '32px', textAlign: 'center' }}>{it.quantity}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateCartQty(idx, it.quantity + 1)}
+                            style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer' }}
+                          >+</button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCartItem(idx)}
+                            style={{ padding: '2px 8px', borderRadius: '4px', border: 'none', background: '#fee2e2', color: '#ef4444', cursor: 'pointer', marginLeft: '4px' }}
+                            title="Hapus Item"
+                          >✕</button>
+                        </div>
                       </li>
                     ))}
                   </ul>
