@@ -1,4 +1,4 @@
-import { useState, useRef, type DragEvent, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { useProducts } from '../../context/ProductContext';
 import type { ProductItem, SchoolLevel, OrderItemType } from '../../types';
 import './catalog.css';
@@ -14,7 +14,6 @@ const ProductCatalog = () => {
     exportProductsCsv,
   } = useProducts();
 
-  const [isDragActive, setIsDragActive] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Filters
@@ -64,26 +63,6 @@ const ProductCatalog = () => {
   const handleFilterChange = () => {
       setCurrentPage(1);
   }
-
-  // Handle Drag & Drop
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragActive(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragActive(false);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragActive(false);
-
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      processFile(files[0]);
-    }
-  };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -214,12 +193,22 @@ const ProductCatalog = () => {
           </div>
         </div>
 
-        <div className="catalog-header-actions">
+        <div className="catalog-header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button className="btn-template" onClick={downloadTemplateCsv} title="Unduh Format 8 Kolom">
             📥 Unduh Template Excel
           </button>
-          <button className="btn-export" onClick={exportProductsCsv} title="Export data ke CSV/Excel">
-            📤 Export Excel / CSV
+          
+          <button 
+            className="btn-browse" 
+            onClick={() => fileInputRef.current?.click()} 
+            title="Import data dari Excel"
+            style={{ padding: '9px 16px', backgroundColor: '#e2e8f0', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            📊 Import Excel
+          </button>
+
+          <button className="btn-export" onClick={exportProductsCsv} title="Export data ke Excel">
+            📤 Export Excel
           </button>
           <button className="btn-primary" onClick={handleOpenAdd}>
             + Tambah Barang Manual
@@ -227,36 +216,14 @@ const ProductCatalog = () => {
         </div>
       </div>
 
-      {/* Drag and Drop Zone Excel / CSV */}
-      <div
-        className={`excel-dropzone ${isDragActive ? 'drag-active' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <div className="dropzone-icon">📊</div>
-        <div className="dropzone-title">
-          Tarik & Lepaskan File Excel / CSV di Sini untuk Update Massal
-        </div>
-        <div className="dropzone-desc">
-          Format 8 Kolom: <strong>1. No | 2. Kode Barang (Otomatis jika kosong) | 3. Nama Barang | 4. Kategori | 5. Jenjang | 6. Harga Koperasi | 7. Fee Sekolah | 8. Harga Siswa</strong>.
-          <br />
-          <span style={{ fontSize: '0.78rem', color: '#395886', fontWeight: 600 }}>
-            ℹ️ Dimanapun Excel di-drop (di Katalog & Harga maupun di Stock Barang), seluruh data dan stock fisik terakumulasi sama.
-          </span>
-        </div>
-        <button type="button" className="btn-browse">
-          Pilih File Excel / CSV dari Komputer
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.txt"
-          className="dropzone-input"
-          onChange={handleFileChange}
-        />
-      </div>
+      {/* Import File Input (Hidden) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
 
       {importStatus && (
         <div className={`drop-status-alert ${importStatus.type}`}>
