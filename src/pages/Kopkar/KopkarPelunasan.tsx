@@ -443,10 +443,10 @@ const KopkarPelunasan = () => {
                             {order.status === 'pending' && (
                               <div className="action-buttons">
                                 <button className="btn-approve" onClick={() => handleApprove(order)}>
-                                  Γ£ô Setujui
+                                  ✓ Setujui
                                 </button>
                                 <button className="btn-reject" onClick={() => handleOpenRejectModal(order)}>
-                                  Γ£ò Tolak
+                                  ✕ Tolak
                                 </button>
                               </div>
                             )}
@@ -457,7 +457,7 @@ const KopkarPelunasan = () => {
                                   ≡ƒÜÜ Kirim Barang
                                 </button>
                                 <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => setPrintingOrder(order)}>
-                                  ≡ƒôä Cetak Surat Jalan
+                                  🖨️ Cetak Surat Jalan
                                 </button>
                                 <button className="btn-cancel-approved" onClick={() => handleOpenKopkarCancelModal(order)}>
                                   ΓÜá∩╕Å Batalkan
@@ -489,8 +489,8 @@ const KopkarPelunasan = () => {
                       </div>
                       <span className={`status-badge ${order.status}`}>
                         {order.status === 'pending' && 'ΓÅ│ Menunggu'}
-                        {order.status === 'approved' && '≡ƒæì Disetujui'}
-                        {order.status === 'shipped' && '≡ƒÜÜ Dikirim'}
+                        {order.status === 'approved' && '👍 Disetujui'}
+                        {order.status === 'shipped' && '🚚 Dikirim'}
                       </span>
                     </div>
 
@@ -534,10 +534,10 @@ const KopkarPelunasan = () => {
                       {order.status === 'pending' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                           <button className="btn-approve full-width-touch" onClick={() => handleApprove(order)}>
-                            Γ£ô Setujui
+                            ✓ Setujui
                           </button>
                           <button className="btn-reject full-width-touch" onClick={() => handleOpenRejectModal(order)}>
-                            Γ£ò Tolak
+                            ✕ Tolak
                           </button>
                         </div>
                       )}
@@ -548,7 +548,7 @@ const KopkarPelunasan = () => {
                             ≡ƒÜÜ Kirim Barang
                           </button>
                           <button className="btn-secondary full-width-touch" onClick={() => setPrintingOrder(order)}>
-                            ≡ƒôä Cetak Surat Jalan
+                            🖨️ Cetak Surat Jalan
                           </button>
                           <button className="btn-cancel-approved full-width-touch" onClick={() => handleOpenKopkarCancelModal(order)}>
                             ΓÜá∩╕Å Batalkan
@@ -795,10 +795,10 @@ const KopkarPelunasan = () => {
                           <span className="status-badge requested">ΓÅ│ Request Batal</span>
                         )}
                         {order.status === 'cancelled' && (
-                          <span className="status-badge cancelled">≡ƒÜ½ Dibatalkan</span>
+                          <span className="status-badge cancelled">🚫 Dibatalkan</span>
                         )}
                         {order.status === 'rejected' && (
-                          <span className="status-badge rejected">Γ¥î Ditolak</span>
+                          <span className="status-badge rejected">❌ Ditolak</span>
                         )}
                       </td>
                       <td>
@@ -818,7 +818,7 @@ const KopkarPelunasan = () => {
                             className="btn-approve-cancel"
                             onClick={() => handleApproveSchoolCancel(order)}
                           >
-                            Γ£ô Setujui Batal
+                            ✓ Setujui Batal
                           </button>
                         )}
                       </td>
