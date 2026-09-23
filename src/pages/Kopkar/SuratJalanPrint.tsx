@@ -23,11 +23,17 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
   };
 
   const isA5 = order.items.length <= 7;
+  // Menggunakan ukuran spesifik (mm) karena printer Dot Matrix (seperti LX-310) kadang mengabaikan nama ukuran standar.
+  // A5 Landscape = 210mm x 148mm, A4 Portrait = 210mm x 297mm
   const pageStyle = `
     @media print {
       @page {
-        size: ${isA5 ? 'A5 landscape' : 'A4 portrait'};
-        margin: 10mm;
+        size: ${isA5 ? '210mm 148mm' : '210mm 297mm'};
+        margin: 5mm 10mm;
+      }
+      body {
+        margin: 0;
+        -webkit-print-color-adjust: exact;
       }
     }
   `;
