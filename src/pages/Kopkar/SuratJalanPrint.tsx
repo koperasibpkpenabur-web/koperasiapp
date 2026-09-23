@@ -23,17 +23,25 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
   };
 
   const isA5 = order.items.length <= 7;
-  // Menggunakan ukuran spesifik (mm) karena printer Dot Matrix (seperti LX-310) kadang mengabaikan nama ukuran standar.
-  // A5 Landscape = 210mm x 148mm, A4 Portrait = 210mm x 297mm
+  // Menggunakan ukuran spesifik (mm) untuk kertas Continuous Form (3-ply) Half-Letter (8.5 x 5.5 inch).
+  // Continuous form 5.5" tingginya tepat 139.7mm, lebarnya 215.9mm.
+  // Jika menggunakan 210x148mm, tulisan akan bergeser ke bawah setiap ganti halaman.
   const pageStyle = `
     @media print {
       @page {
-        size: ${isA5 ? '210mm 148mm' : '210mm 297mm'};
+        size: ${isA5 ? '215.9mm 139.7mm' : '210mm 297mm'};
         margin: 5mm 10mm;
       }
       body {
         margin: 0;
         -webkit-print-color-adjust: exact;
+      }
+      .print-surat-jalan {
+        font-family: Arial, Helvetica, sans-serif !important;
+        color: #000 !important;
+      }
+      .print-surat-jalan table th, .print-surat-jalan table td {
+        border: 1px solid #000 !important;
       }
     }
   `;
