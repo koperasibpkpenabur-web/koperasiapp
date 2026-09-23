@@ -22,15 +22,14 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
     }).format(num);
   };
 
-  const isA5 = order.items.length <= 7;
-  // Menggunakan ukuran spesifik (mm) untuk kertas Continuous Form (3-ply) Half-Letter (8.5 x 5.5 inch).
-  // Continuous form 5.5" tingginya tepat 139.7mm, lebarnya 215.9mm.
-  // Jika menggunakan 210x148mm, tulisan akan bergeser ke bawah setiap ganti halaman.
+  // Menggunakan ukuran spesifik untuk Continuous Form 9.5 x 11 inch (Letter)
+  // Lebar area cetak (tanpa lubang perforasi) adalah 8.5 inch (215.9mm).
+  // Tinggi kertas adalah 11 inch (279.4mm).
   const pageStyle = `
     @media print {
       @page {
-        size: ${isA5 ? '215.9mm 139.7mm' : '210mm 297mm'};
-        margin: 5mm 10mm;
+        size: 215.9mm 279.4mm;
+        margin: 10mm;
       }
       body {
         margin: 0;
