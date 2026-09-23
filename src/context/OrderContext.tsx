@@ -127,7 +127,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         quantity: it.quantity,
         price_kopkar: it.priceKopkar,
         fee_school: it.feeSchool,
-        price_student: it.priceStudent
+        price_student: it.priceStudent,
+        size: (it as any).size // Types mismatch handled as any for now
       }));
 
       const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);

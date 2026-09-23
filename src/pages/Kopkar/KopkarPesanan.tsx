@@ -1,5 +1,5 @@
 // @ts-nocheck
-﻿import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
@@ -268,9 +268,9 @@ const KopkarPelunasan = () => {
 
   return (
     <div className="kopkar-dashboard">
-      <h2>Kopkar Area ΓÇö Pengelolaan Pesanan & Pelunasan Fee Sekolah</h2>
+      <h2>Pengelolaan Pesanan</h2>
 
-      
+
       {/* Operational Highlights */}
       <div className="kopkar-stats operational-stats">
         <div className="kopkar-stat-card summary-card">
@@ -289,7 +289,7 @@ const KopkarPelunasan = () => {
           <div className="stat-value danger">{cancelRequestsCount}</div>
         </div>
       </div>
-    {/* 3 Tabs Navigation */}
+      {/* 3 Tabs Navigation */}
       <div className="dashboard-tabs">
         <button
           className={`tab-button ${activeTab === 'active' ? 'active' : ''}`}
@@ -342,7 +342,7 @@ const KopkarPelunasan = () => {
                       <th>Daftar Item</th>
                       <th>Rincian 3 Harga</th>
                       <th>Status Pelunasan</th>
-                      
+
                       <th>Aksi Pengelolaan</th>
                     </tr>
                   </thead>
@@ -412,7 +412,7 @@ const KopkarPelunasan = () => {
                             </div>
                           )}
                         </td>
-                        
+
                         <td>
                           <div className="kopkar-actions-col">
                             {order.status === 'pending' && (

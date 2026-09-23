@@ -153,17 +153,19 @@ const SchoolReturn = () => {
     setFormError('');
   };
 
-  const handleSubmitReturn = (e: FormEvent) => {
+  const handleSubmitReturn = async (e: FormEvent) => {
     e.preventDefault();
     setFormError('');
 
-    if (!user) {
-      setFormError('Sesi login telah berakhir.');
+    if (!user) return;
+
+    if (returnItems.length === 0) {
+      setFormError('Silakan tambah minimal 1 barang untuk diretur.');
       return;
     }
 
     if (!reasonDetail.trim()) {
-      setFormError('Alasan retur detail wajib diisi.');
+      setFormError('Alasan / Keterangan detail wajib diisi.');
       return;
     }
 
@@ -172,7 +174,7 @@ const SchoolReturn = () => {
       return;
     }
 
-    const res = createReturn({
+    const res = await createReturn({
       schoolUserId: user.id,
       schoolName: user.schoolName || user.name,
       schoolLevel: user.schoolLevel,

@@ -1,5 +1,6 @@
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
+import { supabase } from '../../lib/supabase';
 import './admin.css';
 
 const AdminDashboard = () => {
@@ -19,6 +20,28 @@ const AdminDashboard = () => {
 
     if (window.confirm(message)) {
       toggleMaintenanceMode();
+    }
+  };
+
+  const handleResetHistory = async () => {
+    const confirm1 = window.confirm('PERINGATAN BAHAYA: Anda akan MENGHAPUS SEMUA RIWAYAT PESANAN (Orders, Order Items, dan Returns). Tindakan ini TIDAK BISA DIBATALKAN. Yakin ingin melanjutkan?');
+    if (!confirm1) return;
+    const confirm2 = window.prompt('Ketik "RESET" untuk mengonfirmasi penghapusan seluruh history pengetesan:');
+    if (confirm2 !== 'RESET') {
+      alert('Konfirmasi dibatalkan. Data aman.');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.rpc('reset_testing_history');
+      if (error) {
+        alert('Gagal mereset history: ' + error.message);
+      } else {
+        alert('BERHASIL: Seluruh history transaksi telah dihapus. Silakan muat ulang halaman (F5).');
+        window.location.reload();
+      }
+    } catch (err: any) {
+      alert('Terjadi kesalahan: ' + err.message);
     }
   };
 
@@ -91,6 +114,54 @@ const AdminDashboard = () => {
             }}
           >
             {isMaintenanceMode ? '✓ Matikan Maintenance (Buka Akses)' : '⚠️ Aktifkan Mode Maintenance'}
+          </button>
+        </div>
+      </div>
+
+      {/* Danger Zone: Reset Data */}
+      <div
+        style={{
+          background: '#fff1f2',
+          border: '1.5px solid #fecdd3',
+          borderRadius: '16px',
+          padding: '20px 24px',
+          marginBottom: '26px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px',
+        }}
+      >
+        <div style={{ maxWidth: '640px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <span style={{ fontSize: '1.4rem' }}>⚠️</span>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#be123c', margin: 0 }}>
+              Danger Zone: Hapus Riwayat Pengetesan
+            </h3>
+          </div>
+          <p style={{ fontSize: '0.86rem', color: '#9f1239', lineHeight: 1.5, margin: 0 }}>
+            Tindakan ini akan menghapus seluruh data transaksi dari tabel <strong>orders, order_items, dan returns</strong> di Supabase secara permanen. Gunakan fitur ini HANYA jika Anda ingin mengosongkan riwayat pengetesan (Master barang dan akun pengguna TIDAK akan terhapus).
+          </p>
+        </div>
+        <div>
+          <button
+            type="button"
+            onClick={handleResetHistory}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#e11d48',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '0.88rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(225, 29, 72, 0.25)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            🗑️ Reset Semua History Transaksi
           </button>
         </div>
       </div>

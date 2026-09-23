@@ -9,7 +9,7 @@ const StockManagement = () => {
     adjustStock,
     setProductStock,
     addProduct,
-    importProductsFromCsv,
+    importProductsFromExcel,
     downloadTemplateCsv,
     exportProductsCsv,
   } = useProducts();
@@ -70,14 +70,14 @@ const StockManagement = () => {
     setImportStatus(null);
     const reader = new FileReader();
 
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (!content) {
+    reader.onload = async (event) => {
+      const buffer = event.target?.result as ArrayBuffer;
+      if (!buffer) {
         setImportStatus({ type: 'error', message: 'File kosong atau tidak dapat dibaca' });
         return;
       }
 
-      const res = importProductsFromCsv(content);
+      const res = await importProductsFromExcel(buffer);
       if (res.success) {
         setImportStatus({
           type: 'success',
@@ -91,7 +91,7 @@ const StockManagement = () => {
       }
     };
 
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   // Quick Open Modal Set Stock

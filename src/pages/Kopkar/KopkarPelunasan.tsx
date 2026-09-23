@@ -268,7 +268,7 @@ const KopkarPelunasan = () => {
 
   return (
     <div className="kopkar-dashboard">
-      <h2>Kopkar Area ΓÇö Pengelolaan Pesanan & Pelunasan Fee Sekolah</h2>
+      <h2>Pengelolaan Pelunasan</h2>
 
       {/* Stats Cards & Financial Overview */}
       <div className="kopkar-stats">

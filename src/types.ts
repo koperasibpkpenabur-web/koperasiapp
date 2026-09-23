@@ -33,6 +33,8 @@ export interface ProductItem {
   priceStudent: number;    // Harga Siswa = priceKopkar + feeSchool
   stock: number;           // Jumlah stok fisik di koperasi
   minStock?: number;       // Batas minimum stok
+  size?: string;           // Ukuran
+  storageLocation?: string; // Lokasi Penyimpanan
 }
 
 // --- Order System ---

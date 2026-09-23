@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { ReturnRequest, ReturnItem, SchoolLevel } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface CreateReturnInput {
   schoolUserId: string;
@@ -28,100 +29,52 @@ interface RejectReturnInput {
 
 interface ReturnContextType {
   returns: ReturnRequest[];
-  createReturn: (data: CreateReturnInput) => { success: boolean; id?: string; error?: string };
-  acceptReturn: (returnId: string, data: AcceptReturnInput) => void;
-  rejectReturn: (returnId: string, data: RejectReturnInput) => void;
+  createReturn: (data: CreateReturnInput) => Promise<{ success: boolean; id?: string; error?: string }>;
+  acceptReturn: (returnId: string, data: AcceptReturnInput) => Promise<void>;
+  rejectReturn: (returnId: string, data: RejectReturnInput) => Promise<void>;
   getReturnsBySchoolId: (schoolUserId: string) => ReturnRequest[];
   pendingCount: number;
 }
 
 const ReturnContext = createContext<ReturnContextType | null>(null);
 
-const RETURNS_STORAGE_KEY = 'koperasi_returns_v1';
-
-const INITIAL_RETURNS: ReturnRequest[] = [
-  {
-    id: 'RET-2026-001',
-    schoolUserId: 'user-demo-smpk1',
-    schoolName: 'SMPK 1 PENABUR Jakarta',
-    schoolLevel: 'SMP',
-    items: [
-      {
-        productId: 'prod-srg-smp-01',
-        productCode: 'SRG-SMP-01',
-        productName: 'Seragam Putih Biru SMP PENABUR (Size L)',
-        quantity: 5,
-        itemReason: 'Kancing terlepas & jahitan saku miring dari pabrik',
-      },
-    ],
-    reasonCategory: 'Cacat Jahitan / Produksi',
-    reason: 'Terdapat 5 pcs seragam ukuran L yang mengalami cacat jahitan pada bagian kancing dan saku kiri, mohon ditukar unit baru yang rapi.',
-    departureDate: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0],
-    departureTime: '08:30',
-    shippingNote: 'Dikirim armada operasional sekolah (Avanza B 2940 KAS) - Diserahkan oleh Pak Joko',
-    status: 'accepted',
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    acceptedAt: new Date(Date.now() - 86400000).toISOString(),
-    acceptedAtDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-    acceptedAtTime: '11:15',
-    acceptedByName: 'Budi Santoso (Gudang Kopkar)',
-    acceptedNotes: 'Barang telah kami terima di gudang Koperasi dan diverifikasi fisik 5 pcs lengkap sesuai surat jalan. Penggantian unit sedang disiapkan tim pengadaan.',
-    isRestocked: false,
-  },
-  {
-    id: 'RET-2026-002',
-    schoolUserId: 'user-demo-smpk1',
-    schoolName: 'SMPK 1 PENABUR Jakarta',
-    schoolLevel: 'SMP',
-    items: [
-      {
-        productId: 'prod-bk-smp-01',
-        productCode: 'BK-SMP-01',
-        productName: 'Buku Siswa Matematika Kelas 7 SMP',
-        quantity: 8,
-        itemReason: 'Halaman cetak buram dan ada lembaran yang terbalik',
-      },
-      {
-        productId: 'prod-srg-smp-02',
-        productCode: 'SRG-SMP-02',
-        productName: 'Seragam Pramuka SMP PENABUR (Size M)',
-        quantity: 3,
-        itemReason: 'Salah pesan ukuran oleh panitia sekolah',
-      },
-    ],
-    reasonCategory: 'Buku Cacat Cetak & Salah Ukuran',
-    reason: 'Pengembalian buku matematika yang cacat halaman cetak dan 3 pcs seragam pramuka untuk ditukar ke size XL.',
-    departureDate: new Date().toISOString().split('T')[0],
-    departureTime: '09:00',
-    shippingNote: 'Kurir Sekolah Bpk Herman (Motor Honda Vario B 6789 PQR)',
-    status: 'requested',
-    createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-  },
-];
-
-function loadReturns(): ReturnRequest[] {
-  try {
-    const raw = localStorage.getItem(RETURNS_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (err) {
-    console.warn('Failed to load returns from localStorage', err);
-  }
-  return INITIAL_RETURNS;
-}
-
 export function ReturnProvider({ children }: { children: ReactNode }) {
-  const [returns, setReturns] = useState<ReturnRequest[]>(loadReturns);
+  const [returns, setReturns] = useState<ReturnRequest[]>([]);
+
+  const fetchReturns = useCallback(async () => {
+    const { data, error } = await supabase.from('returns').select('*').order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching returns:', error);
+      return;
+    }
+    const mapped: ReturnRequest[] = data.map(d => ({
+      id: d.id,
+      schoolUserId: d.school_user_id,
+      schoolName: d.school_name,
+      schoolLevel: d.school_level,
+      items: d.items,
+      reasonCategory: d.reason_category,
+      reason: d.reason,
+      departureDate: d.departure_date,
+      departureTime: d.departure_time,
+      shippingNote: d.shipping_note,
+      status: d.status,
+      createdAt: d.created_at,
+      acceptedAt: d.accepted_at,
+      acceptedAtDate: d.accepted_at_date,
+      acceptedAtTime: d.accepted_at_time,
+      acceptedByName: d.accepted_by_name,
+      acceptedNotes: d.accepted_notes,
+      rejectedByName: d.rejected_by_name,
+      rejectionReason: d.rejection_reason,
+      isRestocked: d.is_restocked
+    }));
+    setReturns(mapped);
+  }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(RETURNS_STORAGE_KEY, JSON.stringify(returns));
-    } catch (err) {
-      console.error('Failed to save returns to localStorage', err);
-    }
-  }, [returns]);
+    fetchReturns();
+  }, [fetchReturns]);
 
   const generateReturnId = useCallback(() => {
     const year = new Date().getFullYear();
@@ -130,7 +83,7 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
   }, [returns.length]);
 
   const createReturn = useCallback(
-    (data: CreateReturnInput): { success: boolean; id?: string; error?: string } => {
+    async (data: CreateReturnInput): Promise<{ success: boolean; id?: string; error?: string }> => {
       if (!data.schoolUserId || !data.schoolName) {
         return { success: false, error: 'Data sekolah tidak valid.' };
       }
@@ -145,59 +98,67 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
       }
 
       const newId = generateReturnId();
-      const newReturn: ReturnRequest = {
+      
+      const newReturn = {
         id: newId,
-        schoolUserId: data.schoolUserId,
-        schoolName: data.schoolName,
-        schoolLevel: data.schoolLevel,
+        school_user_id: data.schoolUserId,
+        school_name: data.schoolName,
+        school_level: data.schoolLevel,
         items: data.items,
-        reasonCategory: data.reasonCategory || 'Lainnya',
+        reason_category: data.reasonCategory || 'Lainnya',
         reason: data.reason.trim(),
-        departureDate: data.departureDate,
-        departureTime: data.departureTime,
-        shippingNote: data.shippingNote?.trim() || undefined,
+        departure_date: data.departureDate,
+        departure_time: data.departureTime,
+        shipping_note: data.shippingNote?.trim() || null,
         status: 'requested',
-        createdAt: new Date().toISOString(),
+        created_at: new Date().toISOString(),
       };
 
-      setReturns((prev) => [newReturn, ...prev]);
+      const { error } = await supabase.from('returns').insert([newReturn]);
+      if (error) {
+        console.error('Error creating return:', error);
+        return { success: false, error: error.message };
+      }
+      
+      await fetchReturns();
       return { success: true, id: newId };
     },
-    [generateReturnId]
+    [generateReturnId, fetchReturns]
   );
 
-  const acceptReturn = useCallback((returnId: string, data: AcceptReturnInput) => {
-    setReturns((prev) =>
-      prev.map((ret) => {
-        if (ret.id !== returnId) return ret;
-        return {
-          ...ret,
-          status: 'accepted',
-          acceptedAt: new Date().toISOString(),
-          acceptedAtDate: data.acceptedAtDate,
-          acceptedAtTime: data.acceptedAtTime,
-          acceptedByName: data.acceptedByName,
-          acceptedNotes: data.acceptedNotes,
-          isRestocked: Boolean(data.isRestocked),
-        };
-      })
-    );
-  }, []);
+  const acceptReturn = useCallback(async (returnId: string, data: AcceptReturnInput) => {
+    const updates = {
+      status: 'accepted',
+      accepted_at: new Date().toISOString(),
+      accepted_at_date: data.acceptedAtDate,
+      accepted_at_time: data.acceptedAtTime,
+      accepted_by_name: data.acceptedByName,
+      accepted_notes: data.acceptedNotes,
+      is_restocked: Boolean(data.isRestocked),
+    };
+    
+    const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
+    if (!error) {
+      await fetchReturns();
+    } else {
+      console.error('Error accepting return:', error);
+    }
+  }, [fetchReturns]);
 
-  const rejectReturn = useCallback((returnId: string, data: RejectReturnInput) => {
-    setReturns((prev) =>
-      prev.map((ret) => {
-        if (ret.id !== returnId) return ret;
-        return {
-          ...ret,
-          status: 'rejected',
-          rejectedAt: new Date().toISOString(),
-          rejectedByName: data.rejectedByName,
-          rejectionReason: data.rejectionReason,
-        };
-      })
-    );
-  }, []);
+  const rejectReturn = useCallback(async (returnId: string, data: RejectReturnInput) => {
+    const updates = {
+      status: 'rejected',
+      rejected_by_name: data.rejectedByName,
+      rejection_reason: data.rejectionReason,
+    };
+    
+    const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
+    if (!error) {
+      await fetchReturns();
+    } else {
+      console.error('Error rejecting return:', error);
+    }
+  }, [fetchReturns]);
 
   const getReturnsBySchoolId = useCallback(
     (schoolUserId: string) => {

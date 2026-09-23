@@ -9,7 +9,7 @@ const ProductCatalog = () => {
     addProduct,
     updateProduct,
     deleteProduct,
-    importProductsFromCsv,
+    importProductsFromExcel,
     downloadTemplateCsv,
     exportProductsCsv,
   } = useProducts();
@@ -21,6 +21,10 @@ const ProductCatalog = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Modal manual Add / Edit
   const [showModal, setShowModal] = useState(false);
@@ -45,6 +49,21 @@ const ProductCatalog = () => {
     const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
     return matchesSearch && matchesLevel && matchesCategory;
   });
+
+  // Reset page when filter changes
+  // Pagination Math
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const paginatedProducts = filteredProducts.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const handleFilterChange = () => {
+      setCurrentPage(1);
+  }
 
   // Handle Drag & Drop
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -76,14 +95,14 @@ const ProductCatalog = () => {
     setImportStatus(null);
     const reader = new FileReader();
 
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (!content) {
+    reader.onload = async (event) => {
+      const buffer = event.target?.result as ArrayBuffer;
+      if (!buffer) {
         setImportStatus({ type: 'error', message: 'File kosong atau tidak dapat dibaca' });
         return;
       }
 
-      const res = importProductsFromCsv(content);
+      const res = await importProductsFromExcel(buffer);
       if (res.success) {
         setImportStatus({
           type: 'success',
@@ -97,7 +116,7 @@ const ProductCatalog = () => {
       }
     };
 
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleOpenAdd = () => {
@@ -258,10 +277,10 @@ const ProductCatalog = () => {
             type="text"
             placeholder="Cari kode atau nama barang..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); handleFilterChange(); }}
           />
 
-          <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
+          <select value={levelFilter} onChange={(e) => { setLevelFilter(e.target.value); handleFilterChange(); }}>
             <option value="all">Semua Jenjang</option>
             <option value="TK">Jenjang TK</option>
             <option value="SD">Jenjang SD</option>
@@ -269,7 +288,7 @@ const ProductCatalog = () => {
             <option value="SMA">Jenjang SMA</option>
           </select>
 
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); handleFilterChange(); }}>
             <option value="all">Semua Kategori</option>
             <option value="seragam">Seragam</option>
             <option value="buku">Buku</option>
@@ -281,39 +300,32 @@ const ProductCatalog = () => {
         </div>
       </div>
 
-      {/* Table Master Barang (8 Kolom Sesuai Ketentuan + Stock & Aksi) */}
+      {/* Table Master Barang (Sesuai Ketentuan + Stock & Aksi) */}
       <div className="catalog-table-container">
         <table className="catalog-table">
           <thead>
             <tr>
               <th style={{ width: '40px' }}>No.</th>
-              <th>Kode Barang</th>
               <th>Nama Barang</th>
-              <th>Kategori</th>
+              <th>Ukuran</th>
               <th>Jenjang</th>
-              <th>Harga Koperasi (HPP)</th>
-              <th>Fee Sekolah</th>
-              <th>Harga Siswa (Jual)</th>
+              <th>Harga Siswa</th>
               <th>Stock</th>
+              <th>Lokasi Penyimpanan</th>
               <th>Aksi</th>
             </tr>
           </thead>
           <tbody>
-            {filteredProducts.map((p, idx) => (
+            {paginatedProducts.map((p, idx) => (
               <tr key={p.id}>
-                <td style={{ color: '#586b84', fontWeight: 600 }}>{idx + 1}</td>
-                <td><code>{p.code}</code></td>
+                <td style={{ color: '#586b84', fontWeight: 600 }}>{indexOfFirstItem + idx + 1}</td>
                 <td>
                   <strong>{p.name}</strong>
                 </td>
-                <td>
-                  <span className={`item-type ${p.category}`}>{p.category}</span>
-                </td>
+                <td>{p.size || '-'}</td>
                 <td>
                   <span className={`badge-level ${p.level}`}>{p.level}</span>
                 </td>
-                <td className="price-kopkar">{formatRupiah(p.priceKopkar)}</td>
-                <td className="price-fee">+{formatRupiah(p.feeSchool)}</td>
                 <td className="price-student">{formatRupiah(p.priceStudent)}</td>
                 <td>
                   <span
@@ -331,6 +343,7 @@ const ProductCatalog = () => {
                     {p.stock !== undefined ? `${p.stock} pcs` : '50 pcs'}
                   </span>
                 </td>
+                <td>{p.storageLocation || '-'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button
@@ -353,6 +366,46 @@ const ProductCatalog = () => {
             ))}
           </tbody>
         </table>
+      </div>
+      
+      {/* Pagination Controls */}
+      <div className="pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px' }}>
+        <div className="pagination-info">
+          Tampilkan
+          <select 
+            value={itemsPerPage} 
+            onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+            style={{ margin: '0 10px', padding: '5px' }}
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={30}>30</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          data per halaman
+        </div>
+        <div className="pagination-buttons" style={{ display: 'flex', gap: '5px' }}>
+          <button 
+            disabled={currentPage === 1} 
+            onClick={() => handlePageChange(currentPage - 1)}
+            style={{ padding: '5px 10px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+          >
+            Sebelumnya
+          </button>
+          
+          <span style={{ padding: '5px 10px' }}>
+            Halaman {currentPage} dari {totalPages || 1}
+          </span>
+          
+          <button 
+            disabled={currentPage === totalPages || totalPages === 0} 
+            onClick={() => handlePageChange(currentPage + 1)}
+            style={{ padding: '5px 10px', cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer' }}
+          >
+            Selanjutnya
+          </button>
+        </div>
       </div>
 
       {/* Modal Add / Edit Product */}
