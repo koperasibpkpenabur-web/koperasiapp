@@ -18,10 +18,9 @@ const Sidebar = () => {
     >
       <div className="sidebar-header">
         <div className="sidebar-logo-wrap" style={{ textAlign: 'left', marginBottom: '8px' }}>
-          <img src={`${import.meta.env.BASE_URL}logo-synera.png`} alt="SYNERA" className="sidebar-logo" style={{ height: '40px', width: 'auto' }} />
+          <img src={`${import.meta.env.BASE_URL}logo-synera.png`} alt="SYNERA" className="sidebar-logo" style={{ height: '70px', width: 'auto' }} />
         </div>
         <div className="sidebar-title-row">
-          <h2>Menu Utama</h2>
           <button
             className="sidebar-close-btn"
             onClick={closeMobileNav}
@@ -78,7 +77,7 @@ const Sidebar = () => {
                   onClick={closeMobileNav}
                 >
                   <span className="nav-icon">🏠</span>
-                  <span className="nav-text">Dashboard Menu Utama</span>
+                  <span className="nav-text">Menu Utama</span>
                 </NavLink>
               </li>
               <li>

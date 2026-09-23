@@ -16,7 +16,7 @@ const KopkarDashboard = () => {
     <div className="kopkar-dashboard">
       <div className="kopkar-header-section">
         <div>
-          <h2>Dashboard Menu Utama 🏠</h2>
+          <h2>Dashboard 🏠</h2>
           <div className="kopkar-welcome">
             Selamat datang, <strong>{user?.name}</strong> (Karyawan Koperasi)
           </div>
