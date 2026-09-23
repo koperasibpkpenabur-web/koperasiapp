@@ -276,9 +276,9 @@ const ProductCatalog = () => {
               <th>Nama Barang</th>
               <th>Ukuran</th>
               <th>Jenjang</th>
+              <th>Harga Koperasi</th>
+              <th>Fee Sekolah</th>
               <th>Harga Siswa</th>
-              <th>Stock</th>
-              <th>Lokasi Penyimpanan</th>
               <th>Aksi</th>
             </tr>
           </thead>
@@ -293,24 +293,9 @@ const ProductCatalog = () => {
                 <td>
                   <span className={`badge-level ${p.level}`}>{p.level}</span>
                 </td>
+                <td style={{ color: '#586b84' }}>{formatRupiah(p.priceKopkar)}</td>
+                <td style={{ color: '#0d9488' }}>{formatRupiah(p.feeSchool)}</td>
                 <td className="price-student">{formatRupiah(p.priceStudent)}</td>
-                <td>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      background: (p.stock || 0) === 0 ? '#fff1f2' : (p.stock || 0) <= 20 ? '#fef3c7' : '#e6f7f5',
-                      color: (p.stock || 0) === 0 ? '#e11d48' : (p.stock || 0) <= 20 ? '#d97706' : '#0d9488',
-                      border: `1px solid ${(p.stock || 0) === 0 ? '#fecdd3' : (p.stock || 0) <= 20 ? '#fde68a' : '#99f6e4'}`,
-                    }}
-                  >
-                    {p.stock !== undefined ? `${p.stock} pcs` : '50 pcs'}
-                  </span>
-                </td>
-                <td>{p.storageLocation || '-'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button

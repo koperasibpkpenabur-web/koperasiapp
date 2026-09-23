@@ -6,7 +6,6 @@ import './catalog.css';
 const StockManagement = () => {
   const {
     products,
-    adjustStock,
     setProductStock,
     addProduct,
     importProductsFromExcel,
@@ -396,14 +395,11 @@ const StockManagement = () => {
           <thead>
             <tr>
               <th style={{ width: '40px' }}>No.</th>
-              <th>Kode Barang</th>
               <th>Nama Barang</th>
+              <th>Ukuran</th>
               <th>Jenjang</th>
-              <th>Kategori</th>
-              <th>Modal Koperasi</th>
-              <th>Status Stock</th>
-              <th>Stock Fisik</th>
-              <th style={{ textAlign: 'center' }}>Quick Stock Adjust</th>
+              <th>Stock</th>
+              <th>Lokasi Penyimpanan</th>
               <th style={{ textAlign: 'center' }}>Aksi</th>
             </tr>
           </thead>
@@ -423,144 +419,30 @@ const StockManagement = () => {
                 return (
                   <tr key={p.id}>
                     <td style={{ color: '#586b84', fontWeight: 600 }}>{idx + 1}</td>
-                    <td><code>{p.code}</code></td>
                     <td>
                       <strong>{p.name}</strong>
                     </td>
+                    <td>{p.size || '-'}</td>
                     <td>
                       <span className={`badge-level ${p.level}`}>{p.level}</span>
                     </td>
                     <td>
-                      <span className={`item-type ${p.category}`}>{p.category}</span>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          background: isOutOfStock ? '#fff1f2' : isLowStock ? '#fef3c7' : '#e6f7f5',
+                          color: isOutOfStock ? '#e11d48' : isLowStock ? '#d97706' : '#0d9488',
+                          border: `1px solid ${isOutOfStock ? '#fecdd3' : isLowStock ? '#fde68a' : '#99f6e4'}`,
+                        }}
+                      >
+                        {stock} pcs
+                      </span>
                     </td>
-                    <td className="price-kopkar">{formatRupiah(p.priceKopkar)}</td>
-                    <td>
-                      {isOutOfStock ? (
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '3px 8px',
-                            borderRadius: '8px',
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            background: '#fff1f2',
-                            color: '#e11d48',
-                            border: '1px solid #fecdd3',
-                          }}
-                        >
-                          🔴 HABIS
-                        </span>
-                      ) : isLowStock ? (
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '3px 8px',
-                            borderRadius: '8px',
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            background: '#fef3c7',
-                            color: '#d97706',
-                            border: '1px solid #fde68a',
-                          }}
-                        >
-                          ⚠️ MENIPIS
-                        </span>
-                      ) : (
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '3px 8px',
-                            borderRadius: '8px',
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            background: '#e6f7f5',
-                            color: '#0d9488',
-                            border: '1px solid #99f6e4',
-                          }}
-                        >
-                          🟢 AMAN
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '1rem', fontWeight: 700, color: isOutOfStock ? '#e11d48' : '#1e2d42' }}>
-                        {stock} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#586b84' }}>pcs</span>
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <button
-                          type="button"
-                          onClick={() => adjustStock(p.id, -10)}
-                          disabled={stock < 10}
-                          title="Kurangi 10 pcs"
-                          style={{
-                            padding: '3px 6px',
-                            fontSize: '0.72rem',
-                            background: '#F0F3FA',
-                            border: '1px solid #d5deef',
-                            borderRadius: '6px',
-                            cursor: stock < 10 ? 'not-allowed' : 'pointer',
-                            color: '#395886',
-                            fontWeight: 600,
-                          }}
-                        >
-                          -10
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => adjustStock(p.id, -1)}
-                          disabled={stock <= 0}
-                          title="Kurangi 1 pcs"
-                          style={{
-                            padding: '3px 8px',
-                            fontSize: '0.75rem',
-                            background: '#F0F3FA',
-                            border: '1px solid #d5deef',
-                            borderRadius: '6px',
-                            cursor: stock <= 0 ? 'not-allowed' : 'pointer',
-                            color: '#395886',
-                            fontWeight: 700,
-                          }}
-                        >
-                          -1
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => adjustStock(p.id, 1)}
-                          title="Tambah 1 pcs"
-                          style={{
-                            padding: '3px 8px',
-                            fontSize: '0.75rem',
-                            background: '#e6f7f5',
-                            border: '1px solid #99f6e4',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            color: '#0d9488',
-                            fontWeight: 700,
-                          }}
-                        >
-                          +1
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => adjustStock(p.id, 10)}
-                          title="Tambah 10 pcs"
-                          style={{
-                            padding: '3px 6px',
-                            fontSize: '0.72rem',
-                            background: '#e6f7f5',
-                            border: '1px solid #99f6e4',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            color: '#0d9488',
-                            fontWeight: 600,
-                          }}
-                        >
-                          +10
-                        </button>
-                      </div>
-                    </td>
+                    <td>{p.storageLocation || '-'}</td>
                     <td style={{ textAlign: 'center' }}>
                       <button
                         className="btn-primary"
