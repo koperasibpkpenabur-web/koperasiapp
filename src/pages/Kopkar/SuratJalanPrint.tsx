@@ -22,8 +22,19 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
     }).format(num);
   };
 
+  const isA5 = order.items.length <= 7;
+  const pageStyle = `
+    @media print {
+      @page {
+        size: ${isA5 ? 'A5 landscape' : 'A4 portrait'};
+        margin: 10mm;
+      }
+    }
+  `;
+
   return (
     <div className="print-only print-surat-jalan">
+      <style>{pageStyle}</style>
       <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
           <h2 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 'bold' }}>
