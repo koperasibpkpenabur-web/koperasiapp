@@ -460,7 +460,7 @@ const KopkarPelunasan = () => {
                                   🖨️ Cetak Surat Jalan
                                 </button>
                                 <button className="btn-cancel-approved" onClick={() => handleOpenKopkarCancelModal(order)}>
-                                  ΓÜá∩╕Å Batalkan
+                                  ⚠️ Batalkan
                                 </button>
                               </div>
                             )}
@@ -500,7 +500,7 @@ const KopkarPelunasan = () => {
                         {order.items.map((it, idx) => (
                           <li key={idx}>
                             <span className={`item-type ${it.type}`}>{it.type}</span>
-                            {it.name} ΓÇö {it.quantity} pcs
+                            {it.name} — {it.quantity} pcs
                           </li>
                         ))}
                       </ul>
@@ -551,7 +551,7 @@ const KopkarPelunasan = () => {
                             🖨️ Cetak Surat Jalan
                           </button>
                           <button className="btn-cancel-approved full-width-touch" onClick={() => handleOpenKopkarCancelModal(order)}>
-                            ΓÜá∩╕Å Batalkan
+                            ⚠️ Batalkan
                           </button>
                         </div>
                       )}
@@ -900,7 +900,7 @@ const KopkarPelunasan = () => {
           <div className="modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ color: '#059669' }}>💵 Konfirmasi Pelunasan Sekolah</h3>
             <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '14px' }}>
-              Pesanan: <strong>{payingOrder.id}</strong> ΓÇö {payingOrder.schoolName}
+              Pesanan: <strong>{payingOrder.id}</strong> — {payingOrder.schoolName}
             </p>
 
             <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0', marginBottom: '14px' }}>
@@ -985,9 +985,9 @@ const KopkarPelunasan = () => {
       {cancellingApprovedOrder && (
         <div className="modal-overlay" onClick={() => setCancellingApprovedOrder(null)}>
           <div className="modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ color: '#dc2626' }}>ΓÜá∩╕Å Batalkan Pesanan</h3>
+            <h3 style={{ color: '#dc2626' }}>⚠️ Batalkan Pesanan</h3>
             <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '14px' }}>
-              Pesanan: <strong>{cancellingApprovedOrder.id}</strong> ΓÇö {cancellingApprovedOrder.schoolName}
+              Pesanan: <strong>{cancellingApprovedOrder.id}</strong> — {cancellingApprovedOrder.schoolName}
             </p>
 
             <form className="modal-form" onSubmit={handleConfirmKopkarCancel}>
