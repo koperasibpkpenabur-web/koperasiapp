@@ -273,26 +273,19 @@ const KopkarPelunasan = () => {
       {/* Stats Cards & Financial Overview */}
       <div className="kopkar-stats">
         <div className="kopkar-stat-card">
-          <div className="stat-icon">≡ƒÆ░</div>
+          <div className="stat-icon">💰</div>
           <div className="stat-label">Total Tagihan Siswa</div>
           <div className="stat-value" style={{ fontSize: '1.35rem' }}>{formatRupiah(totalOmzetStudent)}</div>
         </div>
         <div className="kopkar-stat-card">
-          <div className="stat-icon">≡ƒÆ│</div>
+          <div className="stat-icon">💳</div>
           <div className="stat-label">Telah Dilunasi Sekolah</div>
           <div className="stat-value" style={{ fontSize: '1.35rem', color: '#059669' }}>
             {formatRupiah(totalPaidRevenue)}
           </div>
         </div>
         <div className="kopkar-stat-card">
-          <div className="stat-icon">≡ƒÅ½</div>
-          <div className="stat-label">Fee Sekolah Siap Cair</div>
-          <div className="stat-value" style={{ fontSize: '1.35rem', color: '#2563eb' }}>
-            {formatRupiah(totalSchoolFeeToDisburse)}
-          </div>
-        </div>
-        <div className="kopkar-stat-card">
-          <div className="stat-icon">≡ƒôè</div>
+          <div className="stat-icon">📊</div>
           <div className="stat-label">Rekapitulasi Fase</div>
           <div style={{ fontSize: '0.85rem', marginTop: '8px' }}>
             <div>Tahap 1: <strong>{countTahap1}</strong> pesanan</div>
@@ -300,19 +293,9 @@ const KopkarPelunasan = () => {
             <div>Tambahan: <strong>{countTambahan}</strong> pesanan</div>
           </div>
         </div>
-        <div className="kopkar-stat-card">
-          <div className="stat-icon">ΓÅ│</div>
-          <div className="stat-label">Perlu Disetujui</div>
-          <div className="stat-value">{pendingOrders}</div>
-        </div>
-        <div className="kopkar-stat-card">
-          <div className="stat-icon">≡ƒÜÜ</div>
-          <div className="stat-label">Sedang Dikirim</div>
-          <div className="stat-value" style={{ color: '#2563eb' }}>{shippedOrders}</div>
-        </div>
         {cancelRequestsCount > 0 && (
           <div className="kopkar-stat-card alert-card">
-            <div className="stat-icon">ΓÜá∩╕Å</div>
+            <div className="stat-icon">⚠️</div>
             <div className="stat-label">Request Batal</div>
             <div className="stat-value" style={{ color: '#dc2626' }}>{cancelRequestsCount}</div>
           </div>
@@ -324,7 +307,7 @@ const KopkarPelunasan = () => {
             style={{ textDecoration: 'none', borderLeft: '4px solid #e11d48' }}
             title="Klik untuk membuka permohonan retur masuk"
           >
-            <div className="stat-icon">Γå⌐∩╕Å</div>
+            <div className="stat-icon">↩️</div>
             <div className="stat-label">Retur Masuk Perlu Dicek</div>
             <div className="stat-value" style={{ color: '#e11d48' }}>{pendingReturnsCount}</div>
           </Link>
