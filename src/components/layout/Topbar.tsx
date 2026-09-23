@@ -70,6 +70,25 @@ const Topbar = () => {
               )}
             </span>
             <div className="header-actions">
+              <button 
+                onClick={() => navigate(user.role === 'admin' ? '/admin' : user.role === 'kopkar' ? '/kopkar' : '/sekolah')}
+                style={{
+                  background: '#F0F3FA',
+                  border: '1px solid #d5deef',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  color: '#395886',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+                title="Kembali ke Dashboard / Menu Utama"
+              >
+                🏠 Menu Utama
+              </button>
               {user.role === 'sekolah' && (
                 <button 
                   className="cart-icon-btn" 
