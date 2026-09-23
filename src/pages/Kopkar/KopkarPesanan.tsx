@@ -392,7 +392,7 @@ const KopkarPelunasan = () => {
                         <td>
                           {order.paymentStatus === 'paid' ? (
                             <div>
-                              <span className="badge-pay-paid">≡ƒƒó Lunas Diterima</span>
+                              <span className="badge-pay-paid">✅ Lunas Diterima</span>
                               {order.paidAt && (
                                 <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
                                   {formatDate(order.paidAt)}
@@ -401,13 +401,13 @@ const KopkarPelunasan = () => {
                             </div>
                           ) : (
                             <div>
-                              <span className="badge-pay-unpaid">≡ƒö┤ Belum Lunas</span>
+                              <span className="badge-pay-unpaid">🔴 Belum Lunas</span>
                               <button
                                 className="btn-pay-action"
                                 style={{ marginTop: '6px' }}
                                 onClick={() => handleOpenPaymentModal(order)}
                               >
-                                ≡ƒÆ╡ Konfirmasi Pelunasan
+                                💵 Konfirmasi Pelunasan
                               </button>
                             </div>
                           )}
@@ -429,7 +429,7 @@ const KopkarPelunasan = () => {
                             {order.status === 'approved' && (
                               <div className="action-buttons-wrap">
                                 <button className="btn-ship" onClick={() => handleOpenShipModal(order)}>
-                                  ≡ƒÜÜ Kirim Barang
+                                  🚚 Kirim Barang
                                 </button>
                                 <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => setPrintingOrder(order)}>
                                   🖨️ Cetak Surat Jalan
@@ -494,13 +494,13 @@ const KopkarPelunasan = () => {
 
                     <div style={{ marginTop: '6px' }}>
                       {order.paymentStatus === 'paid' ? (
-                        <span className="badge-pay-paid">≡ƒƒó Lunas</span>
+                        <span className="badge-pay-paid">✅ Lunas</span>
                       ) : (
                         <button
                           className="btn-pay-action full-width-touch"
                           onClick={() => handleOpenPaymentModal(order)}
                         >
-                          ≡ƒÆ╡ Konfirmasi Pelunasan Sekolah
+                          💵 Konfirmasi Pelunasan Sekolah
                         </button>
                       )}
                     </div>
@@ -520,7 +520,7 @@ const KopkarPelunasan = () => {
                       {order.status === 'approved' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
                           <button className="btn-ship full-width-touch" onClick={() => handleOpenShipModal(order)}>
-                            ≡ƒÜÜ Kirim Barang
+                            🚚 Kirim Barang
                           </button>
                           <button className="btn-secondary full-width-touch" onClick={() => setPrintingOrder(order)}>
                             🖨️ Cetak Surat Jalan
@@ -598,7 +598,7 @@ const KopkarPelunasan = () => {
                         <td>
                           {order.paymentStatus === 'paid' ? (
                             <div>
-                              <span className="badge-pay-paid">≡ƒƒó Lunas</span>
+                              <span className="badge-pay-paid">✅ Lunas</span>
                               {order.paidAt && (
                                 <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
                                   {formatDate(order.paidAt)}
@@ -607,13 +607,13 @@ const KopkarPelunasan = () => {
                             </div>
                           ) : (
                             <div>
-                              <span className="badge-pay-unpaid">≡ƒö┤ Belum Lunas</span>
+                              <span className="badge-pay-unpaid">🔴 Belum Lunas</span>
                               <button
                                 className="btn-pay-action"
                                 style={{ marginTop: '6px' }}
                                 onClick={() => handleOpenPaymentModal(order)}
                               >
-                                ≡ƒÆ╡ Konfirmasi Pelunasan
+                                💵 Konfirmasi Pelunasan
                               </button>
                             </div>
                           )}
@@ -622,7 +622,7 @@ const KopkarPelunasan = () => {
                           {/* Logika Pencairan Fee Sekolah */}
                           {order.feeStatus === 'disbursed' && (
                             <div>
-                              <span className="badge-fee-disbursed">≡ƒÆ░ Fee Telah Ditransfer</span>
+                              <span className="badge-fee-disbursed">💰 Fee Telah Ditransfer</span>
                               <div style={{ fontSize: '0.72rem', color: '#047857', marginTop: '2px' }}>
                                 Oleh: {order.feeDisbursedBy}
                               </div>
@@ -637,14 +637,14 @@ const KopkarPelunasan = () => {
                                 style={{ marginTop: '6px' }}
                                 onClick={() => handleOpenDisburseModal(order)}
                               >
-                                ≡ƒÆ╕ Bayarkan Fee ({formatRupiah(order.totalFeeSchool)})
+                                💸 Bayarkan Fee ({formatRupiah(order.totalFeeSchool)})
                               </button>
                             </div>
                           )}
 
                           {order.feeStatus === 'locked' && (
                             <div className="badge-fee-locked">
-                              ≡ƒöÆ Kunci (Tunggu Sekolah Lunas)
+                              🔒 Kunci (Tunggu Sekolah Lunas)
                             </div>
                           )}
                         </td>
@@ -688,31 +688,31 @@ const KopkarPelunasan = () => {
                     {/* Financial Status Mobile */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
                       {order.paymentStatus === 'paid' ? (
-                        <div className="badge-pay-paid">≡ƒƒó Sekolah Telah Melunasi Tagihan</div>
+                        <div className="badge-pay-paid">✅ Sekolah Telah Melunasi Tagihan</div>
                       ) : (
                         <div>
-                          <div className="badge-pay-unpaid">≡ƒö┤ Sekolah Belum Melunasi</div>
+                          <div className="badge-pay-unpaid">🔴 Sekolah Belum Melunasi</div>
                           <button
                             className="btn-pay-action full-width-touch"
                             style={{ marginTop: '6px' }}
                             onClick={() => handleOpenPaymentModal(order)}
                           >
-                            ≡ƒÆ╡ Konfirmasi Pelunasan Sekolah
+                            💵 Konfirmasi Pelunasan Sekolah
                           </button>
                         </div>
                       )}
 
                       {order.feeStatus === 'disbursed' ? (
-                        <div className="badge-fee-disbursed">≡ƒÆ░ Fee Sekolah Telah Dibayarkan</div>
+                        <div className="badge-fee-disbursed">💰 Fee Sekolah Telah Dibayarkan</div>
                       ) : order.feeStatus === 'ready' ? (
                         <button
                           className="btn-disburse-action full-width-touch"
                           onClick={() => handleOpenDisburseModal(order)}
                         >
-                          ≡ƒÆ╕ Bayarkan Fee Sekolah ({formatRupiah(order.totalFeeSchool)})
+                          💸 Bayarkan Fee Sekolah ({formatRupiah(order.totalFeeSchool)})
                         </button>
                       ) : (
-                        <div className="badge-fee-locked">≡ƒöÆ Fee Sekolah Cair Setelah Pelunasan</div>
+                        <div className="badge-fee-locked">🔒 Fee Sekolah Cair Setelah Pelunasan</div>
                       )}
                     </div>
                   </div>
@@ -814,7 +814,7 @@ const KopkarPelunasan = () => {
       {shippingOrder && (
         <div className="modal-overlay" onClick={() => setShippingOrder(null)}>
           <div className="modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>≡ƒÜÜ Input Pengiriman Barang</h3>
+            <h3>🚚 Input Pengiriman Barang</h3>
             <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '14px' }}>
               Pesanan No: <strong>{shippingOrder.id}</strong> ({shippingOrder.schoolName})
             </p>
