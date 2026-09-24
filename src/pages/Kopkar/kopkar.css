@@ -21,6 +21,7 @@
 }
 
 .kopkar-stat-card {
+  container-type: inline-size;
   background: #ffffff;
   border: 1px solid var(--border-subtle, #d5deef);
   border-radius: 14px;
@@ -57,7 +58,8 @@
 }
 
 .kopkar-stat-card .stat-value {
-  font-size: 1.6rem;
+  font-size: clamp(1rem, 12cqi, 1.6rem);
+  word-break: break-word;
   font-weight: 700;
   color: var(--text-primary, #1e2d42);
   letter-spacing: -0.02em;

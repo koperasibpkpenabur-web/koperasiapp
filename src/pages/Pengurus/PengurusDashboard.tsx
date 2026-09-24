@@ -61,17 +61,17 @@ const PengurusDashboard = () => {
         gap: '20px',
         marginBottom: '32px'
       }}>
-        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #3b82f6' }}>
+        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #3b82f6', containerType: 'inline-size' }}>
           <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>Total Omzet (Pendapatan Kotor)</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1e293b' }}>{formatRupiah(totalOmzet)}</div>
+          <div style={{ fontSize: 'clamp(1rem, 12cqi, 1.75rem)', fontWeight: 700, color: '#1e293b', wordBreak: 'break-word' }}>{formatRupiah(totalOmzet)}</div>
         </div>
-        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #f59e0b' }}>
+        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #f59e0b', containerType: 'inline-size' }}>
           <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>Total Harga Pokok (Modal Koperasi)</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1e293b' }}>{formatRupiah(totalModal)}</div>
+          <div style={{ fontSize: 'clamp(1rem, 12cqi, 1.75rem)', fontWeight: 700, color: '#1e293b', wordBreak: 'break-word' }}>{formatRupiah(totalModal)}</div>
         </div>
-        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #10b981' }}>
+        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderLeft: '4px solid #10b981', containerType: 'inline-size' }}>
           <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>Total Margin Koperasi (Laba Bersih)</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#10b981' }}>{formatRupiah(totalLaba)}</div>
+          <div style={{ fontSize: 'clamp(1rem, 12cqi, 1.75rem)', fontWeight: 700, color: '#10b981', wordBreak: 'break-word' }}>{formatRupiah(totalLaba)}</div>
         </div>
       </div>
 
