@@ -38,6 +38,7 @@ const KopkarPelunasan = () => {
   const [shipTime, setShipTime] = useState<string>('');
   const [courierNotes, setCourierNotes] = useState<string>('');
   const [shipError, setShipError] = useState<string>('');
+  const [shippedQuantities, setShippedQuantities] = useState<number[]>([]);
 
   // Kopkar cancellation modal (cancelling an approved order)
   const [cancellingApprovedOrder, setCancellingApprovedOrder] = useState<Order | null>(null);
@@ -166,6 +167,7 @@ const KopkarPelunasan = () => {
     setShipTime(`${hours}:${minutes}`);
     setCourierNotes('Mobil Box Koperasi - Bpk. Supardi');
     setShipError('');
+    setShippedQuantities(order.items.map(it => it.quantity));
   };
 
   const handleConfirmShip = (e: FormEvent) => {
@@ -183,6 +185,11 @@ const KopkarPelunasan = () => {
       shippedAtTime: shipTime,
       courierNotes: courierNotes.trim() || undefined,
       shippedBy: stafName,
+      shippedItems: shippingOrder.items.map((it, idx) => ({
+        name: it.name,
+        type: it.type,
+        shippedQty: shippedQuantities[idx]
+      })),
     };
 
     shipOrder(shippingOrder.id, shippingData);
@@ -365,12 +372,20 @@ const KopkarPelunasan = () => {
                         </td>
                         <td>
                           <ul className="order-items-list">
-                            {order.items.map((it, idx) => (
+                            {order.items.map((it, idx) => {
+                              const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
+                              const isPartial = (order.status === 'shipped' || order.status === 'received') && shippedIt && shippedIt.shippedQty < it.quantity;
+                              return (
                               <li key={idx}>
                                 <span className={`item-type ${it.type}`}>{it.type}</span>
                                 {it.name} (<strong>{it.quantity} pcs</strong>)
+                                {isPartial && (
+                                  <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '2px', fontWeight: 600 }}>
+                                    ⚠️ Belum dikirim: {it.quantity - shippedIt.shippedQty} pcs
+                                  </div>
+                                )}
                               </li>
-                            ))}
+                            )})}
                           </ul>
                         </td>
                         <td>
@@ -443,6 +458,14 @@ const KopkarPelunasan = () => {
                             {order.status === 'shipped' && (
                               <div style={{ fontSize: '0.8rem', color: '#2563eb' }}>
                                 Barang sedang diantar ke sekolah.
+                                {order.shippingInfo?.shippedItems && order.items.some((it) => {
+                                  const shippedIt = order.shippingInfo!.shippedItems!.find(si => si.name === it.name && si.type === it.type);
+                                  return shippedIt && shippedIt.shippedQty < it.quantity;
+                                }) && (
+                                  <div style={{ marginTop: '4px', color: '#dc2626', fontWeight: 600 }}>
+                                    ⚠️ Terdapat barang yang belum dikirim!
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -472,12 +495,20 @@ const KopkarPelunasan = () => {
                     <div className="mobile-items-box">
                       <div className="mobile-label">Item:</div>
                       <ul className="order-items-list">
-                        {order.items.map((it, idx) => (
+                        {order.items.map((it, idx) => {
+                          const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
+                          const isPartial = (order.status === 'shipped' || order.status === 'received') && shippedIt && shippedIt.shippedQty < it.quantity;
+                          return (
                           <li key={idx}>
                             <span className={`item-type ${it.type}`}>{it.type}</span>
                             {it.name} — {it.quantity} pcs
+                            {isPartial && (
+                              <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '2px', fontWeight: 600 }}>
+                                ⚠️ Belum dikirim: {it.quantity - shippedIt.shippedQty} pcs
+                              </div>
+                            )}
                           </li>
-                        ))}
+                        )})}
                       </ul>
                     </div>
 
@@ -854,6 +885,35 @@ const KopkarPelunasan = () => {
                   value={courierNotes}
                   onChange={(e) => setCourierNotes(e.target.value)}
                 />
+              </div>
+
+              <div className="form-group" style={{ marginTop: '14px' }}>
+                <label>Kuantitas yang Dikirim</label>
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '4px' }}>
+                  {shippingOrder.items.map((it, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.85rem' }}>{it.name} (Pesan: {it.quantity})</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input 
+                          type="number" 
+                          min="0" 
+                          max={it.quantity}
+                          value={shippedQuantities[idx]}
+                          onChange={(e) => {
+                            const newQties = [...shippedQuantities];
+                            newQties[idx] = parseInt(e.target.value) || 0;
+                            setShippedQuantities(newQties);
+                          }}
+                          style={{ width: '80px', padding: '4px' }}
+                        />
+                        <span style={{ fontSize: '0.85rem' }}>pcs</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                  Ubah jumlah di atas jika pesanan dikirim sebagian.
+                </p>
               </div>
 
               <div className="modal-actions">

@@ -68,6 +68,7 @@ export interface ShippingInfo {
   shippedAtTime: string;  // Contoh: '10:30'
   courierNotes?: string;  // Contoh: 'Mobil Box Koperasi Plat B 1234 CD - Sopir Pak Joko'
   shippedBy: string;      // Nama staf Koperasi yang menginput kirim
+  shippedItems?: { name: string; type: string; shippedQty: number }[]; // Track partial shipments
 }
 
 export interface ReceiveInfo {
