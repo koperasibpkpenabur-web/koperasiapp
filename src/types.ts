@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'kopkar' | 'sekolah';
+export type UserRole = 'admin' | 'kopkar' | 'sekolah' | 'pengurus';
 
 export type SchoolLevel = 'TK' | 'SD' | 'SMP' | 'SMA' | 'SEMUA';
 

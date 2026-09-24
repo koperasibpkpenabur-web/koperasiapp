@@ -138,6 +138,7 @@ const UserManagement = () => {
       admin: 'Admin',
       kopkar: 'Kopkar',
       sekolah: 'Sekolah',
+      pengurus: 'Pengurus',
     };
     return labels[role];
   };
@@ -162,6 +163,7 @@ const UserManagement = () => {
           >
             <option value="all">Semua Role</option>
             <option value="admin">Admin</option>
+            <option value="pengurus">Pengurus Koperasi</option>
             <option value="kopkar">Karyawan Kopkar</option>
             <option value="sekolah">Sekolah</option>
           </select>
@@ -326,6 +328,7 @@ const UserManagement = () => {
                 >
                   <option value="sekolah">Sekolah (PIC Pemesanan)</option>
                   <option value="kopkar">Karyawan Koperasi</option>
+                  <option value="pengurus">Pengurus Koperasi</option>
                   <option value="admin">Administrator</option>
                 </select>
               </div>

@@ -160,6 +160,23 @@ const Sidebar = () => {
             </>
           )}
 
+          {/* Pengurus menu items */}
+          {user.role === 'pengurus' && (
+            <>
+              <li>
+                <NavLink
+                  to="/pengurus"
+                  end
+                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                  onClick={closeMobileNav}
+                >
+                  <span className="nav-icon">📈</span>
+                  <span className="nav-text">Dashboard Eksekutif</span>
+                </NavLink>
+              </li>
+            </>
+          )}
+
           {/* School menu items */}
           {user.role === 'sekolah' && (
             <>

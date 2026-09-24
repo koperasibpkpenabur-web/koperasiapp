@@ -15,6 +15,7 @@ import StockManagement from '../pages/Kopkar/StockManagement';
 import KopkarReturn from '../pages/Kopkar/KopkarReturn';
 import KopkarRekap from '../pages/Kopkar/KopkarRekap';
 import SchoolReturn from '../pages/School/SchoolReturn';
+import PengurusDashboard from '../pages/Pengurus/PengurusDashboard';
 import type { UserRole } from '../types';
 
 const RootRedirect = () => {
@@ -28,6 +29,7 @@ const RootRedirect = () => {
     admin: '/admin',
     kopkar: '/kopkar',
     sekolah: '/school',
+    pengurus: '/pengurus',
   };
 
   return <Navigate to={roleHome[user.role]} replace />;
@@ -99,6 +101,13 @@ const AppRoutes = () => {
         <Route path="kopkar/rekap" element={
           <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
             <KopkarRekap />
+          </ProtectedRoute>
+        } />
+
+        {/* Pengurus routes */}
+        <Route path="pengurus" element={
+          <ProtectedRoute allowedRoles={['admin', 'pengurus']}>
+            <PengurusDashboard />
           </ProtectedRoute>
         } />
 
