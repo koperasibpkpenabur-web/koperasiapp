@@ -4,10 +4,12 @@ import type { UserRole, SchoolLevel } from '../../types';
 import './admin.css';
 
 const UserManagement = () => {
-  const { getUsers, addUser, deleteUser, updateUserPassword } = useAuth();
+  const { getUsers, addUser, updateUser, deleteUser, updateUserPassword } = useAuth();
   const users = getUsers();
 
   const [showModal, setShowModal] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterLevel, setFilterLevel] = useState<string>('all');
@@ -53,11 +55,28 @@ const UserManagement = () => {
 
   const handleOpenModal = () => {
     resetForm();
+    setEditMode(false);
+    setEditTargetId(null);
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (u: any) => {
+    setFormName(u.name);
+    setFormUsername(u.username);
+    setFormPassword('');
+    setFormRole(u.role);
+    setFormSchoolName(u.schoolName || '');
+    setFormSchoolLevel(u.schoolLevel || 'SMP');
+    setFormError('');
+    setEditMode(true);
+    setEditTargetId(u.id);
     setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
+    setEditMode(false);
+    setEditTargetId(null);
     resetForm();
   };
 
@@ -65,12 +84,12 @@ const UserManagement = () => {
     e.preventDefault();
     setFormError('');
 
-    if (!formName.trim() || !formUsername.trim() || !formPassword.trim()) {
-      setFormError('Semua field wajib diisi');
+    if (!formName.trim() || !formUsername.trim()) {
+      setFormError('Nama dan Username wajib diisi');
       return;
     }
 
-    if (formPassword.length < 6) {
+    if (!editMode && (!formPassword || formPassword.trim().length < 6)) {
       setFormError('Password minimal 6 karakter');
       return;
     }
@@ -80,19 +99,36 @@ const UserManagement = () => {
       return;
     }
 
-    const result = await addUser({
-      name: formName.trim(),
-      username: formUsername.trim(),
-      password: formPassword,
-      role: formRole,
-      schoolName: formRole === 'sekolah' ? formSchoolName.trim() : undefined,
-      schoolLevel: formRole === 'sekolah' ? formSchoolLevel : undefined,
-    });
-
-    if (result.success) {
-      handleCloseModal();
+    if (editMode && editTargetId) {
+      const updates = {
+        name: formName.trim(),
+        username: formUsername.trim(),
+        role: formRole,
+        schoolName: formRole === 'sekolah' ? formSchoolName.trim() : undefined,
+        schoolLevel: formRole === 'sekolah' ? formSchoolLevel : undefined,
+      };
+      
+      const result = await updateUser(editTargetId, updates);
+      if (result.success) {
+        handleCloseModal();
+      } else {
+        setFormError(result.error || 'Gagal mengubah user');
+      }
     } else {
-      setFormError(result.error || 'Gagal menambahkan user');
+      const result = await addUser({
+        name: formName.trim(),
+        username: formUsername.trim(),
+        password: formPassword,
+        role: formRole,
+        schoolName: formRole === 'sekolah' ? formSchoolName.trim() : undefined,
+        schoolLevel: formRole === 'sekolah' ? formSchoolLevel : undefined,
+      });
+
+      if (result.success) {
+        handleCloseModal();
+      } else {
+        setFormError(result.error || 'Gagal menambahkan user');
+      }
     }
   };
 
@@ -245,6 +281,12 @@ const UserManagement = () => {
                           overflow: 'hidden'
                         }}>
                           <button
+                            onClick={() => { handleOpenEditModal(u); setOpenMenuId(null); }}
+                            style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f1f5f9', textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: '#1e293b' }}
+                          >
+                            ✏️ Edit Akun
+                          </button>
+                          <button
                             onClick={() => { handleOpenEditPass(u.id, u.name); setOpenMenuId(null); }}
                             style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', borderBottom: '1px solid #f1f5f9', textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: '#1e293b' }}
                           >
@@ -281,7 +323,7 @@ const UserManagement = () => {
       {showModal && (
         <div className="modal-overlay" onClick={handleCloseModal}>
           <div className="modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>Tambah Akun Pengguna Baru</h3>
+            <h3>{editMode ? 'Edit Akun Pengguna' : 'Tambah Akun Pengguna Baru'}</h3>
             <form className="modal-form" onSubmit={handleSubmit}>
               {formError && <div className="modal-error">{formError}</div>}
 
@@ -308,16 +350,18 @@ const UserManagement = () => {
                 />
               </div>
 
-              <div className="form-group">
-                <label htmlFor="newPassword">Password *</label>
-                <input
-                  id="newPassword"
-                  type="password"
-                  placeholder="Minimal 6 karakter"
-                  value={formPassword}
-                  onChange={(e) => setFormPassword(e.target.value)}
-                />
-              </div>
+              {!editMode && (
+                <div className="form-group">
+                  <label htmlFor="newPassword">Password *</label>
+                  <input
+                    id="newPassword"
+                    type="password"
+                    placeholder="Minimal 6 karakter"
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div className="form-group">
                 <label htmlFor="role">Role Pengguna *</label>

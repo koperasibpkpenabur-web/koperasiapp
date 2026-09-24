@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   addUser: (userData: Omit<User, 'id' | 'createdAt'>) => Promise<{ success: boolean; error?: string }>;
+  updateUser: (id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>) => Promise<{ success: boolean; error?: string }>;
   updateUserPassword: (id: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   deleteUser: (id: string) => Promise<void>;
   getUsers: () => User[];
@@ -163,6 +164,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }, [fetchUsers]);
 
+  const updateUser = useCallback(async (id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>) => {
+    const dbUpdates: any = {};
+    if (updates.username !== undefined) dbUpdates.username = updates.username;
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.role !== undefined) dbUpdates.role = updates.role;
+    
+    if (updates.role === 'sekolah') {
+      if (updates.schoolName !== undefined) dbUpdates.school_name = updates.schoolName;
+      if (updates.schoolLevel !== undefined) dbUpdates.school_level = updates.schoolLevel;
+    } else if (updates.role) {
+      dbUpdates.school_name = null;
+      dbUpdates.school_level = null;
+    }
+
+    const { error } = await supabase
+      .from('app_users')
+      .update(dbUpdates)
+      .eq('id', id);
+      
+    if (error) {
+      if (error.code === '23505') { 
+        return { success: false, error: 'Username sudah digunakan' };
+      }
+      return { success: false, error: error.message };
+    }
+    
+    await fetchUsers();
+    return { success: true };
+  }, [fetchUsers]);
+
   const deleteUser = useCallback(async (id: string) => {
     await supabase.from('app_users').delete().eq('id', id);
     await fetchUsers();
@@ -186,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         addUser,
+        updateUser,
         updateUserPassword,
         deleteUser,
         getUsers,
