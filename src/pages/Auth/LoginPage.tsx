@@ -17,6 +17,7 @@ const LoginPage = () => {
     admin: '/admin',
     kopkar: '/kopkar',
     sekolah: '/school',
+    pengurus: '/pengurus',
   };
 
   const handleSubmit = (e: FormEvent) => {
