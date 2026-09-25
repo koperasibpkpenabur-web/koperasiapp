@@ -981,6 +981,7 @@ const SchoolDashboard = () => {
                     <option value="SD">Jenjang SD</option>
                     <option value="SMP">Jenjang SMP</option>
                     <option value="SMA">Jenjang SMA</option>
+                    <option value="SPK">Jenjang SPK (Inter)</option>
                     <option value="SEMUA">Semua Jenjang</option>
                   </select>
                 </div>

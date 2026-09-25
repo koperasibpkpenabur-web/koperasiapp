@@ -405,6 +405,7 @@ const StockManagement = () => {
             <option value="SD">Jenjang SD</option>
             <option value="SMP">Jenjang SMP</option>
             <option value="SMA">Jenjang SMA</option>
+            <option value="SPK">Jenjang SPK (Inter)</option>
           </select>
 
           {/* Filter Status Stock */}
@@ -584,6 +585,7 @@ const StockManagement = () => {
                   <option value="SD">SD</option>
                   <option value="SMP">SMP</option>
                   <option value="SMA">SMA</option>
+                  <option value="SPK">SPK (Inter)</option>
                   <option value="SEMUA">Semua Jenjang</option>
                 </select>
               </div>
