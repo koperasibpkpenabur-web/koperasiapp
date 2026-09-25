@@ -22,8 +22,8 @@ const KopkarPelunasan = () => {
     disburseSchoolFee,
   } = useOrders();
 
-  // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima/Selesai), 'cancellations' (Riwayat Pembatalan)
-  const [activeTab, setActiveTab] = useState<'active' | 'received' | 'cancellations'>('active');
+  // Only show received orders for Pelunasan
+  const [activeTab, setActiveTab] = useState<'received'>('received');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -314,23 +314,7 @@ const KopkarPelunasan = () => {
         )}
       </div>
 
-      {/* 3 Tabs Navigation */}
-      <div className="dashboard-tabs">
-        <button
-          className={`tab-button ${activeTab === 'active' ? 'active' : ''}`}
-          onClick={() => setActiveTab('active')}
-        >
-          💰 Tagihan Berjalan ({activeOrders.length})
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'received' ? 'active' : ''}`}
-          onClick={() => setActiveTab('received')}
-        >
-          ✅ Riwayat Selesai ({receivedCount})
-        </button>
-      </div>
-
-      {/* TAB 1: PESANAN BERJALAN */}
+      {/* Tabs removed, only showing received orders */}
       {activeTab === 'active' && (
         <div className="tab-pane">
           <div className="kopkar-toolbar">

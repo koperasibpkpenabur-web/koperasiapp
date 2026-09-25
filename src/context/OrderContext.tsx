@@ -8,6 +8,7 @@ interface OrderContextType {
   approveOrder: (orderId: string, processorName: string) => Promise<void>;
   rejectOrder: (orderId: string, processorName: string, reason: string) => Promise<void>;
   shipOrder: (orderId: string, shippingData: Omit<ShippingInfo, never>) => Promise<void>;
+  cancelShipment: (orderId: string) => Promise<void>;
   receiveOrder: (orderId: string, receiveData: { receivedBy: string; isChecked: boolean; notes?: string }) => Promise<void>;
   requestCancelOrder: (orderId: string, reason: string, schoolUserName: string) => Promise<void>;
   approveCancelOrder: (orderId: string, stafName: string) => Promise<void>;
@@ -171,6 +172,13 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     });
   }, [fetchOrders]);
 
+  const cancelShipment = useCallback(async (orderId: string) => {
+    await updateOrderInSupabase(orderId, {
+      status: 'approved',
+      shipping_info: null,
+    });
+  }, [fetchOrders]);
+
   const receiveOrder = useCallback(
     async (orderId: string, receiveData: { receivedBy: string; isChecked: boolean; notes?: string }) => {
       const receiveInfo: ReceiveInfo = {
@@ -276,6 +284,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         approveOrder,
         rejectOrder,
         shipOrder,
+        cancelShipment,
         receiveOrder,
         requestCancelOrder,
         approveCancelOrder,
