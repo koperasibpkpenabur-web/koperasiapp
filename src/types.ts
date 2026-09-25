@@ -1,6 +1,6 @@
 export type UserRole = 'admin' | 'kopkar' | 'sekolah' | 'pengurus';
 
-export type SchoolLevel = 'TK' | 'SD' | 'SMP' | 'SMA' | 'SPK' | 'SEMUA';
+export type SchoolLevel = 'TK' | 'SD' | 'SMP' | 'SMA' | 'SPK-SD' | 'SPK-SMP' | 'SPK-SMA' | 'SEMUA';
 
 export interface User {
   id: string;
@@ -9,7 +9,7 @@ export interface User {
   name: string;
   role: UserRole;
   schoolName?: string; // Hanya untuk role 'sekolah'
-  schoolLevel?: SchoolLevel; // Jenjang: TK, SD, SMP, SMA, SPK
+  schoolLevel?: SchoolLevel; // Jenjang: TK, SD, SMP, SMA, SPK-SD, SPK-SMP, SPK-SMA
   createdAt: string;
 }
 
@@ -27,7 +27,7 @@ export interface ProductItem {
   code: string;            // Contoh: SRG-SMP-01, BK-SD-02
   name: string;            // Nama barang
   category: OrderItemType; // seragam / buku
-  level: SchoolLevel;      // TK / SD / SMP / SMA / SPK / SEMUA
+  level: SchoolLevel;      // TK / SD / SMP / SMA / SPK-SD / SPK-SMP / SPK-SMA / SEMUA
   priceKopkar: number;     // Harga Koperasi (HPP/Modal)
   feeSchool: number;       // Fee Sekolah (Margin Hak Sekolah)
   priceStudent: number;    // Harga Siswa = priceKopkar + feeSchool
@@ -90,7 +90,7 @@ export interface Order {
   id: string;
   schoolUserId: string;   // ID of the school user who created this order
   schoolName: string;      // Name of the school
-  schoolLevel?: SchoolLevel; // Jenjang sekolah pemesan (TK/SD/SMP/SMA/SPK)
+  schoolLevel?: SchoolLevel; // Jenjang sekolah pemesan (TK/SD/SMP/SMA/SPK-SD/SPK-SMP/SPK-SMA)
   orderPhase?: 'Tahap 1' | 'Tahap 2' | 'Tambahan';
   items: OrderItem[];
   status: OrderStatus;

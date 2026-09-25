@@ -253,7 +253,9 @@ const ProductCatalog = () => {
             <option value="SD">Jenjang SD</option>
             <option value="SMP">Jenjang SMP</option>
             <option value="SMA">Jenjang SMA</option>
-            <option value="SPK">Jenjang SPK (Inter)</option>
+            <option value="SPK-SD">Jenjang SPK (Primary)</option>
+            <option value="SPK-SMP">Jenjang SPK (Lower Sec)</option>
+            <option value="SPK-SMA">Jenjang SPK (Upper Sec)</option>
           </select>
 
           <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); handleFilterChange(); }}>
@@ -416,7 +418,9 @@ const ProductCatalog = () => {
                     <option value="SD">SD</option>
                     <option value="SMP">SMP</option>
                     <option value="SMA">SMA</option>
-                    <option value="SPK">SPK (Inter)</option>
+                    <option value="SPK-SD">SPK (Primary)</option>
+                    <option value="SPK-SMP">SPK (Lower Sec)</option>
+                    <option value="SPK-SMA">SPK (Upper Sec)</option>
                     <option value="SEMUA">Semua Jenjang</option>
                   </select>
                 </div>

@@ -215,7 +215,9 @@ const UserManagement = () => {
               <option value="SD">Jenjang SD</option>
               <option value="SMP">Jenjang SMP</option>
               <option value="SMA">Jenjang SMA</option>
-              <option value="SPK">Jenjang SPK (Inter)</option>
+              <option value="SPK-SD">Jenjang SPK (Primary)</option>
+              <option value="SPK-SMP">Jenjang SPK (Lower Sec)</option>
+              <option value="SPK-SMA">Jenjang SPK (Upper Sec)</option>
             </select>
           )}
         </div>
@@ -403,7 +405,9 @@ const UserManagement = () => {
                       <option value="SD">SD (Sekolah Dasar)</option>
                       <option value="SMP">SMP (Sekolah Menengah Pertama)</option>
                       <option value="SMA">SMA (Sekolah Menengah Atas)</option>
-                      <option value="SPK">SPK (Sekolah Inter PENABUR)</option>
+                      <option value="SPK-SD">SPK (Primary)</option>
+                      <option value="SPK-SMP">SPK (Lower Sec)</option>
+                      <option value="SPK-SMA">SPK (Upper Sec)</option>
                     </select>
                     <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
                       Katalog barang saat pemesanan akan otomatis disesuaikan dengan jenjang ini.

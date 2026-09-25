@@ -273,9 +273,19 @@
   color: #6d28d9;
 }
 
-.badge-level.SPK {
+.badge-level.SPK-SD {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-level.SPK-SMP {
   background: #ccfbf1;
   color: #0f766e;
+}
+
+.badge-level.SPK-SMA {
+  background: #e0e7ff;
+  color: #4338ca;
 }
 
 .badge-level.SEMUA {
