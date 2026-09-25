@@ -1,4 +1,4 @@
-import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { useProducts } from '../../context/ProductContext';
 import type { ProductItem, SchoolLevel } from '../../types';
 import './catalog.css';
@@ -7,6 +7,8 @@ const StockManagement = () => {
   const {
     products,
     setProductStock,
+    updateProduct,
+    deleteProduct,
     importProductsFromExcel,
     downloadTemplateCsv,
     exportProductsCsv,
@@ -33,6 +35,16 @@ const StockManagement = () => {
   const [addSelectedProductId, setAddSelectedProductId] = useState('');
   const [addAddedStock, setAddAddedStock] = useState<number>(0);
   const [addFormError, setAddFormError] = useState('');
+
+  // Action Menu
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
+  // Modal Detail Item
+  const [detailItem, setDetailItem] = useState<ProductItem | null>(null);
+  const [detailSize, setDetailSize] = useState('');
+  const [detailLocation, setDetailLocation] = useState('');
+  const [detailPriceKopkar, setDetailPriceKopkar] = useState<number>(0);
+  const [detailFeeSchool, setDetailFeeSchool] = useState<number>(0);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -104,6 +116,40 @@ const StockManagement = () => {
 
     setShowAddModal(false);
   };
+
+  const handleOpenDetail = (item: ProductItem) => {
+    setDetailItem(item);
+    setDetailSize(item.size || '');
+    setDetailLocation(item.storageLocation || '');
+    setDetailPriceKopkar(item.priceKopkar || 0);
+    setDetailFeeSchool(item.feeSchool || 0);
+  };
+
+  const handleSaveDetail = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!detailItem) return;
+    await updateProduct(detailItem.id, {
+      size: detailSize,
+      storageLocation: detailLocation,
+      priceKopkar: detailPriceKopkar,
+      feeSchool: detailFeeSchool,
+      priceStudent: detailPriceKopkar + detailFeeSchool,
+    });
+    setDetailItem(null);
+  };
+
+  const handleDeleteItem = async (item: ProductItem) => {
+    if (window.confirm(`Yakin ingin menghapus barang "${item.name}" dari sistem?`)) {
+      await deleteProduct(item.id);
+    }
+  };
+
+  // Click outside to close action menu
+  useEffect(() => {
+    const handleClickOutside = () => setActiveMenuId(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   // Filter & Sort Logic
   const filteredAndSortedProducts = products
@@ -438,14 +484,23 @@ const StockManagement = () => {
                       </span>
                     </td>
                     <td>{p.storageLocation || '-'}</td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center', position: 'relative' }}>
                       <button
-                        className="btn-primary"
-                        style={{ padding: '4px 12px', fontSize: '0.76rem' }}
-                        onClick={() => handleOpenSetStock(p)}
+                        className="btn-dots"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuId(activeMenuId === p.id ? null : p.id);
+                        }}
                       >
-                        Set Stock
+                        ⋮
                       </button>
+                      {activeMenuId === p.id && (
+                        <div className="action-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                          <button onClick={() => { setActiveMenuId(null); handleOpenSetStock(p); }}>Update Stock</button>
+                          <button onClick={() => { setActiveMenuId(null); handleOpenDetail(p); }}>Detail</button>
+                          <button className="text-danger" onClick={() => { setActiveMenuId(null); handleDeleteItem(p); }}>Hapus Barang</button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );
@@ -573,6 +628,94 @@ const StockManagement = () => {
                 </button>
                 <button type="submit" className="btn-primary">
                   Simpan Input Stock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETAIL ITEM (EDITABLE) */}
+      {detailItem && (
+        <div className="modal-overlay" onClick={() => setDetailItem(null)}>
+          <div className="modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Detail & Edit Barang</h3>
+
+            <form className="modal-form" onSubmit={handleSaveDetail}>
+              <div className="form-group">
+                <label>Nama Barang</label>
+                <input
+                  type="text"
+                  value={detailItem.name}
+                  disabled
+                  style={{ background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className="form-group">
+                  <label>Ukuran</label>
+                  <input
+                    type="text"
+                    value={detailSize}
+                    onChange={(e) => setDetailSize(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Lokasi Penyimpanan</label>
+                  <input
+                    type="text"
+                    value={detailLocation}
+                    onChange={(e) => setDetailLocation(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className="form-group">
+                  <label>Harga Koperasi</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={detailPriceKopkar}
+                    onChange={(e) => setDetailPriceKopkar(Number(e.target.value))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Fee Sekolah</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={detailFeeSchool}
+                    onChange={(e) => setDetailFeeSchool(Number(e.target.value))}
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label>Harga Siswa (Otomatis)</label>
+                <input
+                  type="text"
+                  value={formatRupiah(detailPriceKopkar + detailFeeSchool)}
+                  disabled
+                  style={{ background: '#f1f5f9', color: '#0f172a', fontWeight: 'bold', cursor: 'not-allowed' }}
+                />
+              </div>
+
+              <div className="modal-actions" style={{ marginTop: '24px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setDetailItem(null)}
+                >
+                  Tutup
+                </button>
+                <button type="submit" className="btn-primary">
+                  Simpan Perubahan
                 </button>
               </div>
             </form>
