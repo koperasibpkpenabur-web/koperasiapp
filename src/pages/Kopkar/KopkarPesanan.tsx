@@ -16,6 +16,7 @@ const KopkarPelunasan = () => {
     approveOrder,
     rejectOrder,
     shipOrder,
+    cancelShipment,
     approveCancelOrder,
     kopkarCancelOrder,
     markOrderAsPaid,
@@ -194,6 +195,13 @@ const KopkarPelunasan = () => {
 
     shipOrder(shippingOrder.id, shippingData);
     setShippingOrder(null);
+  };
+
+  // Cancel Shipment
+  const handleCancelShipment = (order: Order) => {
+    if (window.confirm(`Batalkan pengiriman untuk pesanan ${order.id}? Status akan kembali menjadi Disetujui.`)) {
+      cancelShipment(order.id);
+    }
   };
 
   // Open Pelunasan Modal
@@ -475,6 +483,11 @@ const KopkarPelunasan = () => {
                                     ⚠️ Terdapat barang yang belum dikirim!
                                   </div>
                                 )}
+                                <div style={{ marginTop: '8px' }}>
+                                  <button className="btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => handleCancelShipment(order)}>
+                                    Batal Kirim (Revert)
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -565,6 +578,14 @@ const KopkarPelunasan = () => {
                           </button>
                           <button className="btn-cancel-approved full-width-touch" onClick={() => handleOpenKopkarCancelModal(order)}>
                             ⚠️ Batalkan
+                          </button>
+                        </div>
+                      )}
+
+                      {order.status === 'shipped' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                          <button className="btn-secondary full-width-touch" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => handleCancelShipment(order)}>
+                            Batal Kirim (Revert)
                           </button>
                         </div>
                       )}
