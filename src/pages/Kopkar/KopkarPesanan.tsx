@@ -273,6 +273,18 @@ const KopkarPelunasan = () => {
     });
   };
 
+  const getFormattedOrderId = (order: Order) => {
+    const sortedOrders = [...orders].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const index = sortedOrders.findIndex(o => o.id === order.id);
+    const num = (index + 1).toString().padStart(3, '0');
+    const year = new Date(order.createdAt).getFullYear();
+    let baseId = `ORD-${year}-${num}`;
+    if (order.status === 'cancelled' || order.status === 'cancellation_requested' || order.status === 'rejected') {
+      baseId += '-BTL';
+    }
+    return baseId;
+  };
+
   return (
     <div className="kopkar-dashboard">
       <h2>Pengelolaan Pesanan</h2>
@@ -345,19 +357,23 @@ const KopkarPelunasan = () => {
                 <table className="kopkar-table">
                   <thead>
                     <tr>
-                      <th>ID & Sekolah</th>
+                      <th>ID Order</th>
+                      <th>Sekolah</th>
                       <th>Daftar Item</th>
-                      <th>Rincian 3 Harga</th>
-                      <th>Status Pelunasan</th>
-
-                      <th>Aksi Pengelolaan</th>
+                      <th>Rincian Harga</th>
+                      <th>Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredActiveOrders.map((order) => (
                       <tr key={order.id}>
                         <td>
-                          <strong>{order.id}</strong>
+                          <strong>{getFormattedOrderId(order)}</strong>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                            {formatDate(order.createdAt)}
+                          </div>
+                        </td>
+                        <td>
                           <div style={{ fontWeight: 600, color: '#1e293b' }}>
                             {order.schoolName}
                           </div>
@@ -366,30 +382,25 @@ const KopkarPelunasan = () => {
                               {order.schoolLevel}
                             </span>
                           )}
-                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
-                            {formatDate(order.createdAt)}
-                          </div>
                         </td>
                         <td>
-                          <ul className="order-items-list">
+                          <ul className="order-items-list" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
                             {order.items.map((it, idx) => {
                               const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
-                              const isPartial = (order.status === 'shipped' || order.status === 'received') && shippedIt && shippedIt.shippedQty < it.quantity;
+                              const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
+                              const unsentQty = Math.max(0, it.quantity - shippedQty);
                               return (
                               <li key={idx}>
-                                <span className={`item-type ${it.type}`}>{it.type}</span>
-                                {it.name} (<strong>{it.quantity} pcs</strong>)
-                                {isPartial && (
-                                  <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '2px', fontWeight: 600 }}>
-                                    ⚠️ Belum dikirim: {it.quantity - shippedIt.shippedQty} pcs
-                                  </div>
-                                )}
+                                <div style={{ fontWeight: 600 }}>{it.name}</div>
+                                <div style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                  Pesan: {it.quantity}, Terkirim: {shippedQty}, Belum dikirim: {unsentQty}
+                                </div>
                               </li>
                             )})}
                           </ul>
                         </td>
                         <td>
-                          <div style={{ fontSize: '0.85rem' }}>
+                          <div style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
                             <div>
                               <span style={{ color: '#64748b' }}>Harga Siswa (Masuk):</span>{' '}
                               <strong>{formatRupiah(order.totalPriceStudent)}</strong>
@@ -403,8 +414,6 @@ const KopkarPelunasan = () => {
                               <span style={{ color: '#059669', fontWeight: 600 }}>+{formatRupiah(order.totalFeeSchool)}</span>
                             </div>
                           </div>
-                        </td>
-                        <td>
                           {order.paymentStatus === 'paid' ? (
                             <div>
                               <span className="badge-pay-paid">✅ Lunas Diterima</span>
@@ -482,7 +491,7 @@ const KopkarPelunasan = () => {
                   <div key={order.id} className="mobile-order-card">
                     <div className="mobile-card-header">
                       <div>
-                        <span className="mobile-order-id">{order.id}</span>
+                        <span className="mobile-order-id">{getFormattedOrderId(order)}</span>
                         <div style={{ fontWeight: 700, color: '#1e293b' }}>{order.schoolName}</div>
                       </div>
                       <span className={`status-badge ${order.status}`}>
@@ -497,16 +506,14 @@ const KopkarPelunasan = () => {
                       <ul className="order-items-list">
                         {order.items.map((it, idx) => {
                           const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
-                          const isPartial = (order.status === 'shipped' || order.status === 'received') && shippedIt && shippedIt.shippedQty < it.quantity;
+                          const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
+                          const unsentQty = Math.max(0, it.quantity - shippedQty);
                           return (
                           <li key={idx}>
-                            <span className={`item-type ${it.type}`}>{it.type}</span>
-                            {it.name} — {it.quantity} pcs
-                            {isPartial && (
-                              <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '2px', fontWeight: 600 }}>
-                                ⚠️ Belum dikirim: {it.quantity - shippedIt.shippedQty} pcs
-                              </div>
-                            )}
+                            <div style={{ fontWeight: 600 }}>{it.name}</div>
+                            <div style={{ fontSize: '0.8rem', color: '#475569' }}>
+                              Pesan: {it.quantity}, Terkirim: {shippedQty}, Belum dikirim: {unsentQty}
+                            </div>
                           </li>
                         )})}
                       </ul>
@@ -613,7 +620,7 @@ const KopkarPelunasan = () => {
                     {filteredReceivedOrders.map((order) => (
                       <tr key={order.id}>
                         <td>
-                          <strong>{order.id}</strong>
+                          <strong>{getFormattedOrderId(order)}</strong>
                           <div style={{ fontWeight: 600, color: '#1e293b' }}>{order.schoolName}</div>
                           <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{formatDate(order.createdAt)}</div>
                         </td>
@@ -699,7 +706,7 @@ const KopkarPelunasan = () => {
                   <div key={order.id} className="mobile-order-card completed-card">
                     <div className="mobile-card-header">
                       <div>
-                        <span className="mobile-order-id">{order.id}</span>
+                        <span className="mobile-order-id">{getFormattedOrderId(order)}</span>
                         <div style={{ fontWeight: 700, color: '#1e293b' }}>{order.schoolName}</div>
                       </div>
                       <span className="status-badge received">Γ£à Diterima</span>
