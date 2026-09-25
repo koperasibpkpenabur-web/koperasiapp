@@ -63,7 +63,9 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       stock: d.stock,
       minStock: d.min_stock,
       size: d.size,
-      storageLocation: d.storage_location
+      storageLocation: d.storage_location,
+      supplierName: d.supplier_name,
+      schoolName: d.school_name
     }));
     setProducts(mapped);
   }, []);
@@ -94,7 +96,9 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       stock: productData.stock !== undefined ? productData.stock : 50,
       min_stock: productData.minStock || 15,
       size: productData.size,
-      storage_location: productData.storageLocation
+      storage_location: productData.storageLocation,
+      supplier_name: productData.supplierName,
+      school_name: productData.schoolName
     };
 
     const { error } = await supabase.from('products').insert([newProduct]);
@@ -127,6 +131,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     if (updated.minStock !== undefined) updates.min_stock = updated.minStock;
     if (updated.size !== undefined) updates.size = updated.size;
     if (updated.storageLocation !== undefined) updates.storage_location = updated.storageLocation;
+    if (updated.supplierName !== undefined) updates.supplier_name = updated.supplierName;
+    if (updated.schoolName !== undefined) updates.school_name = updated.schoolName;
 
     const { error } = await supabase.from('products').update(updates).eq('id', id);
     if (error) {
@@ -190,6 +196,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       const sizeIdx = header.findIndex((h) => h.includes('ukuran'));
       const stockIdx = header.findIndex((h) => h.includes('stock') || h.includes('stok'));
       const locationIdx = header.findIndex((h) => h.includes('lokasi') || h.includes('penyimpanan'));
+      const supplierIdx = header.findIndex((h) => h.includes('supplier') || h.includes('penjahit'));
+      const schoolIdx = header.findIndex((h) => h.includes('sekolah'));
 
       if (nameIdx === -1 || kopkarIdx === -1 || feeIdx === -1) {
         return {
@@ -231,6 +239,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         const size = sizeIdx !== -1 && row[sizeIdx] ? String(row[sizeIdx]).trim() : undefined;
         const stock = stockIdx !== -1 && row[stockIdx] ? parseInt(String(row[stockIdx]), 10) || 50 : 50;
         const storageLocation = locationIdx !== -1 && row[locationIdx] ? String(row[locationIdx]).trim() : undefined;
+        const supplierName = supplierIdx !== -1 && row[supplierIdx] ? String(row[supplierIdx]).trim() : undefined;
+        const schoolName = schoolIdx !== -1 && row[schoolIdx] ? String(row[schoolIdx]).trim() : undefined;
 
         if (!inputCode) {
           inputCode = generateProductCode(category, level, products, autoCodeCount);
@@ -255,6 +265,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
             price_student: priceStudent,
             size,
             storage_location: storageLocation,
+            supplier_name: supplierName,
+            school_name: schoolName,
             stock: existing.stock, // keep existing stock
             min_stock: existing.minStock
           });
@@ -273,6 +285,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
             min_stock: 20,
             size,
             storage_location: storageLocation,
+            supplier_name: supplierName,
+            school_name: schoolName,
           });
           newItemsAdded++;
         }
@@ -295,14 +309,14 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
   const downloadTemplateCsv = useCallback(() => {
     const data = [
-      { No: 1, 'Kode Barang': 'SRG-TK-01', 'Nama Barang': 'Seragam Olahraga TK', Ukuran: 'M', Kategori: 'seragam', Jenjang: 'TK', 'Harga Koperasi': 75000, 'Fee Sekolah': 15000, 'Harga Siswa': 90000, Stock: 50, 'Lokasi Penyimpanan': 'Gudang A' },
-      { No: 2, 'Kode Barang': '', 'Nama Barang': 'Buku Mewarnai TK', Ukuran: '', Kategori: 'buku', Jenjang: 'TK', 'Harga Koperasi': 25000, 'Fee Sekolah': 5000, 'Harga Siswa': 30000, Stock: 100, 'Lokasi Penyimpanan': 'Rak 1' },
-      { No: 3, 'Kode Barang': 'SRG-SD-01', 'Nama Barang': 'Seragam Pramuka SD', Ukuran: 'L', Kategori: 'seragam', Jenjang: 'SD', 'Harga Koperasi': 85000, 'Fee Sekolah': 15000, 'Harga Siswa': 100000, Stock: 75, 'Lokasi Penyimpanan': 'Gudang A' },
-      { No: 4, 'Kode Barang': '', 'Nama Barang': 'Buku Bahasa Inggris SD', Ukuran: '', Kategori: 'buku', Jenjang: 'SD', 'Harga Koperasi': 60000, 'Fee Sekolah': 10000, 'Harga Siswa': 70000, Stock: 40, 'Lokasi Penyimpanan': 'Rak 2' },
-      { No: 5, 'Kode Barang': 'SRG-SMP-01', 'Nama Barang': 'Seragam Putih Biru SMP', Ukuran: 'XL', Kategori: 'seragam', Jenjang: 'SMP', 'Harga Koperasi': 105000, 'Fee Sekolah': 20000, 'Harga Siswa': 125000, Stock: 60, 'Lokasi Penyimpanan': 'Gudang B' },
-      { No: 6, 'Kode Barang': '', 'Nama Barang': 'Seragam Pramuka SMP', Ukuran: 'M', Kategori: 'seragam', Jenjang: 'SMP', 'Harga Koperasi': 95000, 'Fee Sekolah': 15000, 'Harga Siswa': 110000, Stock: 55, 'Lokasi Penyimpanan': 'Gudang B' },
-      { No: 7, 'Kode Barang': 'SRG-SMA-01', 'Nama Barang': 'Seragam Putih Abu SMA', Ukuran: 'L', Kategori: 'seragam', Jenjang: 'SMA', 'Harga Koperasi': 115000, 'Fee Sekolah': 25000, 'Harga Siswa': 140000, Stock: 45, 'Lokasi Penyimpanan': 'Gudang C' },
-      { No: 8, 'Kode Barang': '', 'Nama Barang': 'Buku Fisika SMA Kelas 10', Ukuran: '', Kategori: 'buku', Jenjang: 'SMA', 'Harga Koperasi': 85000, 'Fee Sekolah': 15000, 'Harga Siswa': 100000, Stock: 30, 'Lokasi Penyimpanan': 'Rak 3' },
+      { No: 1, 'Kode Barang': 'SRG-TK-01', 'Nama Barang': 'Seragam Olahraga TK', Ukuran: 'M', Kategori: 'seragam', Jenjang: 'TK', 'Harga Koperasi': 75000, 'Fee Sekolah': 15000, 'Harga Siswa': 90000, Stock: 50, 'Lokasi Penyimpanan': 'Gudang A', Supplier: 'Andryna', Sekolah: '' },
+      { No: 2, 'Kode Barang': '', 'Nama Barang': 'Buku Mewarnai TK', Ukuran: '', Kategori: 'buku', Jenjang: 'TK', 'Harga Koperasi': 25000, 'Fee Sekolah': 5000, 'Harga Siswa': 30000, Stock: 100, 'Lokasi Penyimpanan': 'Rak 1', Supplier: '', Sekolah: '' },
+      { No: 3, 'Kode Barang': 'SRG-SD-01', 'Nama Barang': 'Seragam Pramuka SD', Ukuran: 'L', Kategori: 'seragam', Jenjang: 'SD', 'Harga Koperasi': 85000, 'Fee Sekolah': 15000, 'Harga Siswa': 100000, Stock: 75, 'Lokasi Penyimpanan': 'Gudang A', Supplier: 'Berkat', Sekolah: '' },
+      { No: 4, 'Kode Barang': '', 'Nama Barang': 'Buku Bahasa Inggris SD', Ukuran: '', Kategori: 'buku', Jenjang: 'SD', 'Harga Koperasi': 60000, 'Fee Sekolah': 10000, 'Harga Siswa': 70000, Stock: 40, 'Lokasi Penyimpanan': 'Rak 2', Supplier: '', Sekolah: '' },
+      { No: 5, 'Kode Barang': 'SRG-SMP-01', 'Nama Barang': 'Seragam Putih Biru SMP', Ukuran: 'XL', Kategori: 'seragam', Jenjang: 'SMP', 'Harga Koperasi': 105000, 'Fee Sekolah': 20000, 'Harga Siswa': 125000, Stock: 60, 'Lokasi Penyimpanan': 'Gudang B', Supplier: 'Harmoni', Sekolah: '' },
+      { No: 6, 'Kode Barang': '', 'Nama Barang': 'Seragam Pramuka SMP', Ukuran: 'M', Kategori: 'seragam', Jenjang: 'SMP', 'Harga Koperasi': 95000, 'Fee Sekolah': 15000, 'Harga Siswa': 110000, Stock: 55, 'Lokasi Penyimpanan': 'Gudang B', Supplier: 'Jemima', Sekolah: '' },
+      { No: 7, 'Kode Barang': 'SRG-SMA-01', 'Nama Barang': 'Seragam Putih Abu SMA', Ukuran: 'L', Kategori: 'seragam', Jenjang: 'SMA', 'Harga Koperasi': 115000, 'Fee Sekolah': 25000, 'Harga Siswa': 140000, Stock: 45, 'Lokasi Penyimpanan': 'Gudang C', Supplier: 'Loki', Sekolah: 'SMAK 1 PENABUR' },
+      { No: 8, 'Kode Barang': '', 'Nama Barang': 'Buku Fisika SMA Kelas 10', Ukuran: '', Kategori: 'buku', Jenjang: 'SMA', 'Harga Koperasi': 85000, 'Fee Sekolah': 15000, 'Harga Siswa': 100000, Stock: 30, 'Lokasi Penyimpanan': 'Rak 3', Supplier: '', Sekolah: '' },
     ];
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -322,7 +336,9 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       'Fee Sekolah': p.feeSchool,
       'Harga Siswa': p.priceStudent,
       Stock: p.stock,
-      'Lokasi Penyimpanan': p.storageLocation || ''
+      'Lokasi Penyimpanan': p.storageLocation || '',
+      Supplier: p.supplierName || '',
+      Sekolah: p.schoolName || ''
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();

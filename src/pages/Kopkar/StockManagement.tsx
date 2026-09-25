@@ -46,6 +46,12 @@ const StockManagement = () => {
   const [detailPriceKopkar, setDetailPriceKopkar] = useState<number>(0);
   const [detailFeeSchool, setDetailFeeSchool] = useState<number>(0);
 
+  // Modal Atur Supplier
+  const [supplierItem, setSupplierItem] = useState<ProductItem | null>(null);
+  const [supplierLevel, setSupplierLevel] = useState<SchoolLevel | 'SEMUA'>('SEMUA');
+  const [supplierName, setSupplierName] = useState('');
+  const [supplierSchoolName, setSupplierSchoolName] = useState('');
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processFile(e.target.files[0]);
@@ -136,6 +142,17 @@ const StockManagement = () => {
       priceStudent: detailPriceKopkar + detailFeeSchool,
     });
     setDetailItem(null);
+  };
+
+  const handleSaveSupplier = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supplierItem) return;
+    await updateProduct(supplierItem.id, {
+      level: supplierLevel,
+      supplierName: supplierName,
+      schoolName: supplierSchoolName,
+    });
+    setSupplierItem(null);
   };
 
   const handleDeleteItem = async (item: ProductItem) => {
@@ -500,7 +517,8 @@ const StockManagement = () => {
                       {activeMenuId === p.id && (
                         <div className="action-dropdown-menu" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => { setActiveMenuId(null); handleOpenSetStock(p); }}>Update Stock</button>
-                          <button onClick={() => { setActiveMenuId(null); handleOpenDetail(p); }}>Detail</button>
+                          <button onClick={() => { setActiveMenuId(null); handleOpenDetail(p); }}>Detail Harga & Lokasi</button>
+                          <button onClick={() => { setActiveMenuId(null); setSupplierItem(p); setSupplierLevel(p.level); setSupplierName(p.supplierName || ''); setSupplierSchoolName(p.schoolName || ''); }}>Atur Supplier & Jenjang</button>
                           <button className="text-danger" onClick={() => { setActiveMenuId(null); handleDeleteItem(p); }}>Hapus Barang</button>
                         </div>
                       )}
@@ -634,6 +652,87 @@ const StockManagement = () => {
                 </button>
                 <button type="submit" className="btn-primary">
                   Simpan Input Stock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ATUR SUPPLIER & JENJANG */}
+      {supplierItem && (
+        <div className="modal-overlay" onClick={() => setSupplierItem(null)}>
+          <div className="modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Atur Asal Barang & Jenjang</h3>
+            <div style={{ fontSize: '0.85rem', color: '#586b84', marginBottom: '16px' }}>
+              Barang: <strong>{supplierItem.name}</strong>
+            </div>
+
+            <form className="modal-form" onSubmit={handleSaveSupplier}>
+              <div className="form-group">
+                <label>Jenjang</label>
+                <select
+                  value={supplierLevel}
+                  onChange={(e) => setSupplierLevel(e.target.value as SchoolLevel | 'SEMUA')}
+                  required
+                >
+                  <option value="TK">TK</option>
+                  <option value="SD">SD</option>
+                  <option value="SMP">SMP</option>
+                  <option value="SMA">SMA</option>
+                  <option value="SPK-SD">SPK (Primary)</option>
+                  <option value="SPK-SMP">SPK (Lower Sec)</option>
+                  <option value="SPK-SMA">SPK (Upper Sec)</option>
+                  <option value="SEMUA">Semua Jenjang</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Nama Supplier (Penjahit/Penerbit)</label>
+                <select
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                >
+                  <option value="">-- Tidak Diketahui / Kosong --</option>
+                  <option value="Andryna">Andryna</option>
+                  <option value="Anugerah Jaya">Anugerah Jaya</option>
+                  <option value="Berkat">Berkat</option>
+                  <option value="Christy">Christy</option>
+                  <option value="Fendy">Fendy</option>
+                  <option value="Fortuna">Fortuna</option>
+                  <option value="Harmoni">Harmoni</option>
+                  <option value="Intan Jaya">Intan Jaya</option>
+                  <option value="Jemima">Jemima</option>
+                  <option value="Loki">Loki</option>
+                  <option value="Sugandi">Sugandi</option>
+                  <option value="Sumber Makmur">Sumber Makmur</option>
+                  <option value="Supatno">Supatno</option>
+                  <option value="Susanto">Susanto</option>
+                  <option value="Vania">Vania</option>
+                  <option value="Yongki Komaladi">Yongki Komaladi</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Khusus Nama Sekolah (Opsional)</label>
+                <input
+                  type="text"
+                  placeholder="Cth: SDK 1 PENABUR (Jika barang hanya untuk sekolah ini)"
+                  value={supplierSchoolName}
+                  onChange={(e) => setSupplierSchoolName(e.target.value)}
+                />
+              </div>
+
+              <div className="modal-actions" style={{ marginTop: '24px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setSupplierItem(null)}
+                >
+                  Batal
+                </button>
+                <button type="submit" className="btn-primary">
+                  Simpan
                 </button>
               </div>
             </form>

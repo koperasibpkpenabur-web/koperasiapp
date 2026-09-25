@@ -35,6 +35,8 @@ export interface ProductItem {
   minStock?: number;       // Batas minimum stok
   size?: string;           // Ukuran
   storageLocation?: string; // Lokasi Penyimpanan
+  supplierName?: string;   // Nama Supplier (penjahit, penerbit, dll)
+  schoolName?: string;     // Nama Sekolah spesifik (jika khusus untuk 1 sekolah)
 }
 
 // --- Order System ---
