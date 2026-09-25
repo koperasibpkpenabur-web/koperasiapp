@@ -7,7 +7,6 @@ const StockManagement = () => {
   const {
     products,
     setProductStock,
-    addProduct,
     importProductsFromExcel,
     downloadTemplateCsv,
     exportProductsCsv,
@@ -28,15 +27,11 @@ const StockManagement = () => {
   const [newStockValue, setNewStockValue] = useState<number>(0);
   const [stockOpnameNotes, setStockOpnameNotes] = useState('');
 
-  // Modal Tambah Barang Baru Langsung dari Stock
+  // Modal Tambah Stock Inbound (Barang dari Excel)
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addCode, setAddCode] = useState('');
-  const [addName, setAddName] = useState('');
-  const [addCategory, setAddCategory] = useState<'seragam' | 'buku'>('seragam');
-  const [addLevel, setAddLevel] = useState<SchoolLevel>('SMP');
-  const [addPriceKopkar, setAddPriceKopkar] = useState<number>(90000);
-  const [addFeeSchool, setAddFeeSchool] = useState<number>(15000);
-  const [addInitialStock, setAddInitialStock] = useState<number>(50);
+  const [addLevel, setAddLevel] = useState<SchoolLevel | 'SEMUA'>('SMP');
+  const [addSelectedProductId, setAddSelectedProductId] = useState('');
+  const [addAddedStock, setAddAddedStock] = useState<number>(0);
   const [addFormError, setAddFormError] = useState('');
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -87,31 +82,25 @@ const StockManagement = () => {
     setEditingStockItem(null);
   };
 
-  // Add Item Submit
+  // Add Stock Submit
   const handleAddSubmit = (e: FormEvent) => {
     e.preventDefault();
     setAddFormError('');
 
-    if (!addName.trim()) {
-      setAddFormError('Nama barang wajib diisi');
+    if (!addSelectedProductId) {
+      setAddFormError('Silakan pilih barang terlebih dahulu');
       return;
     }
 
-    if (addPriceKopkar <= 0) {
-      setAddFormError('Harga Koperasi harus lebih besar dari 0');
+    if (addAddedStock <= 0) {
+      setAddFormError('Jumlah stock yang ditambahkan harus lebih dari 0');
       return;
     }
 
-    addProduct({
-      code: addCode.trim() || `SRG-${addLevel}-${Math.floor(10 + Math.random() * 89)}`,
-      name: addName.trim(),
-      category: addCategory,
-      level: addLevel,
-      priceKopkar: addPriceKopkar,
-      feeSchool: addFeeSchool,
-      priceStudent: addPriceKopkar + addFeeSchool,
-      stock: addInitialStock,
-    });
+    const product = products.find(p => p.id === addSelectedProductId);
+    if (product) {
+      setProductStock(product.id, (product.stock || 0) + addAddedStock);
+    }
 
     setShowAddModal(false);
   };
@@ -192,18 +181,14 @@ const StockManagement = () => {
           <button
             className="btn-primary"
             onClick={() => {
-              setAddCode(`SRG-SMP-${Math.floor(10 + Math.random() * 89)}`);
-              setAddName('');
-              setAddCategory('seragam');
               setAddLevel('SMP');
-              setAddPriceKopkar(95000);
-              setAddFeeSchool(15000);
-              setAddInitialStock(50);
+              setAddSelectedProductId('');
+              setAddAddedStock(0);
               setAddFormError('');
               setShowAddModal(true);
             }}
           >
-            + Tambah Barang & Stock
+            + Tambah Stock Barang
           </button>
         </div>
       </div>
@@ -290,12 +275,17 @@ const StockManagement = () => {
         </div>
 
         <div
+          onClick={() => {
+            setStatusFilter('low');
+            setSortBy('stock-asc');
+          }}
           style={{
             background: '#ffffff',
             border: '1px solid #fde68a',
             borderRadius: '14px',
             padding: '16px 18px',
             boxShadow: '0 2px 6px rgba(57, 88, 134, 0.05)',
+            cursor: 'pointer',
           }}
         >
           <div style={{ fontSize: '1.2rem', marginBottom: '6px' }}>⚠️</div>
@@ -308,12 +298,17 @@ const StockManagement = () => {
         </div>
 
         <div
+          onClick={() => {
+            setStatusFilter('empty');
+            setSortBy('stock-asc');
+          }}
           style={{
             background: '#ffffff',
             border: '1px solid #fecdd3',
             borderRadius: '14px',
             padding: '16px 18px',
             boxShadow: '0 2px 6px rgba(57, 88, 134, 0.05)',
+            cursor: 'pointer',
           }}
         >
           <div style={{ fontSize: '1.2rem', marginBottom: '6px' }}>🔴</div>
@@ -509,97 +504,63 @@ const StockManagement = () => {
         </div>
       )}
 
-      {/* MODAL TAMBAH BARANG BARU */}
+      {/* MODAL TAMBAH STOCK */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal" style={{ maxWidth: '650px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>Tambah Barang & Stock Fisik Baru</h3>
+          <div className="modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Tambah Stock Fisik Baru</h3>
+            <div style={{ fontSize: '0.85rem', color: '#586b84', marginBottom: '16px' }}>
+              Pilih jenjang dan barang yang sudah ada pada data list Excel koperasi.
+            </div>
 
             <form className="modal-form" onSubmit={handleAddSubmit}>
               {addFormError && <div className="modal-error">{addFormError}</div>}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '14px' }}>
-                <div className="form-group">
-                  <label>Kode Barang</label>
-                  <input
-                    type="text"
-                    value={addCode}
-                    onChange={(e) => setAddCode(e.target.value)}
-                    required
-                  />
-                  <small style={{ fontSize: '0.7rem', color: '#586b84' }}>Bisa auto / manual</small>
-                </div>
-                <div className="form-group">
-                  <label>Nama Barang *</label>
-                  <input
-                    type="text"
-                    value={addName}
-                    onChange={(e) => setAddName(e.target.value)}
-                    placeholder="Contoh: Seragam Batik SD"
-                    required
-                  />
-                </div>
+              <div className="form-group">
+                <label>Pilih Jenjang Sekolah</label>
+                <select
+                  value={addLevel}
+                  onChange={(e) => {
+                    setAddLevel(e.target.value as SchoolLevel | 'SEMUA');
+                    setAddSelectedProductId('');
+                  }}
+                >
+                  <option value="TK">TK</option>
+                  <option value="SD">SD</option>
+                  <option value="SMP">SMP</option>
+                  <option value="SMA">SMA</option>
+                  <option value="SEMUA">Semua Jenjang</option>
+                </select>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                <div className="form-group">
-                  <label>Kategori</label>
-                  <select
-                    value={addCategory}
-                    onChange={(e) => setAddCategory(e.target.value as any)}
-                  >
-                    <option value="seragam">Seragam</option>
-                    <option value="buku">Buku</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Jenjang Sekolah</label>
-                  <select
-                    value={addLevel}
-                    onChange={(e) => setAddLevel(e.target.value as any)}
-                  >
-                    <option value="TK">TK</option>
-                    <option value="SD">SD</option>
-                    <option value="SMP">SMP</option>
-                    <option value="SMA">SMA</option>
-                    <option value="SEMUA">Semua Jenjang</option>
-                  </select>
-                </div>
+              <div className="form-group">
+                <label>Pilih Barang</label>
+                <select
+                  value={addSelectedProductId}
+                  onChange={(e) => setAddSelectedProductId(e.target.value)}
+                  required
+                >
+                  <option value="" disabled>-- Pilih Barang --</option>
+                  {products
+                    .filter(p => p.level === addLevel || addLevel === 'SEMUA' || p.level === 'SEMUA')
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.size ? `(${p.size})` : ''} - (Sisa Stock: {p.stock || 0})
+                      </option>
+                    ))}
+                </select>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
-                <div className="form-group">
-                  <label>Harga Koperasi</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={addPriceKopkar}
-                    onChange={(e) => setAddPriceKopkar(Number(e.target.value))}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Fee Sekolah</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={addFeeSchool}
-                    onChange={(e) => setAddFeeSchool(Number(e.target.value))}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Stock Awal (pcs)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={addInitialStock}
-                    onChange={(e) => setAddInitialStock(Number(e.target.value))}
-                    required
-                  />
-                </div>
+              <div className="form-group">
+                <label>Jumlah Stock Fisik Masuk (pcs)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={addAddedStock}
+                  onChange={(e) => setAddAddedStock(Number(e.target.value))}
+                  required
+                />
               </div>
 
               <div className="modal-actions" style={{ marginTop: '24px' }}>
@@ -611,7 +572,7 @@ const StockManagement = () => {
                   Batal
                 </button>
                 <button type="submit" className="btn-primary">
-                  Simpan Barang & Stock
+                  Simpan Input Stock
                 </button>
               </div>
             </form>
