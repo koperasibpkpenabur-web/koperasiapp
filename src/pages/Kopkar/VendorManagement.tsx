@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useProducts } from '../../context/ProductContext';
-import type { VendorPayable, ProductItem } from '../../types';
+import type { VendorPayable } from '../../types';
 
 const VendorManagement = () => {
   const { products, setProductStock } = useProducts();
