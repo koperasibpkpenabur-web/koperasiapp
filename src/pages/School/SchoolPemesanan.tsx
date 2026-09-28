@@ -29,18 +29,8 @@ const SchoolPemesanan = () => {
   const availableCatalog = getProductsByLevel(orderLevelFilter);
 
   // Selected items in order form
-  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([
-    {
-      name: availableCatalog[0]?.name || 'Seragam Sekolah',
-      type: availableCatalog[0]?.category || 'seragam',
-      quantity: 10,
-      priceKopkar: availableCatalog[0]?.priceKopkar || 80000,
-      feeSchool: availableCatalog[0]?.feeSchool || 15000,
-      priceStudent: availableCatalog[0]?.priceStudent || 95000,
-      productId: availableCatalog[0]?.id,
-      code: availableCatalog[0]?.code,
-    },
-  ]);
+  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
+  const [matrixItems, setMatrixItems] = useState<any[]>([]);
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState('');
 
@@ -202,19 +192,31 @@ const SchoolPemesanan = () => {
     
     // Bulk fill all products for Tahap 1/2
     if (!phase.includes('Tambahan') && cat.length > 0) {
-      setSelectedItems(cat.map(prod => ({
+      setMatrixItems(cat.map(prod => ({
+        productId: prod.id,
+        code: prod.code,
         name: prod.name,
         type: prod.category,
-        quantity: 0,
-        size: '',
         priceKopkar: prod.priceKopkar,
         feeSchool: prod.feeSchool,
         priceStudent: prod.priceStudent,
-        productId: prod.id,
-        code: prod.code,
+        sizes: { 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, '3XL': 0 },
+        customSize: '',
+        customQty: 0
       })));
-    } else {
       setSelectedItems([]);
+    } else {
+      setMatrixItems([]);
+      setSelectedItems([{
+        name: cat[0]?.name || 'Seragam',
+        type: cat[0]?.category || 'seragam',
+        quantity: 1,
+        priceKopkar: cat[0]?.priceKopkar || 80000,
+        feeSchool: cat[0]?.feeSchool || 15000,
+        priceStudent: cat[0]?.priceStudent || 95000,
+        productId: cat[0]?.id,
+        code: cat[0]?.code,
+      }]);
     }
     setNotes('');
     setFormError('');
@@ -224,19 +226,52 @@ const SchoolPemesanan = () => {
     e.preventDefault();
     setFormError('');
 
-    // Filter out items with 0 quantity if it's Tahap 1/2
-    const itemsToSubmit = selectedItems.filter(it => it.quantity > 0);
+    let itemsToSubmit: OrderItem[] = [];
+
+    if (!orderPhase.includes('Tambahan')) {
+      matrixItems.forEach(row => {
+        Object.entries(row.sizes).forEach(([sz, qty]) => {
+          if ((qty as number) > 0) {
+            itemsToSubmit.push({
+              productId: row.productId,
+              code: row.code,
+              name: row.name,
+              type: row.type,
+              priceKopkar: row.priceKopkar,
+              feeSchool: row.feeSchool,
+              priceStudent: row.priceStudent,
+              size: sz,
+              quantity: qty as number
+            });
+          }
+        });
+        if (row.customQty > 0 && row.customSize.trim()) {
+          itemsToSubmit.push({
+            productId: row.productId,
+            code: row.code,
+            name: row.name,
+            type: row.type,
+            priceKopkar: row.priceKopkar,
+            feeSchool: row.feeSchool,
+            priceStudent: row.priceStudent,
+            size: row.customSize.trim(),
+            quantity: row.customQty
+          });
+        }
+      });
+    } else {
+      itemsToSubmit = selectedItems.filter(it => it.quantity > 0);
+      for (const item of itemsToSubmit) {
+        if (!item.name.trim()) {
+          setFormError('Nama item tidak boleh kosong');
+          return;
+        }
+      }
+    }
 
     if (itemsToSubmit.length === 0) {
       setFormError('Pilih minimal 1 item barang dengan kuantitas > 0');
       return;
-    }
-
-    for (const item of itemsToSubmit) {
-      if (!item.name.trim()) {
-        setFormError('Nama item tidak boleh kosong');
-        return;
-      }
     }
 
     // Add to global cart state
@@ -961,16 +996,19 @@ const SchoolPemesanan = () => {
                       setOrderLevelFilter(lvl);
                       const cat = getProductsByLevel(lvl);
                       if (!orderPhase.includes('Tambahan')) {
-                        setSelectedItems(cat.map(prod => ({
+                        setMatrixItems(cat.map(prod => ({
+                          productId: prod.id,
+                          code: prod.code,
                           name: prod.name,
                           type: prod.category,
-                          quantity: 0,
                           priceKopkar: prod.priceKopkar,
                           feeSchool: prod.feeSchool,
                           priceStudent: prod.priceStudent,
-                          productId: prod.id,
-                          code: prod.code,
+                          sizes: { 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, '3XL': 0 },
+                          customSize: '',
+                          customQty: 0
                         })));
+                        setSelectedItems([]);
                       }
                     }}
                   >
@@ -994,16 +1032,19 @@ const SchoolPemesanan = () => {
                       setOrderPhase(p);
                       const cat = getProductsByLevel(orderLevelFilter);
                       if (!p.includes('Tambahan')) {
-                        setSelectedItems(cat.map(prod => ({
+                        setMatrixItems(cat.map(prod => ({
+                          productId: prod.id,
+                          code: prod.code,
                           name: prod.name,
                           type: prod.category,
-                          quantity: 0,
                           priceKopkar: prod.priceKopkar,
                           feeSchool: prod.feeSchool,
                           priceStudent: prod.priceStudent,
-                          productId: prod.id,
-                          code: prod.code,
+                          sizes: { 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, '3XL': 0 },
+                          customSize: '',
+                          customQty: 0
                         })));
+                        setSelectedItems([]);
                       } else {
                         const firstProd = cat[0] || products[0];
                         setSelectedItems([{
@@ -1031,15 +1072,79 @@ const SchoolPemesanan = () => {
               <div className="form-group">
                 <label>Pilih Barang dari Katalog Jenjang {orderLevelFilter}:</label>
 
-                <div className="school-order-items-table">
-                  {selectedItems.map((item, index) => (
-                    <div key={index} className="school-order-row">
-                      <div style={{ flexGrow: 1 }}>
-                        {!orderPhase.includes('Tambahan') ? (
-                           <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
-                             <strong>{item.name}</strong> — Harga Siswa: {formatRupiah(item.priceStudent)}
-                           </div>
-                        ) : (
+                {!orderPhase.includes('Tambahan') ? (
+                  <div className="matrix-table-wrapper" style={{ overflowX: 'auto', marginBottom: '16px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <table className="order-table" style={{ minWidth: '800px', margin: 0 }}>
+                      <thead style={{ background: '#f8fafc' }}>
+                        <tr>
+                          <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Nama Barang</th>
+                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>S</th>
+                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>M</th>
+                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>L</th>
+                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>XL</th>
+                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>XXL</th>
+                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>3XL</th>
+                          <th style={{ width: '160px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Custom Size</th>
+                          <th style={{ width: '70px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {matrixItems.map((row, rIdx) => {
+                          const rowTotal = Object.values(row.sizes).reduce((acc: number, val: any) => acc + (parseInt(val) || 0), 0) + (parseInt(row.customQty) || 0);
+                          return (
+                            <tr key={rIdx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                              <td style={{ padding: '12px' }}>
+                                <strong>{row.name}</strong>
+                                <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>Rp {formatRupiah(row.priceStudent)}</div>
+                              </td>
+                              {['S', 'M', 'L', 'XL', 'XXL', '3XL'].map(sz => (
+                                <td key={sz} style={{ padding: '6px' }}>
+                                  <input 
+                                    type="number" 
+                                    min="0" 
+                                    value={row.sizes[sz] || ''}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, sizes: { ...it.sizes, [sz]: val } } : it));
+                                    }}
+                                    style={{ width: '100%', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                  />
+                                </td>
+                              ))}
+                              <td style={{ padding: '6px' }}>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                  <input 
+                                    type="text" 
+                                    placeholder="Size..." 
+                                    value={row.customSize}
+                                    onChange={(e) => setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, customSize: e.target.value } : it))}
+                                    style={{ width: '60%', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                  />
+                                  <input 
+                                    type="number" 
+                                    min="0" 
+                                    placeholder="Qty" 
+                                    value={row.customQty || ''}
+                                    onChange={(e) => setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, customQty: parseInt(e.target.value) || 0 } : it))}
+                                    style={{ width: '40%', padding: '8px 4px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                  />
+                                </div>
+                              </td>
+                              <td style={{ textAlign: 'center', fontWeight: 600, padding: '12px' }}>{rowTotal}</td>
+                            </tr>
+                          );
+                        })}
+                        {matrixItems.length === 0 && (
+                          <tr><td colSpan={9} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>Katalog kosong untuk jenjang ini.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="school-order-items-table">
+                    {selectedItems.map((item, index) => (
+                      <div key={index} className="school-order-row">
+                        <div style={{ flexGrow: 1 }}>
                           <select
                             className="product-select"
                             value={item.productId || ''}
@@ -1052,48 +1157,48 @@ const SchoolPemesanan = () => {
                               </option>
                             ))}
                           </select>
+                        </div>
+
+                        <div style={{ width: '120px', marginLeft: '10px' }}>
+                          <input
+                            type="text"
+                            placeholder="Ukuran (S/M/L/...)"
+                            value={item.size || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSelectedItems((prev) => prev.map((it, i) => i === index ? { ...it, size: val } : it));
+                            }}
+                            style={{ width: '100%', padding: '9px 12px' }}
+                          />
+                        </div>
+
+                        <div style={{ width: '100px', marginLeft: '10px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Jumlah"
+                            value={item.quantity || ''}
+                            onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
+                            style={{ width: '100%', padding: '9px 12px', textAlign: 'center' }}
+                            required
+                          />
+                        </div>
+
+                        {selectedItems.length > 1 && (
+                          <button
+                            type="button"
+                            className="btn-remove-item"
+                            onClick={() => handleRemoveItem(index)}
+                            title="Hapus baris"
+                            style={{ marginLeft: '10px' }}
+                          >
+                            ×
+                          </button>
                         )}
                       </div>
-
-                      <div style={{ width: '120px', marginLeft: '10px' }}>
-                        <input
-                          type="text"
-                          placeholder="Ukuran (S/M/L/...)"
-                          value={item.size || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setSelectedItems((prev) => prev.map((it, i) => i === index ? { ...it, size: val } : it));
-                          }}
-                          style={{ width: '100%', padding: '9px 12px' }}
-                        />
-                      </div>
-
-                      <div style={{ width: '100px', marginLeft: '10px' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Jumlah"
-                          value={item.quantity || ''}
-                          onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
-                          style={{ width: '100%', padding: '9px 12px', textAlign: 'center' }}
-                          required
-                        />
-                      </div>
-
-                      {orderPhase.includes('Tambahan') && selectedItems.length > 1 && (
-                        <button
-                          type="button"
-                          className="btn-remove-item"
-                          onClick={() => handleRemoveItem(index)}
-                          title="Hapus baris"
-                          style={{ marginLeft: '10px' }}
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
 
                 {orderPhase.includes('Tambahan') && (
                   <button
