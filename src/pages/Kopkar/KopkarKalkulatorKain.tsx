@@ -8,6 +8,8 @@ interface SizeRatio {
   panjangBaju: number;
   panjangLengan: number; // untuk celana/rok, ini bernilai 0 atau diabaikan tapi kita pakai field ini sbg panjang tambahan
   ratio: number;
+}
+
 const presetSizeCharts = {
   'baju_sd': [
     { id: '1', name: 'SS', panjangBaju: 50, panjangLengan: 16, ratio: 1 },
