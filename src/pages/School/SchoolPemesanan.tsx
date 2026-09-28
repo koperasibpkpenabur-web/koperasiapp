@@ -960,7 +960,7 @@ const SchoolPemesanan = () => {
                       const lvl = e.target.value as SchoolLevel;
                       setOrderLevelFilter(lvl);
                       const cat = getProductsByLevel(lvl);
-                      if (orderPhase !== 'Tambahan') {
+                      if (!orderPhase.includes('Tambahan')) {
                         setSelectedItems(cat.map(prod => ({
                           name: prod.name,
                           type: prod.category,
