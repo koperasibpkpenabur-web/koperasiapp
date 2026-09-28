@@ -71,7 +71,7 @@ const Topbar = () => {
             </span>
             <div className="header-actions">
               <button 
-                onClick={() => navigate(user.role === 'admin' ? '/admin' : user.role === 'kopkar' ? '/kopkar' : '/sekolah')}
+                onClick={() => navigate(user.role === 'admin' ? '/admin' : user.role === 'kopkar' ? '/kopkar' : user.role === 'sekolah' ? '/school' : '/pengurus')}
                 style={{
                   background: '#F0F3FA',
                   border: '1px solid #d5deef',
