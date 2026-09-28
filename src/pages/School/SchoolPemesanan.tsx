@@ -55,7 +55,7 @@ function groupByCatalog(catalog: any[]) {
 const SchoolPemesanan = () => {
   const { user } = useAuth();
   const { getOrdersBySchoolId, createOrder, receiveOrder, requestCancelOrder, deleteOrder, cartItems, setCartItems, showCartModal, setShowCartModal } = useOrders();
-  const { products, getProductsByLevel } = useProducts();
+  const { getProductsByLevel } = useProducts();
   const { getReturnsBySchoolId } = useReturns();
   const { phase1Open, phase2Open, tambahanOpen, tambahanUseDayRule, tambahanUseDateRule, tambahanStartDate, tambahanEndDate } = useSettings();
 
@@ -164,19 +164,19 @@ const SchoolPemesanan = () => {
   const hasPhase2Order = allSchoolOrders.some(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected');
 
   const handleAddItem = () => {
-    const firstProd = availableCatalog[0] || products[0];
+    const firstGroup = groupedCatalogArray[0];
     setSelectedItems((prev) => [
       ...prev,
       {
-        name: firstProd ? firstProd.name : '',
-        type: firstProd ? firstProd.category : 'seragam',
+        name: firstGroup ? firstGroup.name : '',
+        type: firstGroup ? (firstGroup.type as import('../../types').OrderItemType) : 'seragam',
         quantity: 1,
         size: '',
-        priceKopkar: firstProd ? firstProd.priceKopkar : 0,
-        feeSchool: firstProd ? firstProd.feeSchool : 0,
-        priceStudent: firstProd ? firstProd.priceStudent : 0,
-        productId: firstProd?.id,
-        code: firstProd?.code,
+        priceKopkar: firstGroup ? firstGroup.priceKopkar : 0,
+        feeSchool: firstGroup ? firstGroup.feeSchool : 0,
+        priceStudent: firstGroup ? firstGroup.priceStudent : 0,
+        productId: '',
+        code: '',
       },
     ]);
   };

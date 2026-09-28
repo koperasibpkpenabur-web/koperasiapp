@@ -68,6 +68,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           name: item.name,
           type: item.type,
           quantity: item.quantity,
+          size: item.size,
           priceKopkar: Number(item.price_kopkar),
           feeSchool: Number(item.fee_school),
           priceStudent: Number(item.price_student)
