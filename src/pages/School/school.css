@@ -317,6 +317,13 @@
   padding: 34px 38px;
 }
 
+/* Extra wide modal for Tahap 1 matrix */
+.modal.order-modal-extra-wide {
+  max-width: 1300px;
+  width: 98%;
+  padding: 34px 38px;
+}
+
 @keyframes slideUpModal {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
@@ -943,7 +950,8 @@
     width: 100%;
   }
 
-  .modal.order-modal-wide {
+  .modal.order-modal-wide,
+  .modal.order-modal-extra-wide {
     padding: 24px 16px;
     border-radius: 16px;
   }
@@ -978,7 +986,8 @@ html.force-mobile .order-stats {
   gap: 10px !important;
 }
 
-html.force-mobile .modal.order-modal-wide {
+html.force-mobile .modal.order-modal-wide,
+html.force-mobile .modal.order-modal-extra-wide {
   padding: 20px 14px !important;
 }
 

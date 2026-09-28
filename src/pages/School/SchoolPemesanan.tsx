@@ -1025,7 +1025,7 @@ const SchoolPemesanan = () => {
       {/* Modal Buat Order Baru (Dengan Pilihan Katalog Barang Sesuai Jenjang) */}
       {showCreateModal && (
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal order-modal-wide" onClick={(e) => e.stopPropagation()}>
+          <div className={`modal ${!orderPhase.includes('Tambahan') ? 'order-modal-extra-wide' : 'order-modal-wide'}`} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0 }}>Form Pemesanan Seragam & Buku</h3>
               <button className="btn-close-modal" onClick={() => setShowCreateModal(false)}>✕</button>
