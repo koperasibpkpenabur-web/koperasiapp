@@ -122,6 +122,16 @@ const Sidebar = () => {
               </li>
               <li>
                 <NavLink
+                  to="/kopkar/kalkulator-kain"
+                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                  onClick={closeMobileNav}
+                >
+                  <span className="nav-icon">📐</span>
+                  <span className="nav-text">Kalkulator Kain</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
                   to="/kopkar/vendor"
                   className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
                   onClick={closeMobileNav}

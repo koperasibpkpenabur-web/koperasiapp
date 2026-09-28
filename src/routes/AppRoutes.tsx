@@ -13,6 +13,7 @@ import KopkarPelunasan from '../pages/Kopkar/KopkarPelunasan';
 import ProductCatalog from '../pages/Kopkar/ProductCatalog';
 import StockManagement from '../pages/Kopkar/StockManagement';
 import VendorManagement from '../pages/Kopkar/VendorManagement';
+import KopkarKalkulatorKain from '../pages/Kopkar/KopkarKalkulatorKain';
 import KopkarReturn from '../pages/Kopkar/KopkarReturn';
 import KopkarRekap from '../pages/Kopkar/KopkarRekap';
 import SchoolReturn from '../pages/School/SchoolReturn';
@@ -92,6 +93,11 @@ const AppRoutes = () => {
         <Route path="kopkar/stock" element={
           <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
             <StockManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="kopkar/kalkulator-kain" element={
+          <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
+            <KopkarKalkulatorKain />
           </ProtectedRoute>
         } />
         <Route path="kopkar/retur" element={
