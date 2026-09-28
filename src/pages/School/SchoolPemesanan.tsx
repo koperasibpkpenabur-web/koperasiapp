@@ -10,17 +10,25 @@ import './school.css';
 
 // Urutan ukuran standar dari terkecil ke terbesar
 const SIZE_ORDER = [
-  'SS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', '5XL', '6XL', '7XL', '8XL', '9XL', '10L'
+  'SS', 'XS', 'S', 'M', 'L',
+  'XL', 'XXL', '2XL', '2L',
+  '3XL', '3L', '4XL', '4L',
+  '5XL', '5L', '6XL', '6L',
+  '7XL', '7L', '8XL', '8L',
+  '9XL', '9L', '10XL', '10L'
 ];
 
 function sortBySize(variants: any[]) {
   return [...variants].sort((a, b) => {
-    const ai = SIZE_ORDER.indexOf(a.size?.trim().toUpperCase());
-    const bi = SIZE_ORDER.indexOf(b.size?.trim().toUpperCase());
-    if (ai === -1 && bi === -1) return (a.size || '').localeCompare(b.size || '');
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
+    const aSize = (a.size || '').trim().toUpperCase();
+    const bSize = (b.size || '').trim().toUpperCase();
+    const ai = SIZE_ORDER.indexOf(aSize);
+    const bi = SIZE_ORDER.indexOf(bSize);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;  // a (known) comes before b (unknown)
+    if (bi !== -1) return 1;   // b (known) comes before a (unknown)
+    // Both unknown: use numeric-aware natural sort so "10L" > "3L"
+    return (a.size || '').localeCompare(b.size || '', undefined, { numeric: true });
   });
 }
 
