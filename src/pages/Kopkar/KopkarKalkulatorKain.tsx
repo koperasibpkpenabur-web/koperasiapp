@@ -303,8 +303,11 @@ const KopkarKalkulatorKain = () => {
   const updateSize = (id: string, field: string, value: string | number) => {
     setSizes(sizes.map(s => {
       if (s.id !== id) return s;
-      if (field === 'name' || field === 'ratio') {
-        return { ...s, [field]: value };
+      if (field === 'name') {
+        return { ...s, name: String(value) };
+      }
+      if (field === 'ratio') {
+        return { ...s, ratio: Number(value) };
       }
       return { ...s, data: { ...s.data, [field]: Number(value) } };
     }));
