@@ -58,6 +58,10 @@ const KopkarPelunasan = () => {
   // Print Order state
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
 
+  // Cancellation action menu and detail state
+  const [openCancelMenuId, setOpenCancelMenuId] = useState<string | null>(null);
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+
   useEffect(() => {
     if (printingOrder) {
       const timer = setTimeout(() => {
@@ -850,14 +854,51 @@ const KopkarPelunasan = () => {
                         {formatDate(order.cancellationInfo?.cancelledAt || order.createdAt)}
                       </td>
                       <td>
-                        {order.status === 'cancellation_requested' && (
+                        <div className="action-buttons-col" style={{ position: 'relative' }}>
                           <button
-                            className="btn-approve-cancel"
-                            onClick={() => handleApproveSchoolCancel(order)}
+                            className="btn-detail-dots"
+                            title="Opsi"
+                            onClick={() => setOpenCancelMenuId(openCancelMenuId === order.id ? null : order.id)}
                           >
-                            ✓ Setujui Batal
+                            ⋮
                           </button>
-                        )}
+                          {openCancelMenuId === order.id && (
+                            <div className="action-menu-dropdown">
+                              <button
+                                className="dropdown-item"
+                                onClick={() => {
+                                  setDetailOrder(order);
+                                  setOpenCancelMenuId(null);
+                                }}
+                              >
+                                📄 Detail
+                              </button>
+                              {order.status === 'cancellation_requested' && (
+                                <button
+                                  className="dropdown-item"
+                                  onClick={() => {
+                                    handleApproveSchoolCancel(order);
+                                    setOpenCancelMenuId(null);
+                                  }}
+                                  style={{ color: '#059669' }}
+                                >
+                                  ✓ Setujui Batal
+                                </button>
+                              )}
+                              <button
+                                className="dropdown-item delete"
+                                onClick={() => {
+                                  if(window.confirm('Yakin ingin menghapus permanen riwayat pembatalan ini?')) {
+                                    deleteOrder(order.id);
+                                  }
+                                  setOpenCancelMenuId(null);
+                                }}
+                              >
+                                🗑️ Hapus Riwayat
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1037,6 +1078,78 @@ const KopkarPelunasan = () => {
 
       {/* Print Only Surat Jalan */}
       <SuratJalanPrint order={printingOrder} />
+      {/* Modal Detail Order */}
+      {detailOrder && (
+        <div className="modal-overlay" onClick={() => setDetailOrder(null)}>
+          <div className="modal" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0 }}>Detail Pesanan</h3>
+              <button className="btn-close-modal" onClick={() => setDetailOrder(null)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '0.9rem', color: '#64748b' }}>ID Pesanan</div>
+              <div style={{ fontWeight: 600 }}>{detailOrder.id}</div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>
+                Sekolah: <strong>{detailOrder.schoolName}</strong>
+              </div>
+            </div>
+
+            <div className="verification-item-box" style={{ marginBottom: '20px' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '8px', color: '#334155' }}>
+                Item Pemesanan:
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {detailOrder.items.map((it, idx) => (
+                  <li key={idx} style={{ padding: '6px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem' }}>
+                    <span className={`item-type ${it.type}`} style={{ marginRight: '8px' }}>{it.type}</span>
+                    <strong>{it.name}</strong> {it.size && `[${it.size}] `}— {it.quantity} pcs
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="order-live-summary-card" style={{ marginBottom: '20px' }}>
+              <div className="live-summary-grid" style={{ gridTemplateColumns: '1fr' }}>
+                <div className="summary-item" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '8px' }}>
+                  <span className="sum-label" style={{ fontWeight: 600 }}>Total Tagihan Siswa:</span>
+                  <span className="sum-value primary" style={{ fontWeight: 700, fontSize: '1.1rem' }}>{formatRupiah(detailOrder.totalPriceStudent)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>Status Pelunasan</div>
+                {detailOrder.paymentStatus === 'paid' ? (
+                  <span className="badge-pay-paid">🟢 Lunas ke Koperasi</span>
+                ) : (
+                  <span className="badge-pay-unpaid">🔴 Menunggu Pelunasan</span>
+                )}
+              </div>
+              <div>
+                <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>Status Pengiriman</div>
+                <span className={`status-badge ${detailOrder.status}`}>
+                  {detailOrder.status === 'cancellation_requested' && '⏳ Permintaan Batal'}
+                  {detailOrder.status === 'cancelled' && '🚫 Dibatalkan'}
+                  {detailOrder.status === 'rejected' && '❌ Ditolak Koperasi'}
+                </span>
+              </div>
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: '24px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setDetailOrder(null)}
+                style={{ width: '100%' }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
