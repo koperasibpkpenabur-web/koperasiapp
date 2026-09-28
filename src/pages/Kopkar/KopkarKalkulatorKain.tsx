@@ -152,6 +152,15 @@ const presetSizeCharts = {
     { id: '6', name: '3L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
     { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
   ],
+  'rompi_smp_sma': [
+    { id: '1', name: 'SS', panjangBaju: 61, panjangLengan: 0, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 63, panjangLengan: 0, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 65, panjangLengan: 0, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 68, panjangLengan: 0, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 70, panjangLengan: 0, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 72, panjangLengan: 0, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 73, panjangLengan: 0, ratio: 1 },
+  ],
 };
 
 const KopkarKalkulatorKain = () => {
@@ -318,6 +327,7 @@ const KopkarKalkulatorKain = () => {
                         'celana_panjang_sma': 'celana_panjang',
                         'rok_sma': 'rok',
                         'rok_pramuka_sma': 'rok',
+                        'rompi_smp_sma': 'kemeja_pendek', // Lengan 0
                       };
                       applyPreset(val, typeMap[val] || 'kemeja_pendek');
                     }
@@ -345,6 +355,14 @@ const KopkarKalkulatorKain = () => {
                     <option value="celana_panjang_sma">Celana Panjang SMA (Abu/Pramuka)</option>
                     <option value="rok_sma">Rok Kulot Abu SMA</option>
                     <option value="rok_pramuka_sma">Rok Kulot Pramuka SMA</option>
+                  </optgroup>
+                  <optgroup label="Seragam SPK (Lower & Upper Sec)">
+                    <option value="baju_smp">Baju SPK (Lower/Upper Secondary)</option>
+                    <option value="rompi_smp_sma">Rompi Kotak SPK (Lower/Upper)</option>
+                    <option value="celana_panjang_sma">Celana Panjang SPK (Lower/Upper)</option>
+                    <option value="rok_smp">Rok Kulot SPK (Lower/Upper)</option>
+                    <option value="baju_pramuka_smp">Baju Pramuka SPK (Lower Sec & Putra Upper)</option>
+                    <option value="baju_pramuka_putri_sma">Baju Pramuka Putri SPK (Upper Sec)</option>
                   </optgroup>
                 </select>
               </div>
