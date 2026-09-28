@@ -7,6 +7,7 @@ import './login.css';
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -69,16 +70,27 @@ const LoginPage = () => {
             />
           </div>
 
-          <div className="form-group">
+          <div className="form-group" style={{ marginBottom: '8px' }}>
             <label htmlFor="password">Password</label>
             <input
               id="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Masukkan password..."
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
             />
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', fontSize: '0.85rem', color: '#64748b' }}>
+            <input 
+              type="checkbox" 
+              id="show-password" 
+              checked={showPassword} 
+              onChange={() => setShowPassword(!showPassword)}
+              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+            />
+            <label htmlFor="show-password" style={{ cursor: 'pointer', margin: 0, fontWeight: 'normal', color: '#475569' }}>Tampilkan password</label>
           </div>
 
           <button type="submit" className="login-btn" disabled={isLoading}>
