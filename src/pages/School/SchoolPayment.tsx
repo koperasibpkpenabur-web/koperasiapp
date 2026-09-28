@@ -48,7 +48,7 @@ const SchoolPayment = () => {
         <p style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#475569', lineHeight: 1.5 }}>
           Pembayaran dilakukan melalui transfer ke rekening resmi Koperasi:
           <br />
-          <strong>Bank BNI: 123-456-7890 a.n. Koperasi Synera</strong>
+          <strong>Bank BCA: 0760256757 a.n. Koperasi Konsumen Karyawan BPK Penabur</strong>
         </p>
         <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569', lineHeight: 1.5 }}>
           Setelah melakukan transfer, silakan konfirmasi ke pihak Koperasi melalui WhatsApp atau bawa bukti bayar ke kantor Koperasi agar status pesanan dapat diubah menjadi <strong>Lunas</strong>.

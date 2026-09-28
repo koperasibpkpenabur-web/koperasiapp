@@ -210,7 +210,7 @@ const KopkarPelunasan = () => {
   // Open Pelunasan Modal
   const handleOpenPaymentModal = (order: Order) => {
     setPayingOrder(order);
-    setPayNotes('Pembayaran transfer Bank Mandiri Rekening Koperasi');
+    setPayNotes('Pembayaran transfer Bank BCA: 0760256757 a.n. Koperasi Konsumen Karyawan BPK Penabur');
   };
 
   const handleConfirmPayment = (e: FormEvent) => {
