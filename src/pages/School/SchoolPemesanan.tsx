@@ -8,6 +8,22 @@ import { useSettings } from '../../context/SettingsContext';
 import type { Order, OrderItem, SchoolLevel } from '../../types';
 import './school.css';
 
+// Urutan ukuran standar dari terkecil ke terbesar
+const SIZE_ORDER = [
+  'SS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', '5XL', '6XL', '7XL', '8XL', '9XL', '10L'
+];
+
+function sortBySize(variants: any[]) {
+  return [...variants].sort((a, b) => {
+    const ai = SIZE_ORDER.indexOf(a.size?.trim().toUpperCase());
+    const bi = SIZE_ORDER.indexOf(b.size?.trim().toUpperCase());
+    if (ai === -1 && bi === -1) return (a.size || '').localeCompare(b.size || '');
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+}
+
 const SchoolPemesanan = () => {
   const { user } = useAuth();
   const { getOrdersBySchoolId, createOrder, receiveOrder, requestCancelOrder, deleteOrder, cartItems, setCartItems, showCartModal, setShowCartModal } = useOrders();
@@ -1098,12 +1114,16 @@ const SchoolPemesanan = () => {
                       <thead style={{ background: '#f8fafc' }}>
                         <tr>
                           <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Nama Barang</th>
-                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>S</th>
-                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>M</th>
-                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>L</th>
-                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>XL</th>
-                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>XXL</th>
-                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>3XL</th>
+                          {SIZE_ORDER.map(sz => {
+                            // only show column if at least one matrixItem has this size
+                            const hasAnySz = matrixItems.some((row: any) =>
+                              row.variants.some((v: any) => v.size?.trim().toUpperCase() === sz)
+                            );
+                            if (!hasAnySz) return null;
+                            return (
+                              <th key={sz} style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>{sz}</th>
+                            );
+                          })}
                           <th style={{ width: '180px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Ukuran Lainnya</th>
                           <th style={{ width: '80px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Total</th>
                         </tr>
@@ -1117,7 +1137,11 @@ const SchoolPemesanan = () => {
                                 <strong>{row.name}</strong>
                                 <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>Rp {new Intl.NumberFormat('id-ID').format(row.priceStudent)}</div>
                               </td>
-                              {['S', 'M', 'L', 'XL', 'XXL', '3XL'].map(sz => {
+                              {SIZE_ORDER.map(sz => {
+                                const hasSzCol = matrixItems.some((row: any) =>
+                                  row.variants.some((v: any) => v.size?.trim().toUpperCase() === sz)
+                                );
+                                if (!hasSzCol) return null;
                                 const variant = row.variants.find((v: any) => v.size?.trim().toUpperCase() === sz);
                                 return (
                                   <td key={sz} style={{ padding: '6px', textAlign: 'center' }}>
@@ -1146,7 +1170,7 @@ const SchoolPemesanan = () => {
                                     style={{ width: '60%', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
                                   >
                                     <option value="">- Ukuran -</option>
-                                    {row.variants.filter((v: any) => !['S', 'M', 'L', 'XL', 'XXL', '3XL'].includes(v.size?.trim().toUpperCase())).map((v: any) => (
+                                    {sortBySize(row.variants.filter((v: any) => !SIZE_ORDER.includes(v.size?.trim().toUpperCase()))).map((v: any) => (
                                       <option key={v.id} value={v.id}>{v.size || 'No Size'}</option>
                                     ))}
                                   </select>
@@ -1205,7 +1229,7 @@ const SchoolPemesanan = () => {
                               disabled={!item.name}
                             >
                               <option value="">-- Pilih Ukuran --</option>
-                              {selectedGroup?.variants.map(v => (
+                              {sortBySize(selectedGroup?.variants || []).map(v => (
                                 <option key={v.id} value={v.id}>{v.size || 'Tanpa Ukuran'} (Stok: {v.stock})</option>
                               ))}
                             </select>
