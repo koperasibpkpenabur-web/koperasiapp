@@ -1159,17 +1159,25 @@ const SchoolPemesanan = () => {
                           </select>
                         </div>
 
-                        <div style={{ width: '120px', marginLeft: '10px' }}>
-                          <input
-                            type="text"
-                            placeholder="Ukuran (S/M/L/...)"
+                        <div style={{ width: '130px', marginLeft: '10px' }}>
+                          <select
                             value={item.size || ''}
                             onChange={(e) => {
                               const val = e.target.value;
                               setSelectedItems((prev) => prev.map((it, i) => i === index ? { ...it, size: val } : it));
                             }}
-                            style={{ width: '100%', padding: '9px 12px' }}
-                          />
+                            style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#fff' }}
+                            required={item.quantity > 0}
+                          >
+                            <option value="">-- Ukuran --</option>
+                            <option value="S">S</option>
+                            <option value="M">M</option>
+                            <option value="L">L</option>
+                            <option value="XL">XL</option>
+                            <option value="XXL">XXL</option>
+                            <option value="3XL">3XL</option>
+                            <option value="Custom">Lainnya / Custom</option>
+                          </select>
                         </div>
 
                         <div style={{ width: '100px', marginLeft: '10px' }}>
