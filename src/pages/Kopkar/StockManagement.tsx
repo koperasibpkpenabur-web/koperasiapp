@@ -9,6 +9,8 @@ const StockManagement = () => {
     setProductStock,
     updateProduct,
     deleteProduct,
+    deleteAllProducts,
+    resetAllStock,
     importProductsFromExcel,
     downloadTemplateCsv,
     exportProductsCsv,
@@ -53,6 +55,11 @@ const StockManagement = () => {
   const [supplierLevel, setSupplierLevel] = useState<SchoolLevel | 'SEMUA'>('SEMUA');
   const [supplierName, setSupplierName] = useState('');
   const [supplierSchoolName, setSupplierSchoolName] = useState('');
+
+  // Bulk Action Modal (Hapus/Reset Stock)
+  const [bulkActionType, setBulkActionType] = useState<'delete-all' | 'reset-all' | 'reset-filtered' | null>(null);
+  const [bulkActionStatus, setBulkActionStatus] = useState<'idle' | 'loading' | 'done'>('idle');
+  const [bulkConfirmText, setBulkConfirmText] = useState('');
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -168,6 +175,25 @@ const StockManagement = () => {
     }
   };
 
+  const handleBulkAction = async () => {
+    if (!bulkActionType) return;
+    setBulkActionStatus('loading');
+    if (bulkActionType === 'delete-all') {
+      await deleteAllProducts();
+    } else if (bulkActionType === 'reset-all') {
+      await resetAllStock();
+    } else if (bulkActionType === 'reset-filtered') {
+      const ids = filteredAndSortedProducts.map(p => p.id);
+      await resetAllStock(ids);
+    }
+    setBulkActionStatus('done');
+    setTimeout(() => {
+      setBulkActionType(null);
+      setBulkActionStatus('idle');
+      setBulkConfirmText('');
+    }, 1200);
+  };
+
   // Click outside to close action menu
   useEffect(() => {
     const handleClickOutside = () => setActiveMenuId(null);
@@ -260,6 +286,31 @@ const StockManagement = () => {
           >
             + Tambah Stock Barang
           </button>
+
+          {/* Danger Zone */}
+          <div style={{ display: 'flex', gap: '8px', marginLeft: '8px', borderLeft: '2px solid #fecdd3', paddingLeft: '12px' }}>
+            <button
+              onClick={() => { setBulkActionType('reset-filtered'); setBulkConfirmText(''); }}
+              style={{ padding: '9px 14px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              title="Reset stock barang yang sedang ditampilkan menjadi 0"
+            >
+              🔄 Reset Stock Terfilter
+            </button>
+            <button
+              onClick={() => { setBulkActionType('reset-all'); setBulkConfirmText(''); }}
+              style={{ padding: '9px 14px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              title="Reset SEMUA stock menjadi 0"
+            >
+              ♻️ Reset Semua Stock
+            </button>
+            <button
+              onClick={() => { setBulkActionType('delete-all'); setBulkConfirmText(''); }}
+              style={{ padding: '9px 14px', background: '#450a0a', color: '#fff', border: '1px solid #7f1d1d', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              title="Hapus SEMUA data barang dari sistem"
+            >
+              🗑️ Hapus Semua Data
+            </button>
+          </div>
         </div>
       </div>
 
@@ -871,6 +922,75 @@ const StockManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BULK ACTION (Hapus/Reset) */}
+      {bulkActionType && (
+        <div className="modal-overlay" onClick={() => { setBulkActionType(null); setBulkConfirmText(''); }}>
+          <div className="modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
+            {bulkActionStatus === 'done' ? (
+              <div style={{ textAlign: 'center', padding: '24px' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>✅</div>
+                <h3 style={{ color: '#059669' }}>Berhasil Dieksekusi!</h3>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                  <span style={{ fontSize: '2rem' }}>
+                    {bulkActionType === 'delete-all' ? '🗑️' : '♻️'}
+                  </span>
+                  <h3 style={{ margin: 0, color: bulkActionType === 'delete-all' ? '#dc2626' : '#c2410c' }}>
+                    {bulkActionType === 'delete-all' && 'Hapus Semua Data Barang'}
+                    {bulkActionType === 'reset-all' && 'Reset Semua Stock ke 0'}
+                    {bulkActionType === 'reset-filtered' && `Reset Stock Terfilter ke 0 (${filteredAndSortedProducts.length} barang)`}
+                  </h3>
+                </div>
+
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '12px 14px', marginBottom: '20px', fontSize: '0.85rem', color: '#7f1d1d' }}>
+                  ⚠️ <strong>Tindakan ini tidak bisa dibatalkan.</strong>
+                  {bulkActionType === 'delete-all' && ' Semua data barang, harga, dan stok akan dihapus permanen dari database.'}
+                  {bulkActionType === 'reset-all' && ' Stock Gudang & Stock Vendor seluruh barang akan dijadikan 0.'}
+                  {bulkActionType === 'reset-filtered' && ' Stock barang yang sedang terfilter akan dijadikan 0.'}
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    Ketik <strong style={{ color: '#dc2626' }}>KONFIRMASI</strong> untuk melanjutkan:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ketik KONFIRMASI"
+                    value={bulkConfirmText}
+                    onChange={(e) => setBulkConfirmText(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button className="btn-secondary" onClick={() => { setBulkActionType(null); setBulkConfirmText(''); }}>
+                    Batal
+                  </button>
+                  <button
+                    style={{
+                      background: bulkConfirmText === 'KONFIRMASI' ? (bulkActionType === 'delete-all' ? '#dc2626' : '#c2410c') : '#d1d5db',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '9px 20px',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      cursor: bulkConfirmText === 'KONFIRMASI' ? 'pointer' : 'not-allowed',
+                      opacity: bulkActionStatus === 'loading' ? 0.7 : 1
+                    }}
+                    disabled={bulkConfirmText !== 'KONFIRMASI' || bulkActionStatus === 'loading'}
+                    onClick={handleBulkAction}
+                  >
+                    {bulkActionStatus === 'loading' ? 'Memproses...' : '✓ Ya, Lanjutkan'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

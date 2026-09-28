@@ -9,6 +9,8 @@ interface ProductContextType {
   addProduct: (product: Omit<ProductItem, 'id'>) => Promise<{ success: boolean; error?: string }>;
   updateProduct: (id: string, product: Partial<ProductItem>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
+  deleteAllProducts: () => Promise<{ success: boolean; error?: string }>;
+  resetAllStock: (ids?: string[]) => Promise<{ success: boolean; error?: string }>;
   adjustStock: (id: string, delta: number) => Promise<void>;
   setProductStock: (id: string, newStock: number, newStockVendor?: number) => Promise<void>;
   restockProduct: (id: string, quantity: number) => Promise<void>;
@@ -154,6 +156,32 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     await fetchProducts();
   }, [fetchProducts]);
 
+  const deleteAllProducts = useCallback(async () => {
+    const { error } = await supabase.from('products').delete().neq('id', 'PLACEHOLDER_NEVER_MATCH');
+    if (error) {
+      console.error('Error deleting all products:', error);
+      return { success: false, error: error.message };
+    }
+    await fetchProducts();
+    return { success: true };
+  }, [fetchProducts]);
+
+  const resetAllStock = useCallback(async (ids?: string[]) => {
+    let query = supabase.from('products').update({ stock: 0, stock_vendor: 0 });
+    if (ids && ids.length > 0) {
+      query = query.in('id', ids);
+    } else {
+      query = query.neq('id', 'PLACEHOLDER_NEVER_MATCH');
+    }
+    const { error } = await query;
+    if (error) {
+      console.error('Error resetting stock:', error);
+      return { success: false, error: error.message };
+    }
+    await fetchProducts();
+    return { success: true };
+  }, [fetchProducts]);
+
   const adjustStock = useCallback(async (id: string, delta: number) => {
     const p = products.find(prod => prod.id === id);
     if (!p) return;
@@ -192,24 +220,39 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
       const header = data[0].map((h: any) => String(h || '').trim().toLowerCase());
 
-      const codeIdx = header.findIndex((h) => h.includes('kode') || h.includes('code'));
-      const nameIdx = header.findIndex((h) => h.includes('nama') || h.includes('name') || h.includes('barang'));
+      // Detect columns with priority ordering to avoid collisions
+      // 'Kode Barang' must be found before 'Nama Barang' check uses 'barang'
+      const codeIdx = header.findIndex((h) => h.includes('kode'));
+      // 'Nama Barang' — prefer exact 'nama barang' first, then fallback
+      const nameIdx = (() => {
+        const exact = header.findIndex((h) => h.includes('nama barang') || h === 'nama');
+        if (exact !== -1) return exact;
+        // fallback: column that has 'nama' but NOT 'sekolah'
+        return header.findIndex((h) => h.includes('nama') && !h.includes('sekolah'));
+      })();
       const catIdx = header.findIndex((h) => h.includes('kategori') || h.includes('category') || h.includes('jenis'));
       const levelIdx = header.findIndex((h) => h.includes('jenjang') || h.includes('level'));
-      const kopkarIdx = header.findIndex((h) => h.includes('kopkar') || h.includes('koperasi') || h.includes('modal') || h.includes('hpp'));
-      const feeIdx = header.findIndex((h) => h.includes('fee') || h.includes('sekolah') || h.includes('komisi'));
+      // 'Harga Koperasi' — must NOT include 'siswa'
+      const kopkarIdx = header.findIndex((h) => (h.includes('kopkar') || h.includes('koperasi') || h.includes('modal') || h.includes('hpp')) && !h.includes('siswa'));
+      // 'Fee Sekolah' — prefer column that has 'fee', then 'komisi', avoid 'nama sekolah'
+      const feeIdx = (() => {
+        const feeCol = header.findIndex((h) => h.includes('fee'));
+        if (feeCol !== -1) return feeCol;
+        return header.findIndex((h) => h.includes('komisi'));
+      })();
       const studentIdx = header.findIndex((h) => h.includes('siswa') || h.includes('jual') || h.includes('student'));
 
       const sizeIdx = header.findIndex((h) => h.includes('ukuran'));
       const stockIdx = header.findIndex((h) => h.includes('stock') || h.includes('stok'));
       const locationIdx = header.findIndex((h) => h.includes('lokasi') || h.includes('penyimpanan'));
       const supplierIdx = header.findIndex((h) => h.includes('supplier') || h.includes('penjahit'));
-      const schoolIdx = header.findIndex((h) => h.includes('sekolah'));
+      // 'Nama Sekolah' column — must have 'sekolah' but NOT 'fee'
+      const schoolIdx = header.findIndex((h) => h.includes('sekolah') && !h.includes('fee'));
 
       if (nameIdx === -1 || kopkarIdx === -1 || feeIdx === -1) {
         return {
           success: false,
-          error: 'Format kolom tidak sesuai! Kolom wajib: Nama Barang, Harga Koperasi, Fee Sekolah.',
+          error: `Format kolom tidak sesuai! Kolom wajib: Nama Barang, Harga Koperasi, Fee Sekolah. (Terdeteksi: nama=${nameIdx}, kopkar=${kopkarIdx}, fee=${feeIdx})`,
         };
       }
 
@@ -235,8 +278,9 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         const rawCategory = catIdx !== -1 && row[catIdx] ? String(row[catIdx]).toLowerCase() : 'seragam';
         const category = rawCategory.includes('buku') ? 'buku' : 'seragam';
 
-        const rawLevel = levelIdx !== -1 && row[levelIdx] ? String(row[levelIdx]).toUpperCase() : 'SEMUA';
-        const level = rawLevel === 'TK' || rawLevel === 'SD' || rawLevel === 'SMP' || rawLevel === 'SMA' ? rawLevel : 'SEMUA';
+        const rawLevel = levelIdx !== -1 && row[levelIdx] ? String(row[levelIdx]).trim().toUpperCase() : 'SEMUA';
+        const validLevels = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA', 'SEMUA'];
+        const level = validLevels.includes(rawLevel) ? rawLevel : 'SEMUA';
 
         const priceKopkar = parsePrice(row[kopkarIdx]);
         const feeSchool = parsePrice(row[feeIdx]);
@@ -361,6 +405,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         addProduct,
         updateProduct,
         deleteProduct,
+        deleteAllProducts,
+        resetAllStock,
         adjustStock,
         setProductStock,
         restockProduct,
