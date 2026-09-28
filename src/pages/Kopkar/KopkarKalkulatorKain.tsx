@@ -13,7 +13,7 @@ interface SizeRatio {
 const KopkarKalkulatorKain = () => {
   const [totalRolls, setTotalRolls] = useState<number>(1);
   const [yardsPerRoll, setYardsPerRoll] = useState<number>(60);
-  const [fabricWidth, setFabricWidth] = useState<number>(150);
+  const [fabricWidth] = useState<number>(150);
   const [defectTolerance, setDefectTolerance] = useState<number>(5); // 5%
   
   const [garmentType, setGarmentType] = useState<GarmentType>('kemeja_pendek');
