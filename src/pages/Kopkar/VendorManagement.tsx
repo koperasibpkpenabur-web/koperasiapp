@@ -194,11 +194,9 @@ const VendorManagement = () => {
                   required
                 >
                   <option value="">-- Pilih Barang --</option>
-                  {products
-                    .filter(p => p.supplierName)
-                    .map(p => (
+                  {products.map(p => (
                     <option key={p.id} value={p.id}>
-                      [{p.supplierName}] {p.name} (Stok Vendor saat ini: {p.stockVendor || 0})
+                      {p.supplierName ? `[${p.supplierName}] ` : ''}{p.name} (Stok Vendor: {p.stockVendor || 0})
                     </option>
                   ))}
                 </select>
