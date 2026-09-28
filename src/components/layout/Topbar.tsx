@@ -39,7 +39,6 @@ const Topbar = () => {
         </button>
 
         <div className="topbar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <h1>SYNERA</h1>
           {isMaintenanceMode && (
             <span
               style={{

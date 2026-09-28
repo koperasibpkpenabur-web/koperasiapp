@@ -29,6 +29,8 @@
 
 .sidebar.sidebar-collapsed .nav-text,
 .sidebar.sidebar-collapsed .sidebar-title-row h2,
+.sidebar.sidebar-collapsed .sidebar-logo-text,
+.sidebar.sidebar-collapsed .sidebar-logo-subtext,
 .sidebar.sidebar-collapsed .sidebar-school-level,
 .sidebar.sidebar-collapsed .bottom-mode-label,
 .sidebar.sidebar-collapsed .sidebar-footer-brand {
@@ -470,6 +472,8 @@
 
   .sidebar.sidebar-collapsed .nav-text,
   .sidebar.sidebar-collapsed .sidebar-title-row h2,
+  .sidebar.sidebar-collapsed .sidebar-logo-text,
+  .sidebar.sidebar-collapsed .sidebar-logo-subtext,
   .sidebar.sidebar-collapsed .sidebar-school-level,
   .sidebar.sidebar-collapsed .bottom-mode-label,
   .sidebar.sidebar-collapsed .sidebar-footer-brand {
