@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import type { VendorPayable } from '../../types';
+import { useProducts } from '../../context/ProductContext';
+import type { VendorPayable, ProductItem } from '../../types';
 
 const VendorManagement = () => {
+  const { products, setProductStock } = useProducts();
   const [payables, setPayables] = useState<VendorPayable[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Modal Input Stock Vendor
+  const [showAddStockModal, setShowAddStockModal] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [addQty, setAddQty] = useState(0);
 
   useEffect(() => {
     fetchPayables();
@@ -43,6 +50,21 @@ const VendorManagement = () => {
     fetchPayables();
   };
 
+  const handleAddVendorStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductId || addQty <= 0) return;
+    const p = products.find(prod => prod.id === selectedProductId);
+    if (!p) return;
+    
+    const newStockVendor = (p.stockVendor || 0) + addQty;
+    await setProductStock(p.id, p.stock || 0, newStockVendor);
+    
+    setShowAddStockModal(false);
+    setSelectedProductId('');
+    setAddQty(0);
+    alert(`Berhasil menambahkan ${addQty} pcs ke Stock Vendor untuk barang ${p.name}`);
+  };
+
   const pendingPayables = payables.filter(p => p.status === 'pending');
   const paidPayables = payables.filter(p => p.status === 'paid');
 
@@ -58,10 +80,18 @@ const VendorManagement = () => {
 
   return (
     <div className="kopkar-container">
-      <div className="kopkar-header">
+      <div className="kopkar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h2 className="kopkar-title">Manajemen Pembayaran Vendor</h2>
-          <p className="kopkar-subtitle">Daftar tagihan hutang ke vendor berdasarkan barang dropship yang telah diterima sekolah.</p>
+          <h2 className="kopkar-title">Manajemen Vendor</h2>
+          <p className="kopkar-subtitle">Kelola tagihan hutang ke vendor dan terima stok barang dari vendor.</p>
+        </div>
+        <div>
+          <button 
+            onClick={() => setShowAddStockModal(true)}
+            style={{ padding: '10px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            🏭 + Input Barang Masuk (Vendor)
+          </button>
         </div>
       </div>
 
@@ -144,6 +174,51 @@ const VendorManagement = () => {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Modal Tambah Stock Vendor */}
+      {showAddStockModal && (
+        <div className="modal-overlay" onClick={() => setShowAddStockModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Input Barang Masuk dari Vendor</h3>
+            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '16px' }}>
+              Tambahkan stok barang yang dikelola/disimpan di gudang vendor.
+            </p>
+            <form onSubmit={handleAddVendorStock}>
+              <div className="form-group">
+                <label>Pilih Barang (Hanya yang memiliki Supplier)</label>
+                <select 
+                  value={selectedProductId} 
+                  onChange={e => setSelectedProductId(e.target.value)}
+                  required
+                >
+                  <option value="">-- Pilih Barang --</option>
+                  {products
+                    .filter(p => p.supplierName)
+                    .map(p => (
+                    <option key={p.id} value={p.id}>
+                      [{p.supplierName}] {p.name} (Stok Vendor saat ini: {p.stockVendor || 0})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Jumlah Barang Masuk (Pcs)</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  value={addQty || ''}
+                  onChange={e => setAddQty(Number(e.target.value))}
+                  required 
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setShowAddStockModal(false)}>Batal</button>
+                <button type="submit" className="btn-primary" style={{ background: '#0f172a' }}>Simpan Stock Vendor</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
