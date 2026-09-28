@@ -49,8 +49,8 @@ export function UIProvider({ children }: { children: ReactNode }) {
   };
 
   const toggleSidebar = () => {
-    // If on small screen or mobile mode, toggle drawer
-    if (window.innerWidth <= 860 || viewMode === 'mobile') {
+    // If on mobile mode OR (auto mode and small screen), toggle drawer
+    if (viewMode === 'mobile' || (viewMode === 'auto' && window.innerWidth <= 860)) {
       setIsMobileNavOpen((prev) => !prev);
     } else {
       // Desktop collapse toggle

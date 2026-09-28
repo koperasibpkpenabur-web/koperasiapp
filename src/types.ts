@@ -61,6 +61,7 @@ export interface OrderItem {
   name: string;
   type: OrderItemType;
   quantity: number;
+  size?: string;           // Added size field
   priceKopkar: number;     // Harga Koperasi satuan
   feeSchool: number;       // Fee Sekolah satuan
   priceStudent: number;    // Harga Siswa satuan (Kopkar + Fee)
@@ -95,7 +96,7 @@ export interface Order {
   schoolUserId: string;   // ID of the school user who created this order
   schoolName: string;      // Name of the school
   schoolLevel?: SchoolLevel; // Jenjang sekolah pemesan (TK/SD/SMP/SMA/SPK-SD/SPK-SMP/SPK-SMA)
-  orderPhase?: 'Tahap 1' | 'Tahap 2' | 'Tambahan';
+  orderPhase?: 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan';
   items: OrderItem[];
   status: OrderStatus;
   notes: string;           // Notes from school

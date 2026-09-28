@@ -23,7 +23,7 @@ const SchoolPemesanan = () => {
   const [orderLevelFilter, setOrderLevelFilter] = useState<SchoolLevel>(
     user?.schoolLevel || 'SMP'
   );
-  const [orderPhase, setOrderPhase] = useState<'Tahap 1' | 'Tahap 2' | 'Tambahan'>('Tahap 1');
+  const [orderPhase, setOrderPhase] = useState<'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan'>('Tahap 1');
 
   // Available products for current school level
   const availableCatalog = getProductsByLevel(orderLevelFilter);
@@ -96,7 +96,7 @@ const SchoolPemesanan = () => {
   // Day Restriction Logic
   const currentDay = new Date().getDay(); // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
   const isInputAllowed = () => {
-    if (orderPhase === 'Tambahan') {
+    if (orderPhase.includes('Tambahan')) {
       if (!tambahanOpen) return false;
       
       let isAllowedByDate = true;
@@ -130,7 +130,8 @@ const SchoolPemesanan = () => {
       {
         name: firstProd ? firstProd.name : '',
         type: firstProd ? firstProd.category : 'seragam',
-        quantity: 10,
+        quantity: 1,
+        size: '',
         priceKopkar: firstProd ? firstProd.priceKopkar : 0,
         feeSchool: firstProd ? firstProd.feeSchool : 0,
         priceStudent: firstProd ? firstProd.priceStudent : 0,
@@ -193,18 +194,19 @@ const SchoolPemesanan = () => {
     );
   };
 
-  const resetCreateForm = (phase: 'Tahap 1' | 'Tahap 2' | 'Tambahan') => {
+  const resetCreateForm = (phase: 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan') => {
     const defaultLevel = user?.schoolLevel || 'SMP';
     setOrderLevelFilter(defaultLevel);
     setOrderPhase(phase);
     const cat = getProductsByLevel(defaultLevel);
     
     // Bulk fill all products for Tahap 1/2
-    if (phase !== 'Tambahan' && cat.length > 0) {
+    if (!phase.includes('Tambahan') && cat.length > 0) {
       setSelectedItems(cat.map(prod => ({
         name: prod.name,
         type: prod.category,
         quantity: 0,
+        size: '',
         priceKopkar: prod.priceKopkar,
         feeSchool: prod.feeSchool,
         priceStudent: prod.priceStudent,
@@ -355,7 +357,7 @@ const SchoolPemesanan = () => {
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button 
             className="btn-primary" 
-            onClick={() => { resetCreateForm('Tambahan'); setShowCreateModal(true); }}
+            onClick={() => { resetCreateForm('Tambahan Mingguan'); setShowCreateModal(true); }}
             style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>➕</span> Buat Pesanan
@@ -480,7 +482,7 @@ const SchoolPemesanan = () => {
                             {order.items.map((it, idx) => (
                               <li key={idx}>
                                 <span className={`item-type ${it.type}`}>{it.type}</span>
-                                {it.name} (<strong>{it.quantity} pcs</strong>)
+                                {it.name} {it.size && <span style={{color: '#2563eb', fontWeight: 600}}> [{it.size}] </span>} (<strong>{it.quantity} pcs</strong>)
                               </li>
                             ))}
                           </ul>
@@ -661,7 +663,7 @@ const SchoolPemesanan = () => {
                             {order.items.map((it, idx) => (
                               <li key={idx}>
                                 <span className={`item-type ${it.type}`}>{it.type}</span>
-                                {it.name} ({it.quantity} pcs)
+                                {it.name} {it.size && <span style={{color: '#2563eb', fontWeight: 600}}> [{it.size}] </span>} ({it.quantity} pcs)
                               </li>
                             ))}
                           </ul>
@@ -723,7 +725,7 @@ const SchoolPemesanan = () => {
                         {order.items.map((it, idx) => (
                           <li key={idx}>
                             <span className={`item-type ${it.type}`}>{it.type}</span>
-                            {it.name} ({it.quantity} pcs)
+                            {it.name} {it.size && <span style={{color: '#2563eb', fontWeight: 600}}> [{it.size}] </span>} ({it.quantity} pcs)
                           </li>
                         ))}
                       </ul>
@@ -802,7 +804,7 @@ const SchoolPemesanan = () => {
                             {order.items.map((it, idx) => (
                               <li key={idx}>
                                 <span className={`item-type ${it.type}`}>{it.type}</span>
-                                {it.name} ({it.quantity} pcs)
+                                {it.name} {it.size && <span style={{color: '#2563eb', fontWeight: 600}}> [{it.size}] </span>} ({it.quantity} pcs)
                               </li>
                             ))}
                           </ul>
@@ -885,7 +887,7 @@ const SchoolPemesanan = () => {
                         {order.items.map((it, idx) => (
                           <li key={idx}>
                             <span className={`item-type ${it.type}`}>{it.type}</span>
-                            {it.name} ({it.quantity} pcs)
+                            {it.name} {it.size && <span style={{color: '#2563eb', fontWeight: 600}}> [{it.size}] </span>} ({it.quantity} pcs)
                           </li>
                         ))}
                       </ul>
@@ -1018,8 +1020,10 @@ const SchoolPemesanan = () => {
                     }}
                   >
                     <option value="Tahap 1">Tahap 1</option>
+                    <option value="Tambahan Tahap 1">Tambahan Tahap 1</option>
                     <option value="Tahap 2">Tahap 2</option>
-                    <option value="Tambahan">Tambahan</option>
+                    <option value="Tambahan Tahap 2">Tambahan Tahap 2</option>
+                    <option value="Tambahan Mingguan">Tambahan Mingguan</option>
                   </select>
                 </div>
               </div>
@@ -1031,7 +1035,7 @@ const SchoolPemesanan = () => {
                   {selectedItems.map((item, index) => (
                     <div key={index} className="school-order-row">
                       <div style={{ flexGrow: 1 }}>
-                        {orderPhase !== 'Tambahan' ? (
+                        {!orderPhase.includes('Tambahan') ? (
                            <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
                              <strong>{item.name}</strong> — Harga Siswa: {formatRupiah(item.priceStudent)}
                            </div>
@@ -1051,7 +1055,20 @@ const SchoolPemesanan = () => {
                         )}
                       </div>
 
-                      <div style={{ width: '100px' }}>
+                      <div style={{ width: '120px', marginLeft: '10px' }}>
+                        <input
+                          type="text"
+                          placeholder="Ukuran (S/M/L/...)"
+                          value={item.size || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedItems((prev) => prev.map((it, i) => i === index ? { ...it, size: val } : it));
+                          }}
+                          style={{ width: '100%', padding: '9px 12px' }}
+                        />
+                      </div>
+
+                      <div style={{ width: '100px', marginLeft: '10px' }}>
                         <input
                           type="number"
                           min="0"
@@ -1063,12 +1080,13 @@ const SchoolPemesanan = () => {
                         />
                       </div>
 
-                      {orderPhase === 'Tambahan' && selectedItems.length > 1 && (
+                      {orderPhase.includes('Tambahan') && selectedItems.length > 1 && (
                         <button
                           type="button"
                           className="btn-remove-item"
                           onClick={() => handleRemoveItem(index)}
                           title="Hapus baris"
+                          style={{ marginLeft: '10px' }}
                         >
                           ×
                         </button>
@@ -1077,7 +1095,7 @@ const SchoolPemesanan = () => {
                   ))}
                 </div>
 
-                {orderPhase === 'Tambahan' && (
+                {orderPhase.includes('Tambahan') && (
                   <button
                     type="button"
                     className="btn-add-item"
@@ -1141,6 +1159,7 @@ const SchoolPemesanan = () => {
                         <div style={{ flex: 1 }}>
                           <span className={`item-type ${it.type}`} style={{ marginRight: '8px' }}>{it.type}</span>
                           <strong>{it.name}</strong>
+                          {it.size && <span style={{ marginLeft: '6px', color: '#2563eb', fontWeight: 600 }}>[{it.size}]</span>}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <button
