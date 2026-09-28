@@ -8,7 +8,44 @@ interface SizeRatio {
   panjangBaju: number;
   panjangLengan: number; // untuk celana/rok, ini bernilai 0 atau diabaikan tapi kita pakai field ini sbg panjang tambahan
   ratio: number;
-}
+const presetSizeCharts = {
+  'baju_sd': [
+    { id: '1', name: 'SS', panjangBaju: 50, panjangLengan: 16, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 52, panjangLengan: 17, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 54, panjangLengan: 18, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 56, panjangLengan: 19, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 58, panjangLengan: 20, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 60, panjangLengan: 21, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 62, panjangLengan: 22, ratio: 1 },
+  ],
+  'baju_pramuka_penggalang_sd': [
+    { id: '1', name: 'SS', panjangBaju: 54, panjangLengan: 18, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 56, panjangLengan: 19, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 58, panjangLengan: 20, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 60, panjangLengan: 21, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 22, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 64, panjangLengan: 23, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 66, panjangLengan: 24, ratio: 1 },
+  ],
+  'celana_pendek_sd': [
+    { id: '1', name: 'SS', panjangBaju: 35, panjangLengan: 0, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 37, panjangLengan: 0, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 39, panjangLengan: 0, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 41, panjangLengan: 0, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 43, panjangLengan: 0, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 45, panjangLengan: 0, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 47, panjangLengan: 0, ratio: 1 },
+  ],
+  'rok_sd': [
+    { id: '1', name: 'SS', panjangBaju: 42, panjangLengan: 0, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 44, panjangLengan: 0, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 46, panjangLengan: 0, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 48, panjangLengan: 0, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 50, panjangLengan: 0, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 52, panjangLengan: 0, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 54, panjangLengan: 0, ratio: 1 },
+  ],
+};
 
 const KopkarKalkulatorKain = () => {
   const [totalRolls, setTotalRolls] = useState<number>(1);
@@ -18,11 +55,12 @@ const KopkarKalkulatorKain = () => {
   
   const [garmentType, setGarmentType] = useState<GarmentType>('kemeja_pendek');
   
-  const [sizes, setSizes] = useState<SizeRatio[]>([
-    { id: '1', name: 'S', panjangBaju: 60, panjangLengan: 22, ratio: 2 },
-    { id: '2', name: 'M', panjangBaju: 65, panjangLengan: 24, ratio: 4 },
-    { id: '3', name: 'L', panjangBaju: 70, panjangLengan: 26, ratio: 2 },
-  ]);
+  const [sizes, setSizes] = useState<SizeRatio[]>(presetSizeCharts['baju_sd']);
+
+  const applyPreset = (presetKey: keyof typeof presetSizeCharts, type: GarmentType) => {
+    setSizes(presetSizeCharts[presetKey].map(s => ({ ...s, id: Date.now().toString() + s.name })));
+    setGarmentType(type);
+  };
 
   const addSize = () => {
     setSizes([...sizes, { id: Date.now().toString(), name: '', panjangBaju: 0, panjangLengan: 0, ratio: 1 }]);
@@ -148,9 +186,29 @@ const KopkarKalkulatorKain = () => {
           </div>
 
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>👕</span> 2. Data Model & Size Chart
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>👕</span> 2. Data Model & Size Chart
+              </h3>
+              <div className="form-group" style={{ margin: 0 }}>
+                <select 
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'baju_sd') applyPreset('baju_sd', 'kemeja_pendek');
+                    if (val === 'baju_pramuka_penggalang_sd') applyPreset('baju_pramuka_penggalang_sd', 'kemeja_pendek');
+                    if (val === 'celana_pendek_sd') applyPreset('celana_pendek_sd', 'celana_pendek');
+                    if (val === 'rok_sd') applyPreset('rok_sd', 'rok');
+                  }}
+                  style={{ padding: '6px 12px', fontSize: '0.85rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                >
+                  <option value="">-- Load Size Chart Otomatis --</option>
+                  <option value="baju_sd">Baju SD / Pramuka Siaga</option>
+                  <option value="baju_pramuka_penggalang_sd">Baju Pramuka Penggalang SD</option>
+                  <option value="celana_pendek_sd">Celana Pendek SD (Semua)</option>
+                  <option value="rok_sd">Rok / Kulot SD (Siaga)</option>
+                </select>
+              </div>
+            </div>
             
             <div className="form-group" style={{ marginBottom: '20px' }}>
               <label>Jenis Pakaian</label>
