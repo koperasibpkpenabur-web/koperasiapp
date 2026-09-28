@@ -1,231 +1,356 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
-type GarmentType = 'kemeja_pendek' | 'kemeja_panjang' | 'celana_pendek' | 'celana_panjang' | 'rok';
+type GarmentType = 'kemeja' | 'celana' | 'rok' | 'rompi';
 
 interface SizeRatio {
   id: string;
   name: string;
-  panjangBaju: number;
-  panjangLengan: number; // untuk celana/rok, ini bernilai 0 atau diabaikan tapi kita pakai field ini sbg panjang tambahan
+  data: Record<string, number>;
   ratio: number;
 }
 
-const presetSizeCharts = {
-  'baju_sd': [
-    { id: '1', name: 'SS', panjangBaju: 50, panjangLengan: 16, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 52, panjangLengan: 17, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 54, panjangLengan: 18, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 56, panjangLengan: 19, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 58, panjangLengan: 20, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 60, panjangLengan: 21, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 62, panjangLengan: 22, ratio: 1 },
-  ],
-  'baju_pramuka_penggalang_sd': [
-    { id: '1', name: 'SS', panjangBaju: 54, panjangLengan: 18, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 56, panjangLengan: 19, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 58, panjangLengan: 20, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 60, panjangLengan: 21, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 22, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 64, panjangLengan: 23, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 66, panjangLengan: 24, ratio: 1 },
-  ],
-  'celana_pendek_sd': [
-    { id: '1', name: 'SS', panjangBaju: 35, panjangLengan: 0, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 37, panjangLengan: 0, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 39, panjangLengan: 0, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 41, panjangLengan: 0, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 43, panjangLengan: 0, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 45, panjangLengan: 0, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 47, panjangLengan: 0, ratio: 1 },
-  ],
-  'rok_sd': [
-    { id: '1', name: 'SS', panjangBaju: 42, panjangLengan: 0, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 44, panjangLengan: 0, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 46, panjangLengan: 0, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 48, panjangLengan: 0, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 50, panjangLengan: 0, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 52, panjangLengan: 0, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 54, panjangLengan: 0, ratio: 1 },
-  ],
-  'baju_smp': [
-    { id: '1', name: 'SS', panjangBaju: 65, panjangLengan: 21, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 67, panjangLengan: 22, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 69, panjangLengan: 23, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 71, panjangLengan: 24, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 73, panjangLengan: 25, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 75, panjangLengan: 26, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 77, panjangLengan: 27, ratio: 1 },
-  ],
-  'baju_pramuka_smp': [
-    { id: '1', name: 'SS', panjangBaju: 60, panjangLengan: 21, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 63, panjangLengan: 22, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 66, panjangLengan: 23, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 69, panjangLengan: 24, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 72, panjangLengan: 25, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 72, panjangLengan: 26, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 75, panjangLengan: 27, ratio: 1 },
-  ],
-  'celana_smp': [
-    { id: '1', name: '25', panjangBaju: 46, panjangLengan: 0, ratio: 1 },
-    { id: '2', name: '26', panjangBaju: 47, panjangLengan: 0, ratio: 1 },
-    { id: '3', name: '27', panjangBaju: 48, panjangLengan: 0, ratio: 1 },
-    { id: '4', name: '28', panjangBaju: 49, panjangLengan: 0, ratio: 2 },
-    { id: '5', name: '29', panjangBaju: 50, panjangLengan: 0, ratio: 2 },
-    { id: '6', name: '30', panjangBaju: 51, panjangLengan: 0, ratio: 2 },
-    { id: '7', name: '31', panjangBaju: 52, panjangLengan: 0, ratio: 2 },
-    { id: '8', name: '32', panjangBaju: 53, panjangLengan: 0, ratio: 2 },
-    { id: '9', name: '33', panjangBaju: 54, panjangLengan: 0, ratio: 1 },
-    { id: '10', name: '34', panjangBaju: 55, panjangLengan: 0, ratio: 1 },
-  ],
-  'rok_smp': [
-    { id: '1', name: 'SS', panjangBaju: 56, panjangLengan: 0, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 58, panjangLengan: 0, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 60, panjangLengan: 0, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 61, panjangLengan: 0, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 63, panjangLengan: 0, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
-  ],
-  'rok_pramuka_smp': [
-    { id: '1', name: 'SS', panjangBaju: 58, panjangLengan: 0, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 60, panjangLengan: 0, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 60, panjangLengan: 0, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
-  ],
-  'baju_sma': [
-    { id: '1', name: 'SS', panjangBaju: 65, panjangLengan: 21, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 67, panjangLengan: 22, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 69, panjangLengan: 23, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 71, panjangLengan: 24, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 73, panjangLengan: 25, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 75, panjangLengan: 26, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 77, panjangLengan: 27, ratio: 1 },
-  ],
-  'baju_pramuka_putra_sma': [
-    { id: '1', name: 'SS', panjangBaju: 60, panjangLengan: 21, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 63, panjangLengan: 22, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 66, panjangLengan: 23, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 69, panjangLengan: 24, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 72, panjangLengan: 25, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 72, panjangLengan: 26, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 75, panjangLengan: 27, ratio: 1 },
-  ],
-  'baju_pramuka_putri_sma': [
-    { id: '1', name: 'SS', panjangBaju: 63, panjangLengan: 22, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 64, panjangLengan: 23, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 65, panjangLengan: 23, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 66, panjangLengan: 24, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 67, panjangLengan: 24, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 68, panjangLengan: 25, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 69, panjangLengan: 25, ratio: 1 },
-  ],
-  'celana_panjang_sma': [
-    { id: '1', name: '27', panjangBaju: 104, panjangLengan: 0, ratio: 1 },
-    { id: '2', name: '28', panjangBaju: 104, panjangLengan: 0, ratio: 1 },
-    { id: '3', name: '29', panjangBaju: 104, panjangLengan: 0, ratio: 2 },
-    { id: '4', name: '30', panjangBaju: 105, panjangLengan: 0, ratio: 2 },
-    { id: '5', name: '31', panjangBaju: 105, panjangLengan: 0, ratio: 2 },
-    { id: '6', name: '32', panjangBaju: 105, panjangLengan: 0, ratio: 2 },
-    { id: '7', name: '33', panjangBaju: 106, panjangLengan: 0, ratio: 2 },
-    { id: '8', name: '34', panjangBaju: 106, panjangLengan: 0, ratio: 1 },
-    { id: '9', name: '35', panjangBaju: 106, panjangLengan: 0, ratio: 1 },
-    { id: '10', name: '36', panjangBaju: 107, panjangLengan: 0, ratio: 1 },
-  ],
-  'rok_sma': [
-    { id: '1', name: 'SS', panjangBaju: 56, panjangLengan: 0, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 58, panjangLengan: 0, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 60, panjangLengan: 0, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 61, panjangLengan: 0, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 63, panjangLengan: 0, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
-  ],
-  'rok_pramuka_sma': [
-    { id: '1', name: 'SS', panjangBaju: 58, panjangLengan: 0, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 60, panjangLengan: 0, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 60, panjangLengan: 0, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
-  ],
-  'rompi_smp_sma': [
-    { id: '1', name: 'SS', panjangBaju: 61, panjangLengan: 0, ratio: 1 },
-    { id: '2', name: 'S', panjangBaju: 63, panjangLengan: 0, ratio: 1 },
-    { id: '3', name: 'M', panjangBaju: 65, panjangLengan: 0, ratio: 2 },
-    { id: '4', name: 'L', panjangBaju: 68, panjangLengan: 0, ratio: 2 },
-    { id: '5', name: 'XL', panjangBaju: 70, panjangLengan: 0, ratio: 2 },
-    { id: '6', name: '3L', panjangBaju: 72, panjangLengan: 0, ratio: 1 },
-    { id: '7', name: '4L', panjangBaju: 73, panjangLengan: 0, ratio: 1 },
-  ],
-};
+interface PresetDef {
+  key: string;
+  label: string;
+  type: GarmentType;
+  headers: { key: string; label: string }[];
+  sizes: { name: string; data: Record<string, number>; ratio: number }[];
+}
+
+const PRESETS: PresetDef[] = [
+  // =================== SD ===================
+  {
+    key: 'baju_sd',
+    label: 'Baju Putra/Putri SD',
+    type: 'kemeja',
+    headers: [
+      { key: 'panjangLengan', label: 'Panjang Lengan' },
+      { key: 'lebarBahu', label: 'Lebar Bahu' },
+      { key: 'panjangBaju', label: 'Panjang Baju' },
+      { key: 'lebarDada', label: 'Lebar Dada' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { panjangLengan: 16, lebarBahu: 30, panjangBaju: 50, lebarDada: 36 } },
+      { name: 'S', ratio: 1, data: { panjangLengan: 17, lebarBahu: 32, panjangBaju: 52, lebarDada: 38 } },
+      { name: 'M', ratio: 2, data: { panjangLengan: 18, lebarBahu: 34, panjangBaju: 54, lebarDada: 40 } },
+      { name: 'L', ratio: 2, data: { panjangLengan: 19, lebarBahu: 36, panjangBaju: 56, lebarDada: 42 } },
+      { name: 'XL', ratio: 2, data: { panjangLengan: 20, lebarBahu: 38, panjangBaju: 58, lebarDada: 44 } },
+      { name: '3L', ratio: 1, data: { panjangLengan: 21, lebarBahu: 40, panjangBaju: 60, lebarDada: 46 } },
+      { name: '4L', ratio: 1, data: { panjangLengan: 22, lebarBahu: 42, panjangBaju: 62, lebarDada: 48 } },
+    ]
+  },
+  {
+    key: 'rompi_sd',
+    label: 'Rompi Kotak Putra/Putri SD',
+    type: 'rompi',
+    headers: [
+      { key: 'lebarBahu', label: 'Lebar Bahu' },
+      { key: 'lebarDada', label: 'Lebar Dada' },
+      { key: 'panjangBaju', label: 'Panjang Baju' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { lebarBahu: 25, lebarDada: 38, panjangBaju: 46 } },
+      { name: 'S', ratio: 1, data: { lebarBahu: 26, lebarDada: 40, panjangBaju: 48 } },
+      { name: 'M', ratio: 2, data: { lebarBahu: 27, lebarDada: 42, panjangBaju: 50 } },
+      { name: 'L', ratio: 2, data: { lebarBahu: 28, lebarDada: 44, panjangBaju: 52 } },
+      { name: 'XL', ratio: 2, data: { lebarBahu: 29, lebarDada: 46, panjangBaju: 54 } },
+      { name: '3L', ratio: 1, data: { lebarBahu: 30, lebarDada: 48, panjangBaju: 56 } },
+      { name: '4L', ratio: 1, data: { lebarBahu: 31, lebarDada: 50, panjangBaju: 58 } },
+    ]
+  },
+  {
+    key: 'celana_sd',
+    label: 'Celana Merah/Kotak/Pramuka SD',
+    type: 'celana',
+    headers: [
+      { key: 'lebarPinggang', label: 'Lebar Pinggang' },
+      { key: 'panjangCelana', label: 'Panjang Celana' },
+      { key: 'lebarPaha', label: 'Lebar Paha' },
+      { key: 'lebarKaki', label: 'Lebar Kaki' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { lebarPinggang: 23, panjangCelana: 35, lebarPaha: 26, lebarKaki: 21 } },
+      { name: 'S', ratio: 1, data: { lebarPinggang: 25, panjangCelana: 37, lebarPaha: 27, lebarKaki: 22 } },
+      { name: 'M', ratio: 2, data: { lebarPinggang: 27, panjangCelana: 39, lebarPaha: 28, lebarKaki: 23 } },
+      { name: 'L', ratio: 2, data: { lebarPinggang: 29, panjangCelana: 41, lebarPaha: 29, lebarKaki: 24 } },
+      { name: 'XL', ratio: 2, data: { lebarPinggang: 31, panjangCelana: 43, lebarPaha: 30, lebarKaki: 25 } },
+      { name: '3L', ratio: 1, data: { lebarPinggang: 33, panjangCelana: 45, lebarPaha: 31, lebarKaki: 26 } },
+      { name: '4L', ratio: 1, data: { lebarPinggang: 35, panjangCelana: 47, lebarPaha: 32, lebarKaki: 27 } },
+    ]
+  },
+  {
+    key: 'rok_sd',
+    label: 'Rok Remple/Kulot SD',
+    type: 'rok',
+    headers: [
+      { key: 'lebarPinggang', label: 'Lebar Pinggang' },
+      { key: 'panjangRok', label: 'Panjang Rok' },
+      { key: 'pesak', label: 'Pesak' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { lebarPinggang: 23, panjangRok: 42, pesak: 33 } },
+      { name: 'S', ratio: 1, data: { lebarPinggang: 25, panjangRok: 44, pesak: 33 } },
+      { name: 'M', ratio: 2, data: { lebarPinggang: 27, panjangRok: 46, pesak: 35 } },
+      { name: 'L', ratio: 2, data: { lebarPinggang: 29, panjangRok: 48, pesak: 35 } },
+      { name: 'XL', ratio: 2, data: { lebarPinggang: 31, panjangRok: 50, pesak: 37 } },
+      { name: '3L', ratio: 1, data: { lebarPinggang: 33, panjangRok: 52, pesak: 37 } },
+      { name: '4L', ratio: 1, data: { lebarPinggang: 35, panjangRok: 54, pesak: 39 } },
+    ]
+  },
+  {
+    key: 'baju_pramuka_siaga_sd',
+    label: 'Baju Pramuka Siaga SD',
+    type: 'kemeja',
+    headers: [
+      { key: 'panjangLengan', label: 'Panjang Lengan' },
+      { key: 'lebarBahu', label: 'Lebar Bahu' },
+      { key: 'panjangBaju', label: 'Panjang Baju' },
+      { key: 'lebarDada', label: 'Lebar Dada' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { panjangLengan: 16, lebarBahu: 33.5, panjangBaju: 50, lebarDada: 39 } },
+      { name: 'S', ratio: 1, data: { panjangLengan: 17, lebarBahu: 35, panjangBaju: 52, lebarDada: 41 } },
+      { name: 'M', ratio: 2, data: { panjangLengan: 18, lebarBahu: 36.5, panjangBaju: 54, lebarDada: 43 } },
+      { name: 'L', ratio: 2, data: { panjangLengan: 19, lebarBahu: 38, panjangBaju: 56, lebarDada: 45 } },
+      { name: 'XL', ratio: 2, data: { panjangLengan: 20, lebarBahu: 39.5, panjangBaju: 58, lebarDada: 47 } },
+      { name: '3L', ratio: 1, data: { panjangLengan: 21, lebarBahu: 41, panjangBaju: 60, lebarDada: 49 } },
+      { name: '4L', ratio: 1, data: { panjangLengan: 22, lebarBahu: 42.5, panjangBaju: 62, lebarDada: 51 } },
+    ]
+  },
+  
+  // =================== SMP & SMA ===================
+  {
+    key: 'baju_smp_sma',
+    label: 'Baju Putra/Putri SMP / SMA / SPK',
+    type: 'kemeja',
+    headers: [
+      { key: 'panjangLengan', label: 'Panjang Lengan' },
+      { key: 'lebarBahu', label: 'Lebar Bahu' },
+      { key: 'panjangBaju', label: 'Panjang Baju' },
+      { key: 'lebarDada', label: 'Lebar Dada' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { panjangLengan: 21, lebarBahu: 40, panjangBaju: 65, lebarDada: 45 } },
+      { name: 'S', ratio: 1, data: { panjangLengan: 22, lebarBahu: 42, panjangBaju: 67, lebarDada: 49 } },
+      { name: 'M', ratio: 2, data: { panjangLengan: 23, lebarBahu: 44, panjangBaju: 69, lebarDada: 51 } },
+      { name: 'L', ratio: 2, data: { panjangLengan: 24, lebarBahu: 46, panjangBaju: 71, lebarDada: 53 } },
+      { name: 'XL', ratio: 2, data: { panjangLengan: 25, lebarBahu: 48, panjangBaju: 73, lebarDada: 55 } },
+      { name: '3L', ratio: 1, data: { panjangLengan: 26, lebarBahu: 50, panjangBaju: 75, lebarDada: 59 } },
+      { name: '4L', ratio: 1, data: { panjangLengan: 27, lebarBahu: 52, panjangBaju: 77, lebarDada: 61 } },
+    ]
+  },
+  {
+    key: 'rompi_smp_sma',
+    label: 'Rompi Kotak SMP / SMA / SPK',
+    type: 'rompi',
+    headers: [
+      { key: 'lebarBahu', label: 'Lebar Bahu' },
+      { key: 'lebarDada', label: 'Lebar Dada' },
+      { key: 'panjangBaju', label: 'Panjang Baju' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { lebarBahu: 30, lebarDada: 44, panjangBaju: 61 } },
+      { name: 'S', ratio: 1, data: { lebarBahu: 31, lebarDada: 46, panjangBaju: 63 } },
+      { name: 'M', ratio: 2, data: { lebarBahu: 32, lebarDada: 48, panjangBaju: 65 } },
+      { name: 'L', ratio: 2, data: { lebarBahu: 33, lebarDada: 50, panjangBaju: 68 } },
+      { name: 'XL', ratio: 2, data: { lebarBahu: 35, lebarDada: 52, panjangBaju: 70 } },
+      { name: '3L', ratio: 1, data: { lebarBahu: 38.5, lebarDada: 54, panjangBaju: 72 } },
+      { name: '4L', ratio: 1, data: { lebarBahu: 41, lebarDada: 57, panjangBaju: 73 } },
+    ]
+  },
+  {
+    key: 'celana_smp',
+    label: 'Celana Pendek Biru/Pramuka SMP',
+    type: 'celana',
+    headers: [
+      { key: 'lebarPinggang', label: 'Lebar Pinggang' },
+      { key: 'panjangCelana', label: 'Panjang Celana' },
+      { key: 'lebarPaha', label: 'Lebar Paha' },
+      { key: 'lebarKaki', label: 'Lebar Kaki' }
+    ],
+    sizes: [
+      { name: '25', ratio: 1, data: { lebarPinggang: 32, panjangCelana: 46, lebarPaha: 26.5, lebarKaki: 20.5 } },
+      { name: '26', ratio: 1, data: { lebarPinggang: 33, panjangCelana: 47, lebarPaha: 27, lebarKaki: 21 } },
+      { name: '27', ratio: 1, data: { lebarPinggang: 34, panjangCelana: 48, lebarPaha: 27.5, lebarKaki: 21.5 } },
+      { name: '28', ratio: 2, data: { lebarPinggang: 36, panjangCelana: 49, lebarPaha: 28.5, lebarKaki: 22.5 } },
+      { name: '29', ratio: 2, data: { lebarPinggang: 37, panjangCelana: 50, lebarPaha: 29, lebarKaki: 23 } },
+      { name: '30', ratio: 2, data: { lebarPinggang: 38, panjangCelana: 51, lebarPaha: 29.5, lebarKaki: 23.5 } },
+      { name: '31', ratio: 2, data: { lebarPinggang: 39, panjangCelana: 52, lebarPaha: 30, lebarKaki: 24 } },
+      { name: '32', ratio: 2, data: { lebarPinggang: 41, panjangCelana: 53, lebarPaha: 31, lebarKaki: 25 } },
+      { name: '33', ratio: 1, data: { lebarPinggang: 42, panjangCelana: 54, lebarPaha: 31.5, lebarKaki: 25.5 } },
+      { name: '34', ratio: 1, data: { lebarPinggang: 43, panjangCelana: 55, lebarPaha: 32, lebarKaki: 26 } },
+    ]
+  },
+  {
+    key: 'celana_sma',
+    label: 'Celana Panjang Abu/Pramuka SMA & SPK',
+    type: 'celana',
+    headers: [
+      { key: 'lebarPinggang', label: 'Lebar Pinggang' },
+      { key: 'lebarPaha', label: 'Lebar Paha' },
+      { key: 'panjangCelana', label: 'Panjang Celana' },
+      { key: 'lebarKaki', label: 'Lebar Kaki' }
+    ],
+    sizes: [
+      { name: '27', ratio: 1, data: { lebarPinggang: 34.5, lebarPaha: 30.5, panjangCelana: 104, lebarKaki: 20 } },
+      { name: '28', ratio: 1, data: { lebarPinggang: 36, lebarPaha: 31, panjangCelana: 104, lebarKaki: 20 } },
+      { name: '29', ratio: 2, data: { lebarPinggang: 37, lebarPaha: 31.5, panjangCelana: 104, lebarKaki: 20.5 } },
+      { name: '30', ratio: 2, data: { lebarPinggang: 38.5, lebarPaha: 32.5, panjangCelana: 105, lebarKaki: 21 } },
+      { name: '31', ratio: 2, data: { lebarPinggang: 41, lebarPaha: 33, panjangCelana: 105, lebarKaki: 21 } },
+      { name: '32', ratio: 2, data: { lebarPinggang: 42, lebarPaha: 33.5, panjangCelana: 105, lebarKaki: 21.5 } },
+      { name: '33', ratio: 2, data: { lebarPinggang: 43.5, lebarPaha: 34.5, panjangCelana: 106, lebarKaki: 22 } },
+      { name: '34', ratio: 1, data: { lebarPinggang: 44.5, lebarPaha: 35, panjangCelana: 106, lebarKaki: 22 } },
+      { name: '35', ratio: 1, data: { lebarPinggang: 46, lebarPaha: 35.5, panjangCelana: 106, lebarKaki: 23 } },
+      { name: '36', ratio: 1, data: { lebarPinggang: 47, lebarPaha: 36, panjangCelana: 107, lebarKaki: 23 } },
+    ]
+  },
+  {
+    key: 'rok_kulot_smp_sma',
+    label: 'Rok Kulot Putri SMP / SMA / SPK',
+    type: 'rok',
+    headers: [
+      { key: 'lebarPinggang', label: 'Lebar Pinggang' },
+      { key: 'panjangRok', label: 'Panjang Rok' },
+      { key: 'lebarPinggul', label: 'Lebar Pinggul' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { lebarPinggang: 29, panjangRok: 56, lebarPinggul: 42 } },
+      { name: 'S', ratio: 1, data: { lebarPinggang: 31, panjangRok: 58, lebarPinggul: 44 } },
+      { name: 'M', ratio: 2, data: { lebarPinggang: 33, panjangRok: 60, lebarPinggul: 45 } },
+      { name: 'L', ratio: 2, data: { lebarPinggang: 35, panjangRok: 61, lebarPinggul: 47 } },
+      { name: 'XL', ratio: 2, data: { lebarPinggang: 37, panjangRok: 62, lebarPinggul: 49 } },
+      { name: '3L', ratio: 1, data: { lebarPinggang: 40, panjangRok: 63, lebarPinggul: 51 } },
+      { name: '4L', ratio: 1, data: { lebarPinggang: 42, panjangRok: 64, lebarPinggul: 54 } },
+    ]
+  },
+  {
+    key: 'baju_pramuka_putra_smp_sma',
+    label: 'Baju Pramuka Putra SMP / SMA / SPK',
+    type: 'kemeja',
+    headers: [
+      { key: 'panjangLengan', label: 'Panjang Lengan' },
+      { key: 'lebarBahu', label: 'Lebar Bahu' },
+      { key: 'panjangBaju', label: 'Panjang Baju' },
+      { key: 'lebarDada', label: 'Lebar Dada' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { panjangLengan: 21, lebarBahu: 40, panjangBaju: 60, lebarDada: 45 } },
+      { name: 'S', ratio: 1, data: { panjangLengan: 22, lebarBahu: 41.5, panjangBaju: 63, lebarDada: 47 } },
+      { name: 'M', ratio: 2, data: { panjangLengan: 23, lebarBahu: 43, panjangBaju: 66, lebarDada: 49 } },
+      { name: 'L', ratio: 2, data: { panjangLengan: 24, lebarBahu: 44.5, panjangBaju: 69, lebarDada: 51 } },
+      { name: 'XL', ratio: 2, data: { panjangLengan: 25, lebarBahu: 46, panjangBaju: 72, lebarDada: 53 } },
+      { name: '3L', ratio: 1, data: { panjangLengan: 26, lebarBahu: 47.5, panjangBaju: 72, lebarDada: 55 } },
+      { name: '4L', ratio: 1, data: { panjangLengan: 27, lebarBahu: 49, panjangBaju: 75, lebarDada: 57 } },
+    ]
+  },
+  {
+    key: 'baju_pramuka_putri_sma',
+    label: 'Baju Pramuka Putri SMA / SPK Upper Sec',
+    type: 'kemeja',
+    headers: [
+      { key: 'panjangLengan', label: 'Panjang Lengan' },
+      { key: 'lebarBahu', label: 'Lebar Bahu' },
+      { key: 'panjangBaju', label: 'Panjang Baju' },
+      { key: 'lebarDada', label: 'Lebar Dada' },
+      { key: 'lebarPinggul', label: 'Lebar Pinggul' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { panjangLengan: 22, lebarBahu: 34, panjangBaju: 63, lebarDada: 46, lebarPinggul: 50 } },
+      { name: 'S', ratio: 1, data: { panjangLengan: 23, lebarBahu: 35.5, panjangBaju: 64, lebarDada: 48, lebarPinggul: 52 } },
+      { name: 'M', ratio: 2, data: { panjangLengan: 23, lebarBahu: 37, panjangBaju: 65, lebarDada: 50, lebarPinggul: 54 } },
+      { name: 'L', ratio: 2, data: { panjangLengan: 24, lebarBahu: 38.5, panjangBaju: 66, lebarDada: 52, lebarPinggul: 56 } },
+      { name: 'XL', ratio: 2, data: { panjangLengan: 24, lebarBahu: 40, panjangBaju: 67, lebarDada: 54, lebarPinggul: 58 } },
+      { name: '3L', ratio: 1, data: { panjangLengan: 25, lebarBahu: 41.5, panjangBaju: 68, lebarDada: 56, lebarPinggul: 60 } },
+      { name: '4L', ratio: 1, data: { panjangLengan: 25, lebarBahu: 43, panjangBaju: 69, lebarDada: 58, lebarPinggul: 62 } },
+    ]
+  },
+  {
+    key: 'rok_kulot_pramuka_smp_sma',
+    label: 'Rok Kulot Pramuka SMP / SMA / SPK',
+    type: 'rok',
+    headers: [
+      { key: 'lebarPinggang', label: 'Lebar Pinggang' },
+      { key: 'panjangRok', label: 'Panjang Rok' }
+    ],
+    sizes: [
+      { name: 'SS', ratio: 1, data: { lebarPinggang: 30, panjangRok: 58 } },
+      { name: 'S', ratio: 1, data: { lebarPinggang: 32, panjangRok: 60 } },
+      { name: 'M', ratio: 2, data: { lebarPinggang: 34, panjangRok: 60 } },
+      { name: 'L', ratio: 2, data: { lebarPinggang: 36, panjangRok: 62 } },
+      { name: 'XL', ratio: 2, data: { lebarPinggang: 38, panjangRok: 62 } },
+      { name: '3L', ratio: 1, data: { lebarPinggang: 40, panjangRok: 64 } },
+      { name: '4L', ratio: 1, data: { lebarPinggang: 42, panjangRok: 64 } },
+    ]
+  }
+];
 
 const KopkarKalkulatorKain = () => {
   const [totalRolls, setTotalRolls] = useState<number>(1);
   const [yardsPerRoll, setYardsPerRoll] = useState<number>(60);
   const [fabricWidth] = useState<number>(150);
-  const [defectTolerance, setDefectTolerance] = useState<number>(5); // 5%
+  const [defectTolerance, setDefectTolerance] = useState<number>(5); 
   
-  const [garmentType, setGarmentType] = useState<GarmentType>('kemeja_pendek');
-  
-  const [sizes, setSizes] = useState<SizeRatio[]>(presetSizeCharts['baju_sd']);
+  const [selectedPresetKey, setSelectedPresetKey] = useState<string>(PRESETS[0].key);
+  const [currentPreset, setCurrentPreset] = useState<PresetDef>(PRESETS[0]);
+  const [sizes, setSizes] = useState<SizeRatio[]>(PRESETS[0].sizes.map(s => ({ ...s, id: Math.random().toString() })));
 
-  const applyPreset = (presetKey: keyof typeof presetSizeCharts, type: GarmentType) => {
-    setSizes(presetSizeCharts[presetKey].map(s => ({ ...s, id: Date.now().toString() + s.name })));
-    setGarmentType(type);
-  };
+  useEffect(() => {
+    const preset = PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0];
+    setCurrentPreset(preset);
+    setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
+  }, [selectedPresetKey]);
 
-  const addSize = () => {
-    setSizes([...sizes, { id: Date.now().toString(), name: '', panjangBaju: 0, panjangLengan: 0, ratio: 1 }]);
+  const updateSize = (id: string, field: string, value: string | number) => {
+    setSizes(sizes.map(s => {
+      if (s.id !== id) return s;
+      if (field === 'name' || field === 'ratio') {
+        return { ...s, [field]: value };
+      }
+      return { ...s, data: { ...s.data, [field]: Number(value) } };
+    }));
   };
 
   const removeSize = (id: string) => {
     setSizes(sizes.filter(s => s.id !== id));
   };
 
-  const updateSize = (id: string, field: keyof SizeRatio, value: string | number) => {
-    setSizes(sizes.map(s => s.id === id ? { ...s, [field]: value } : s));
+  const addSize = () => {
+    const emptyData: Record<string, number> = {};
+    currentPreset.headers.forEach(h => { emptyData[h.key] = 0; });
+    setSizes([...sizes, { id: Math.random().toString(), name: '', ratio: 1, data: emptyData }]);
   };
 
   // Logic Perhitungan
   const calculation = useMemo(() => {
-    // 1 Yard = 91.44 cm
     const totalYards = totalRolls * yardsPerRoll;
     const grossLengthCm = totalYards * 91.44;
-    
-    // Potong persentase toleransi cacat kain & pinggiran
     const netLengthCm = grossLengthCm * (1 - (defectTolerance / 100));
 
-    // Menghitung kebutuhan kain per pcs untuk masing-masing size
-    // Asumsi: Lebar kain 150cm cukup untuk pola depan+belakang ditaruh bersebelahan.
     const sizesWithUsage = sizes.map(size => {
       let usageCm = 0;
-      // Tambahan jahitan/kampuh/keliman
       const seamAllowance = 15; 
       
-      switch (garmentType) {
-        case 'kemeja_pendek':
-          usageCm = size.panjangBaju + size.panjangLengan + seamAllowance;
-          break;
-        case 'kemeja_panjang':
-          usageCm = size.panjangBaju + size.panjangLengan + (seamAllowance + 5);
-          break;
-        case 'celana_pendek':
-        case 'rok':
-          usageCm = size.panjangBaju + seamAllowance; // panjangLengan tidak dipakai
-          break;
-        case 'celana_panjang':
-          usageCm = size.panjangBaju + (seamAllowance + 5); // panjangLengan tidak dipakai
-          break;
+      const { data } = size;
+      const type = currentPreset.type;
+
+      if (type === 'kemeja') {
+        const pBaju = data.panjangBaju || 0;
+        const pLengan = data.panjangLengan || 0;
+        usageCm = pBaju + pLengan + seamAllowance;
+      } else if (type === 'rompi') {
+        const pBaju = data.panjangBaju || 0;
+        usageCm = pBaju + seamAllowance;
+      } else if (type === 'celana') {
+        const pCelana = data.panjangCelana || 0;
+        usageCm = pCelana + seamAllowance + 5;
+      } else if (type === 'rok') {
+        const pRok = data.panjangRok || 0;
+        usageCm = pRok + seamAllowance;
       }
+
       return { ...size, usageCm };
     });
 
-    // Menghitung panjang 1 SET (berdasarkan rasio)
-    // Misal rasio S:2, M:4, L:2 -> 1 SET = 2pcs S + 4pcs M + 2pcs L
     const lengthPerSet = sizesWithUsage.reduce((acc, curr) => acc + (curr.usageCm * curr.ratio), 0);
     const totalRatioParts = sizesWithUsage.reduce((acc, curr) => acc + curr.ratio, 0);
 
@@ -260,21 +385,20 @@ const KopkarKalkulatorKain = () => {
       remainingLengthCm,
       totalPcs: maxSets * totalRatioParts
     };
-
-  }, [totalRolls, yardsPerRoll, defectTolerance, garmentType, sizes]);
+  }, [totalRolls, yardsPerRoll, defectTolerance, currentPreset, sizes]);
 
   return (
     <div className="kopkar-container">
       <div className="kopkar-header">
         <div>
-          <h2 className="kopkar-title">Kalkulator Efisiensi Kain</h2>
+          <h2 className="kopkar-title">Kalkulator Efisiensi Kain (Fabric Yield)</h2>
           <p className="kopkar-subtitle">Prediksi akurat jumlah seragam yang bisa dijahit dari gulungan kain, anti-kecurangan vendor.</p>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
         {/* KOLOM INPUT */}
-        <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ flex: '1 1 500px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -292,7 +416,7 @@ const KopkarKalkulatorKain = () => {
               <div className="form-group">
                 <label>Lebar Kain (cm)</label>
                 <input type="number" value={fabricWidth} disabled style={{ background: '#f1f5f9' }} />
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>*Asumsi standar bidang 150cm</span>
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>*Standar bidang 150cm</span>
               </div>
               <div className="form-group">
                 <label>Toleransi Cacat (%)</label>
@@ -302,110 +426,73 @@ const KopkarKalkulatorKain = () => {
           </div>
 
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>👕</span> 2. Data Model & Size Chart
               </h3>
-              <div className="form-group" style={{ margin: 0 }}>
-                <select 
-                  onChange={(e) => {
-                    const val = e.target.value as keyof typeof presetSizeCharts;
-                    if (val) {
-                      const typeMap: Record<string, GarmentType> = {
-                        'baju_sd': 'kemeja_pendek',
-                        'baju_pramuka_penggalang_sd': 'kemeja_pendek',
-                        'celana_pendek_sd': 'celana_pendek',
-                        'rok_sd': 'rok',
-                        'baju_smp': 'kemeja_pendek',
-                        'baju_pramuka_smp': 'kemeja_pendek',
-                        'celana_smp': 'celana_pendek',
-                        'rok_smp': 'rok',
-                        'rok_pramuka_smp': 'rok',
-                        'baju_sma': 'kemeja_pendek',
-                        'baju_pramuka_putra_sma': 'kemeja_pendek',
-                        'baju_pramuka_putri_sma': 'kemeja_pendek',
-                        'celana_panjang_sma': 'celana_panjang',
-                        'rok_sma': 'rok',
-                        'rok_pramuka_sma': 'rok',
-                        'rompi_smp_sma': 'kemeja_pendek', // Lengan 0
-                      };
-                      applyPreset(val, typeMap[val] || 'kemeja_pendek');
-                    }
-                  }}
-                  style={{ padding: '6px 12px', fontSize: '0.85rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px' }}
-                >
-                  <option value="">-- Load Size Chart Otomatis --</option>
-                  <optgroup label="Seragam SD">
-                    <option value="baju_sd">Baju SD / Pramuka Siaga</option>
-                    <option value="baju_pramuka_penggalang_sd">Baju Pramuka Penggalang SD</option>
-                    <option value="celana_pendek_sd">Celana Pendek SD (Semua)</option>
-                    <option value="rok_sd">Rok / Kulot SD (Siaga)</option>
-                  </optgroup>
-                  <optgroup label="Seragam SMP">
-                    <option value="baju_smp">Baju Putra/Putri SMP</option>
-                    <option value="baju_pramuka_smp">Baju Pramuka SMP</option>
-                    <option value="celana_smp">Celana Pendek SMP (Biru/Pramuka)</option>
-                    <option value="rok_smp">Rok Kulot Biru SMP</option>
-                    <option value="rok_pramuka_smp">Rok Kulot Pramuka SMP</option>
-                  </optgroup>
-                  <optgroup label="Seragam SMA">
-                    <option value="baju_sma">Baju Putra/Putri SMA</option>
-                    <option value="baju_pramuka_putra_sma">Baju Pramuka Putra SMA</option>
-                    <option value="baju_pramuka_putri_sma">Baju Pramuka Putri SMA</option>
-                    <option value="celana_panjang_sma">Celana Panjang SMA (Abu/Pramuka)</option>
-                    <option value="rok_sma">Rok Kulot Abu SMA</option>
-                    <option value="rok_pramuka_sma">Rok Kulot Pramuka SMA</option>
-                  </optgroup>
-                  <optgroup label="Seragam SPK (Lower & Upper Sec)">
-                    <option value="baju_smp">Baju SPK (Lower/Upper Secondary)</option>
-                    <option value="rompi_smp_sma">Rompi Kotak SPK (Lower/Upper)</option>
-                    <option value="celana_panjang_sma">Celana Panjang SPK (Lower/Upper)</option>
-                    <option value="rok_smp">Rok Kulot SPK (Lower/Upper)</option>
-                    <option value="baju_pramuka_smp">Baju Pramuka SPK (Lower Sec & Putra Upper)</option>
-                    <option value="baju_pramuka_putri_sma">Baju Pramuka Putri SPK (Upper Sec)</option>
-                  </optgroup>
-                </select>
-              </div>
             </div>
             
             <div className="form-group" style={{ marginBottom: '20px' }}>
-              <label>Jenis Pakaian</label>
-              <select value={garmentType} onChange={e => setGarmentType(e.target.value as GarmentType)}>
-                <option value="kemeja_pendek">Atasan / Kemeja (Lengan Pendek)</option>
-                <option value="kemeja_panjang">Atasan / Kemeja (Lengan Panjang)</option>
-                <option value="celana_pendek">Celana Pendek</option>
-                <option value="celana_panjang">Celana Panjang</option>
-                <option value="rok">Rok</option>
+              <label>Load Size Chart Otomatis (Sesuai Standar PDF Koperasi)</label>
+              <select 
+                value={selectedPresetKey}
+                onChange={(e) => setSelectedPresetKey(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                <optgroup label="Seragam SD">
+                  {PRESETS.filter(p => p.key.includes('_sd')).map(p => (
+                    <option key={p.key} value={p.key}>{p.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Seragam SMP & SMA & SPK">
+                  {PRESETS.filter(p => !p.key.includes('_sd')).map(p => (
+                    <option key={p.key} value={p.key}>{p.label}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 
-            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 1fr 60px 40px', gap: '8px', marginBottom: '8px', fontWeight: 600, fontSize: '0.8rem', color: '#475569' }}>
-                <div>Size</div>
-                <div>P. Baju (cm)</div>
-                <div>P. Lengan (cm)</div>
-                <div>Rasio</div>
-                <div></div>
-              </div>
-              
-              {sizes.map((s) => (
-                <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 1fr 60px 40px', gap: '8px', marginBottom: '8px' }}>
-                  <input type="text" value={s.name} placeholder="S/M/L" onChange={e => updateSize(s.id, 'name', e.target.value)} />
-                  <input type="number" value={s.panjangBaju || ''} placeholder="0" onChange={e => updateSize(s.id, 'panjangBaju', Number(e.target.value))} />
-                  <input 
-                    type="number" 
-                    value={s.panjangLengan || ''} 
-                    placeholder="0" 
-                    onChange={e => updateSize(s.id, 'panjangLengan', Number(e.target.value))} 
-                    disabled={garmentType.includes('celana') || garmentType === 'rok'}
-                    style={{ opacity: (garmentType.includes('celana') || garmentType === 'rok') ? 0.5 : 1 }}
-                  />
-                  <input type="number" min="1" value={s.ratio || ''} onChange={e => updateSize(s.id, 'ratio', Number(e.target.value))} />
-                  <button onClick={() => removeSize(s.id)} style={{ background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-                </div>
-              ))}
-              <button onClick={addSize} style={{ width: '100%', padding: '8px', marginTop: '8px', background: '#e2e8f0', border: '1px dashed #94a3b8', borderRadius: '6px', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
-                + Tambah Size
+            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ color: '#475569', borderBottom: '1px solid #cbd5e1' }}>
+                    <th style={{ padding: '8px 4px', width: '70px' }}>Size</th>
+                    {currentPreset.headers.map(h => (
+                      <th key={h.key} style={{ padding: '8px 4px' }}>{h.label}<br/><span style={{ fontSize: '0.7rem', fontWeight: 'normal' }}>(cm)</span></th>
+                    ))}
+                    <th style={{ padding: '8px 4px', width: '60px' }}>Rasio</th>
+                    <th style={{ padding: '8px 4px', width: '40px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sizes.map((s) => (
+                    <tr key={s.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '4px' }}>
+                        <input type="text" value={s.name} placeholder="Size" onChange={e => updateSize(s.id, 'name', e.target.value)} style={{ width: '100%', padding: '6px' }} />
+                      </td>
+                      {currentPreset.headers.map(h => (
+                        <td key={h.key} style={{ padding: '4px' }}>
+                          <input 
+                            type="number" 
+                            value={s.data[h.key] === 0 ? '' : s.data[h.key]} 
+                            placeholder="0" 
+                            onChange={e => updateSize(s.id, h.key, e.target.value)} 
+                            style={{ width: '100%', padding: '6px' }}
+                          />
+                        </td>
+                      ))}
+                      <td style={{ padding: '4px' }}>
+                        <input type="number" min="1" value={s.ratio || ''} onChange={e => updateSize(s.id, 'ratio', e.target.value)} style={{ width: '100%', padding: '6px' }} />
+                      </td>
+                      <td style={{ padding: '4px', textAlign: 'center' }}>
+                        <button onClick={() => removeSize(s.id)} style={{ background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', padding: '6px 10px' }}>✕</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button onClick={addSize} style={{ width: '100%', padding: '8px', marginTop: '12px', background: '#e2e8f0', border: '1px dashed #94a3b8', borderRadius: '6px', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
+                + Tambah Baris Size
               </button>
             </div>
           </div>
@@ -457,7 +544,7 @@ const KopkarKalkulatorKain = () => {
             </div>
             
             <div style={{ marginTop: '24px', fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
-              *Kalkulasi ini menggunakan standar industri (bidang kain 150cm) dimana pola badan muat berdampingan, lalu ditambah margin kampuh/keliman potong 15-20cm per baju. Gunakan ini sbg target/acuan vendor.
+              *Kalkulasi ini menggunakan standar industri (bidang kain 150cm) dimana pola badan muat berdampingan, lalu ditambah margin kampuh/keliman potong 15-20cm per baju. Hitungan kebutuhan kain hanya mengambil data Panjang Baju & Panjang Lengan/Celana. Gunakan ini sbg target/acuan vendor.
             </div>
           </div>
         </div>
