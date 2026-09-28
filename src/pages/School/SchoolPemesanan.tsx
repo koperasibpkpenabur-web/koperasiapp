@@ -28,6 +28,24 @@ const SchoolPemesanan = () => {
   // Available products for current school level
   const availableCatalog = getProductsByLevel(orderLevelFilter);
 
+  // Group products by name for smarter forms
+  const groupedCatalog = availableCatalog.reduce((acc, prod) => {
+    if (!acc[prod.name]) {
+      acc[prod.name] = {
+        name: prod.name,
+        type: prod.category,
+        priceStudent: prod.priceStudent,
+        priceKopkar: prod.priceKopkar,
+        feeSchool: prod.feeSchool,
+        variants: []
+      };
+    }
+    acc[prod.name].variants.push(prod);
+    return acc;
+  }, {} as Record<string, { name: string; type: string; priceStudent: number; priceKopkar: number; feeSchool: number; variants: any[] }>);
+  const groupedCatalogArray = Object.values(groupedCatalog);
+
+
   // Selected items in order form
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [matrixItems, setMatrixItems] = useState<any[]>([]);
@@ -230,37 +248,43 @@ const SchoolPemesanan = () => {
 
     if (!orderPhase.includes('Tambahan')) {
       matrixItems.forEach(row => {
-        Object.entries(row.sizes).forEach(([sz, qty]) => {
+        Object.entries(row.sizesInput).forEach(([variantId, qty]) => {
           if ((qty as number) > 0) {
+            const variant = row.variants.find((v: any) => v.id === variantId);
+            if (variant) {
+              itemsToSubmit.push({
+                productId: variant.id,
+                code: variant.code,
+                name: row.name,
+                type: row.type,
+                priceKopkar: row.priceKopkar,
+                feeSchool: row.feeSchool,
+                priceStudent: row.priceStudent,
+                size: variant.size,
+                quantity: qty as number
+              });
+            }
+          }
+        });
+        if (row.customQty > 0 && row.customVariantId) {
+          const variant = row.variants.find((v: any) => v.id === row.customVariantId);
+          if (variant) {
             itemsToSubmit.push({
-              productId: row.productId,
-              code: row.code,
+              productId: variant.id,
+              code: variant.code,
               name: row.name,
               type: row.type,
               priceKopkar: row.priceKopkar,
               feeSchool: row.feeSchool,
               priceStudent: row.priceStudent,
-              size: sz,
-              quantity: qty as number
+              size: variant.size,
+              quantity: row.customQty
             });
           }
-        });
-        if (row.customQty > 0 && row.customSize.trim()) {
-          itemsToSubmit.push({
-            productId: row.productId,
-            code: row.code,
-            name: row.name,
-            type: row.type,
-            priceKopkar: row.priceKopkar,
-            feeSchool: row.feeSchool,
-            priceStudent: row.priceStudent,
-            size: row.customSize.trim(),
-            quantity: row.customQty
-          });
         }
       });
     } else {
-      itemsToSubmit = selectedItems.filter(it => it.quantity > 0);
+      itemsToSubmit = selectedItems.filter(it => it.quantity > 0 && it.productId); // must have selected a specific size/variant
       for (const item of itemsToSubmit) {
         if (!item.name.trim()) {
           setFormError('Nama item tidak boleh kosong');
@@ -1078,48 +1102,58 @@ const SchoolPemesanan = () => {
                       <thead style={{ background: '#f8fafc' }}>
                         <tr>
                           <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Nama Barang</th>
-                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>S</th>
-                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>M</th>
-                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>L</th>
-                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>XL</th>
-                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>XXL</th>
-                          <th style={{ width: '50px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>3XL</th>
-                          <th style={{ width: '160px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Custom Size</th>
-                          <th style={{ width: '70px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Total</th>
+                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>S</th>
+                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>M</th>
+                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>L</th>
+                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>XL</th>
+                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>XXL</th>
+                          <th style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>3XL</th>
+                          <th style={{ width: '180px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Ukuran Lainnya</th>
+                          <th style={{ width: '80px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {matrixItems.map((row, rIdx) => {
-                          const rowTotal = Object.values(row.sizes).reduce((acc: number, val: any) => acc + (parseInt(val) || 0), 0) + (parseInt(row.customQty) || 0);
+                          const rowTotal = Object.values(row.sizesInput).reduce((acc: number, val: any) => acc + (parseInt(val) || 0), 0) + (parseInt(row.customQty) || 0);
                           return (
                             <tr key={rIdx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                               <td style={{ padding: '12px' }}>
                                 <strong>{row.name}</strong>
-                                <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>Rp {formatRupiah(row.priceStudent)}</div>
+                                <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>Rp {new Intl.NumberFormat('id-ID').format(row.priceStudent)}</div>
                               </td>
-                              {['S', 'M', 'L', 'XL', 'XXL', '3XL'].map(sz => (
-                                <td key={sz} style={{ padding: '6px' }}>
-                                  <input 
-                                    type="number" 
-                                    min="0" 
-                                    value={row.sizes[sz] || ''}
-                                    onChange={(e) => {
-                                      const val = parseInt(e.target.value) || 0;
-                                      setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, sizes: { ...it.sizes, [sz]: val } } : it));
-                                    }}
-                                    style={{ width: '100%', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                  />
-                                </td>
-                              ))}
+                              {['S', 'M', 'L', 'XL', 'XXL', '3XL'].map(sz => {
+                                const variant = row.variants.find((v: any) => v.size?.trim().toUpperCase() === sz);
+                                return (
+                                  <td key={sz} style={{ padding: '6px', textAlign: 'center' }}>
+                                    {variant ? (
+                                      <input 
+                                        type="number" 
+                                        min="0" 
+                                        value={row.sizesInput[variant.id] || ''}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 0;
+                                          setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, sizesInput: { ...it.sizesInput, [variant.id]: val } } : it));
+                                        }}
+                                        style={{ width: '100%', maxWidth: '60px', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                      />
+                                    ) : (
+                                      <div style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>-</div>
+                                    )}
+                                  </td>
+                                );
+                              })}
                               <td style={{ padding: '6px' }}>
                                 <div style={{ display: 'flex', gap: '4px' }}>
-                                  <input 
-                                    type="text" 
-                                    placeholder="Size..." 
-                                    value={row.customSize}
-                                    onChange={(e) => setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, customSize: e.target.value } : it))}
+                                  <select 
+                                    value={row.customVariantId}
+                                    onChange={(e) => setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, customVariantId: e.target.value } : it))}
                                     style={{ width: '60%', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                  />
+                                  >
+                                    <option value="">- Ukuran -</option>
+                                    {row.variants.filter((v: any) => !['S', 'M', 'L', 'XL', 'XXL', '3XL'].includes(v.size?.trim().toUpperCase())).map((v: any) => (
+                                      <option key={v.id} value={v.id}>{v.size || 'No Size'}</option>
+                                    ))}
+                                  </select>
                                   <input 
                                     type="number" 
                                     min="0" 
@@ -1127,6 +1161,7 @@ const SchoolPemesanan = () => {
                                     value={row.customQty || ''}
                                     onChange={(e) => setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, customQty: parseInt(e.target.value) || 0 } : it))}
                                     style={{ width: '40%', padding: '8px 4px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                    disabled={!row.customVariantId}
                                   />
                                 </div>
                               </td>
@@ -1142,69 +1177,70 @@ const SchoolPemesanan = () => {
                   </div>
                 ) : (
                   <div className="school-order-items-table">
-                    {selectedItems.map((item, index) => (
-                      <div key={index} className="school-order-row">
-                        <div style={{ flexGrow: 1 }}>
-                          <select
-                            className="product-select"
-                            value={item.productId || ''}
-                            onChange={(e) => handleProductSelect(index, e.target.value)}
-                          >
-                            <option value="">-- Pilih Barang dari Katalog --</option>
-                            {availableCatalog.map((prod) => (
-                              <option key={prod.id} value={prod.id}>
-                                [{prod.level}] {prod.name} — Harga Siswa: {formatRupiah(prod.priceStudent)} (Fee: +{formatRupiah(prod.feeSchool)})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                    {selectedItems.map((item, index) => {
+                      const selectedGroup = groupedCatalog[item.name];
+                      return (
+                        <div key={index} className="school-order-row">
+                          <div style={{ flexGrow: 1 }}>
+                            <select
+                              className="product-select"
+                              value={item.name || ''}
+                              onChange={(e) => handleProductSelect(index, e.target.value)}
+                            >
+                              <option value="">-- Pilih Barang --</option>
+                              {groupedCatalogArray.map((group) => (
+                                <option key={group.name} value={group.name}>
+                                  [{group.type}] {group.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
-                        <div style={{ width: '130px', marginLeft: '10px' }}>
-                          <select
-                            value={item.size || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setSelectedItems((prev) => prev.map((it, i) => i === index ? { ...it, size: val } : it));
-                            }}
-                            style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#fff' }}
-                            required={item.quantity > 0}
-                          >
-                            <option value="">-- Ukuran --</option>
-                            <option value="S">S</option>
-                            <option value="M">M</option>
-                            <option value="L">L</option>
-                            <option value="XL">XL</option>
-                            <option value="XXL">XXL</option>
-                            <option value="3XL">3XL</option>
-                            <option value="Custom">Lainnya / Custom</option>
-                          </select>
-                        </div>
+                          <div style={{ width: '160px', marginLeft: '10px' }}>
+                            <select
+                              value={item.productId || ''}
+                              onChange={(e) => {
+                                const prodId = e.target.value;
+                                const variant = selectedGroup?.variants.find(v => v.id === prodId);
+                                setSelectedItems((prev) => prev.map((it, i) => i === index ? { ...it, productId: prodId, code: variant?.code, size: variant?.size || '' } : it));
+                              }}
+                              style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#fff' }}
+                              required={item.quantity > 0}
+                              disabled={!item.name}
+                            >
+                              <option value="">-- Pilih Ukuran --</option>
+                              {selectedGroup?.variants.map(v => (
+                                <option key={v.id} value={v.id}>{v.size || 'Tanpa Ukuran'} (Stok: {v.stock})</option>
+                              ))}
+                            </select>
+                          </div>
 
-                        <div style={{ width: '100px', marginLeft: '10px' }}>
-                          <input
-                            type="number"
-                            min="0"
-                            placeholder="Jumlah"
-                            value={item.quantity || ''}
-                            onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
-                            style={{ width: '100%', padding: '9px 12px', textAlign: 'center' }}
-                            required
-                          />
-                        </div>
+                          <div style={{ width: '100px', marginLeft: '10px' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="Jumlah"
+                              value={item.quantity || ''}
+                              onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
+                              style={{ width: '100%', padding: '9px 12px', textAlign: 'center' }}
+                              required
+                            />
+                          </div>
 
-                        {selectedItems.length > 1 && (
-                          <button
-                            type="button"
-                            className="btn-remove-item"
-                            onClick={() => handleRemoveItem(index)}
-                            title="Hapus baris"
-                            style={{ marginLeft: '10px' }}
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                          {selectedItems.length > 1 && (
+                            <button
+                              type="button"
+                              className="btn-remove-item"
+                              onClick={() => handleRemoveItem(index)}
+                              title="Hapus baris"
+                              style={{ marginLeft: '10px' }}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
