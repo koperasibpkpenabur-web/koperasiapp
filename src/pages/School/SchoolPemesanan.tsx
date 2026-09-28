@@ -167,22 +167,23 @@ const SchoolPemesanan = () => {
     setCartItems(updated);
   };
 
-  const handleProductSelect = (index: number, productId: string) => {
-    const prod = products.find((p) => p.id === productId);
-    if (!prod) return;
+  const handleProductSelect = (index: number, productName: string) => {
+    const group = groupedCatalog[productName];
+    if (!group) return;
 
     setSelectedItems((prev) =>
       prev.map((item, i) => {
         if (i === index) {
           return {
             ...item,
-            productId: prod.id,
-            code: prod.code,
-            name: prod.name,
-            type: prod.category,
-            priceKopkar: prod.priceKopkar,
-            feeSchool: prod.feeSchool,
-            priceStudent: prod.priceStudent,
+            name: group.name,
+            type: group.type as import('../../types').OrderItemType,
+            priceKopkar: group.priceKopkar,
+            feeSchool: group.feeSchool,
+            priceStudent: group.priceStudent,
+            productId: '', // reset until size is picked
+            code: '',
+            size: '',
           };
         }
         return item;
@@ -207,33 +208,42 @@ const SchoolPemesanan = () => {
     setOrderLevelFilter(defaultLevel);
     setOrderPhase(phase);
     const cat = getProductsByLevel(defaultLevel);
-    
-    // Bulk fill all products for Tahap 1/2
-    if (!phase.includes('Tambahan') && cat.length > 0) {
-      setMatrixItems(cat.map(prod => ({
-        productId: prod.id,
-        code: prod.code,
-        name: prod.name,
-        type: prod.category,
-        priceKopkar: prod.priceKopkar,
-        feeSchool: prod.feeSchool,
-        priceStudent: prod.priceStudent,
-        sizes: { 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, '3XL': 0 },
-        customSize: '',
+
+    // Group by name
+    const grpMap = cat.reduce((acc, prod) => {
+      if (!acc[prod.name]) {
+        acc[prod.name] = { name: prod.name, type: prod.category, priceKopkar: prod.priceKopkar, feeSchool: prod.feeSchool, priceStudent: prod.priceStudent, variants: [] };
+      }
+      acc[prod.name].variants.push(prod);
+      return acc;
+    }, {} as any);
+    const grp = Object.values(grpMap) as any[];
+
+    if (!phase.includes('Tambahan') && grp.length > 0) {
+      setMatrixItems(grp.map((g: any) => ({
+        name: g.name,
+        type: g.type,
+        priceKopkar: g.priceKopkar,
+        feeSchool: g.feeSchool,
+        priceStudent: g.priceStudent,
+        variants: g.variants,
+        sizesInput: {},
+        customVariantId: '',
         customQty: 0
       })));
       setSelectedItems([]);
     } else {
       setMatrixItems([]);
       setSelectedItems([{
-        name: cat[0]?.name || 'Seragam',
-        type: cat[0]?.category || 'seragam',
+        name: '',
+        type: grp[0]?.type || 'seragam',
         quantity: 1,
-        priceKopkar: cat[0]?.priceKopkar || 80000,
-        feeSchool: cat[0]?.feeSchool || 15000,
-        priceStudent: cat[0]?.priceStudent || 95000,
-        productId: cat[0]?.id,
-        code: cat[0]?.code,
+        priceKopkar: grp[0]?.priceKopkar || 80000,
+        feeSchool: grp[0]?.feeSchool || 15000,
+        priceStudent: grp[0]?.priceStudent || 95000,
+        productId: '',
+        code: '',
+        size: ''
       }]);
     }
     setNotes('');
@@ -1020,17 +1030,14 @@ const SchoolPemesanan = () => {
                       setOrderLevelFilter(lvl);
                       const cat = getProductsByLevel(lvl);
                       if (!orderPhase.includes('Tambahan')) {
-                        setMatrixItems(cat.map(prod => ({
-                          productId: prod.id,
-                          code: prod.code,
-                          name: prod.name,
-                          type: prod.category,
-                          priceKopkar: prod.priceKopkar,
-                          feeSchool: prod.feeSchool,
-                          priceStudent: prod.priceStudent,
-                          sizes: { 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, '3XL': 0 },
-                          customSize: '',
-                          customQty: 0
+                        const grpMap = cat.reduce((acc, prod) => {
+                          if (!acc[prod.name]) acc[prod.name] = { name: prod.name, type: prod.category, priceKopkar: prod.priceKopkar, feeSchool: prod.feeSchool, priceStudent: prod.priceStudent, variants: [] };
+                          acc[prod.name].variants.push(prod);
+                          return acc;
+                        }, {} as any);
+                        setMatrixItems(Object.values(grpMap).map((g: any) => ({
+                          name: g.name, type: g.type, priceKopkar: g.priceKopkar, feeSchool: g.feeSchool, priceStudent: g.priceStudent,
+                          variants: g.variants, sizesInput: {}, customVariantId: '', customQty: 0
                         })));
                         setSelectedItems([]);
                       }
@@ -1055,32 +1062,21 @@ const SchoolPemesanan = () => {
                       const p = e.target.value as 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan';
                       setOrderPhase(p);
                       const cat = getProductsByLevel(orderLevelFilter);
+                      const grpMap = cat.reduce((acc, prod) => {
+                        if (!acc[prod.name]) acc[prod.name] = { name: prod.name, type: prod.category, priceKopkar: prod.priceKopkar, feeSchool: prod.feeSchool, priceStudent: prod.priceStudent, variants: [] };
+                        acc[prod.name].variants.push(prod);
+                        return acc;
+                      }, {} as any);
+                      const grp = Object.values(grpMap) as any[];
                       if (!p.includes('Tambahan')) {
-                        setMatrixItems(cat.map(prod => ({
-                          productId: prod.id,
-                          code: prod.code,
-                          name: prod.name,
-                          type: prod.category,
-                          priceKopkar: prod.priceKopkar,
-                          feeSchool: prod.feeSchool,
-                          priceStudent: prod.priceStudent,
-                          sizes: { 'S': 0, 'M': 0, 'L': 0, 'XL': 0, 'XXL': 0, '3XL': 0 },
-                          customSize: '',
-                          customQty: 0
+                        setMatrixItems(grp.map((g: any) => ({
+                          name: g.name, type: g.type, priceKopkar: g.priceKopkar, feeSchool: g.feeSchool, priceStudent: g.priceStudent,
+                          variants: g.variants, sizesInput: {}, customVariantId: '', customQty: 0
                         })));
                         setSelectedItems([]);
                       } else {
-                        const firstProd = cat[0] || products[0];
-                        setSelectedItems([{
-                          name: firstProd ? firstProd.name : 'Seragam',
-                          type: firstProd ? firstProd.category : 'seragam',
-                          quantity: 1,
-                          priceKopkar: firstProd ? firstProd.priceKopkar : 80000,
-                          feeSchool: firstProd ? firstProd.feeSchool : 15000,
-                          priceStudent: firstProd ? firstProd.priceStudent : 95000,
-                          productId: firstProd?.id,
-                          code: firstProd?.code,
-                        }]);
+                        setMatrixItems([]);
+                        setSelectedItems([{ name: '', type: grp[0]?.type || 'seragam', quantity: 1, priceKopkar: grp[0]?.priceKopkar || 80000, feeSchool: grp[0]?.feeSchool || 15000, priceStudent: grp[0]?.priceStudent || 95000, productId: '', code: '', size: '' }]);
                       }
                     }}
                   >
