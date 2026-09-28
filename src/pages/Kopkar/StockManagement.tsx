@@ -27,6 +27,7 @@ const StockManagement = () => {
   // Modal Set Stock Manual
   const [editingStockItem, setEditingStockItem] = useState<ProductItem | null>(null);
   const [newStockValue, setNewStockValue] = useState<number>(0);
+  const [newStockVendorValue, setNewStockVendorValue] = useState<number>(0);
   const [stockOpnameNotes, setStockOpnameNotes] = useState('');
 
   // Modal Tambah Stock Inbound (Barang dari Excel)
@@ -34,6 +35,7 @@ const StockManagement = () => {
   const [addLevel, setAddLevel] = useState<SchoolLevel | 'SEMUA'>('SMP');
   const [addSelectedProductId, setAddSelectedProductId] = useState('');
   const [addAddedStock, setAddAddedStock] = useState<number>(0);
+  const [addStockDestination, setAddStockDestination] = useState<'gudang' | 'vendor'>('gudang');
   const [addFormError, setAddFormError] = useState('');
 
   // Action Menu
@@ -90,13 +92,14 @@ const StockManagement = () => {
   const handleOpenSetStock = (item: ProductItem) => {
     setEditingStockItem(item);
     setNewStockValue(item.stock || 0);
+    setNewStockVendorValue(item.stockVendor || 0);
     setStockOpnameNotes('');
   };
 
   const handleSaveSetStock = (e: FormEvent) => {
     e.preventDefault();
     if (!editingStockItem) return;
-    setProductStock(editingStockItem.id, Math.max(0, newStockValue));
+    setProductStock(editingStockItem.id, Math.max(0, newStockValue), Math.max(0, newStockVendorValue));
     setEditingStockItem(null);
   };
 
@@ -117,7 +120,11 @@ const StockManagement = () => {
 
     const product = products.find(p => p.id === addSelectedProductId);
     if (product) {
-      setProductStock(product.id, (product.stock || 0) + addAddedStock);
+      if (addStockDestination === 'gudang') {
+        setProductStock(product.id, (product.stock || 0) + addAddedStock, product.stockVendor);
+      } else {
+        setProductStock(product.id, product.stock || 0, (product.stockVendor || 0) + addAddedStock);
+      }
     }
 
     setShowAddModal(false);
@@ -459,7 +466,8 @@ const StockManagement = () => {
               <th>Nama Barang</th>
               <th>Ukuran</th>
               <th>Jenjang</th>
-              <th>Stock</th>
+              <th>Stock Gudang</th>
+              <th>Stock Vendor</th>
               <th>Lokasi Penyimpanan</th>
               <th style={{ textAlign: 'center' }}>Aksi</th>
             </tr>
@@ -503,6 +511,22 @@ const StockManagement = () => {
                         {stock} pcs
                       </span>
                     </td>
+                    <td>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          background: '#f1f5f9',
+                          color: '#475569',
+                          border: '1px solid #cbd5e1',
+                        }}
+                      >
+                        {p.stockVendor || 0} pcs
+                      </span>
+                    </td>
                     <td>{p.storageLocation || '-'}</td>
                     <td style={{ textAlign: 'center', position: 'relative' }}>
                       <button
@@ -541,16 +565,28 @@ const StockManagement = () => {
             </div>
 
             <form className="modal-form" onSubmit={handleSaveSetStock}>
-              <div className="form-group">
-                <label>Jumlah Stock Fisik Terakhir (pcs)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={newStockValue}
-                  onChange={(e) => setNewStockValue(Number(e.target.value))}
-                  autoFocus
-                  required
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className="form-group">
+                  <label>Stock Fisik (Gudang Kopkar)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newStockValue}
+                    onChange={(e) => setNewStockValue(Number(e.target.value))}
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Stock Fisik (Di Vendor)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newStockVendorValue}
+                    onChange={(e) => setNewStockVendorValue(Number(e.target.value))}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="form-group">
@@ -628,6 +664,17 @@ const StockManagement = () => {
                         {p.name} {p.size ? `(${p.size})` : ''} - (Sisa Stock: {p.stock || 0})
                       </option>
                     ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Tujuan Gudang Penyimpanan</label>
+                <select
+                  value={addStockDestination}
+                  onChange={(e) => setAddStockDestination(e.target.value as 'gudang' | 'vendor')}
+                >
+                  <option value="gudang">Gudang Koperasi</option>
+                  <option value="vendor">Gudang Vendor (Penjahit/Penerbit)</option>
                 </select>
               </div>
 

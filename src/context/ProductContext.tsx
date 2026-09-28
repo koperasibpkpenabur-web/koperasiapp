@@ -10,7 +10,7 @@ interface ProductContextType {
   updateProduct: (id: string, product: Partial<ProductItem>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   adjustStock: (id: string, delta: number) => Promise<void>;
-  setProductStock: (id: string, newStock: number) => Promise<void>;
+  setProductStock: (id: string, newStock: number, newStockVendor?: number) => Promise<void>;
   restockProduct: (id: string, quantity: number) => Promise<void>;
   importProductsFromExcel: (buffer: ArrayBuffer) => Promise<{ success: boolean; count?: number; updatedCount?: number; error?: string }>;
   downloadTemplateCsv: () => void;
@@ -61,6 +61,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       feeSchool: d.fee_school,
       priceStudent: d.price_student,
       stock: d.stock,
+      stockVendor: d.stock_vendor || 0,
       minStock: d.min_stock,
       size: d.size,
       storageLocation: d.storage_location,
@@ -94,6 +95,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       fee_school: productData.feeSchool,
       price_student: productData.priceStudent || productData.priceKopkar + productData.feeSchool,
       stock: productData.stock !== undefined ? productData.stock : 50,
+      stock_vendor: productData.stockVendor !== undefined ? productData.stockVendor : 0,
       min_stock: productData.minStock || 15,
       size: productData.size,
       storage_location: productData.storageLocation,
@@ -128,6 +130,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     if (updated.category !== undefined) updates.category = updated.category;
     if (updated.level !== undefined) updates.level = updated.level;
     if (updated.stock !== undefined) updates.stock = updated.stock;
+    if (updated.stockVendor !== undefined) updates.stock_vendor = updated.stockVendor;
     if (updated.minStock !== undefined) updates.min_stock = updated.minStock;
     if (updated.size !== undefined) updates.size = updated.size;
     if (updated.storageLocation !== undefined) updates.storage_location = updated.storageLocation;
@@ -159,8 +162,12 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     if (!error) await fetchProducts();
   }, [products, fetchProducts]);
 
-  const setProductStock = useCallback(async (id: string, newStock: number) => {
-    const { error } = await supabase.from('products').update({ stock: Math.max(0, newStock) }).eq('id', id);
+  const setProductStock = useCallback(async (id: string, newStock: number, newStockVendor?: number) => {
+    const updates: any = { stock: Math.max(0, newStock) };
+    if (newStockVendor !== undefined) {
+      updates.stock_vendor = Math.max(0, newStockVendor);
+    }
+    const { error } = await supabase.from('products').update(updates).eq('id', id);
     if (!error) await fetchProducts();
   }, [fetchProducts]);
 

@@ -38,6 +38,7 @@ const KopkarPelunasan = () => {
   const [shipDate, setShipDate] = useState<string>('');
   const [shipTime, setShipTime] = useState<string>('');
   const [courierNotes, setCourierNotes] = useState<string>('');
+  const [shipSource, setShipSource] = useState<'gudang' | 'vendor'>('gudang');
   const [shipError, setShipError] = useState<string>('');
   const [shippedQuantities, setShippedQuantities] = useState<number[]>([]);
 
@@ -167,6 +168,7 @@ const KopkarPelunasan = () => {
     setShipDate(todayStr);
     setShipTime(`${hours}:${minutes}`);
     setCourierNotes('Mobil Box Koperasi - Bpk. Supardi');
+    setShipSource('gudang');
     setShipError('');
     setShippedQuantities(order.items.map(it => it.quantity));
   };
@@ -186,6 +188,7 @@ const KopkarPelunasan = () => {
       shippedAtTime: shipTime,
       courierNotes: courierNotes.trim() || undefined,
       shippedBy: stafName,
+      source: shipSource,
       shippedItems: shippingOrder.items.map((it, idx) => ({
         name: it.name,
         type: it.type,
@@ -902,6 +905,17 @@ const KopkarPelunasan = () => {
                     required
                   />
                 </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label>Sumber Stok Dikirim Dari:</label>
+                <select
+                  value={shipSource}
+                  onChange={(e) => setShipSource(e.target.value as 'gudang' | 'vendor')}
+                >
+                  <option value="gudang">📦 Gudang Koperasi (Diproses mandiri)</option>
+                  <option value="vendor">🏭 Gudang Vendor (Drop-ship Penjahit/Penerbit)</option>
+                </select>
               </div>
 
               <div className="form-group">

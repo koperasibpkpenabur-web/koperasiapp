@@ -31,7 +31,8 @@ export interface ProductItem {
   priceKopkar: number;     // Harga Koperasi (HPP/Modal)
   feeSchool: number;       // Fee Sekolah (Margin Hak Sekolah)
   priceStudent: number;    // Harga Siswa = priceKopkar + feeSchool
-  stock: number;           // Jumlah stok fisik di koperasi
+  stock: number;           // Jumlah stok fisik di gudang koperasi (stock_gudang)
+  stockVendor?: number;    // Jumlah stok fisik di tempat vendor (stock_vendor)
   minStock?: number;       // Batas minimum stok
   size?: string;           // Ukuran
   storageLocation?: string; // Lokasi Penyimpanan
@@ -71,6 +72,7 @@ export interface ShippingInfo {
   courierNotes?: string;  // Contoh: 'Mobil Box Koperasi Plat B 1234 CD - Sopir Pak Joko'
   shippedBy: string;      // Nama staf Koperasi yang menginput kirim
   shippedItems?: { name: string; type: string; shippedQty: number }[]; // Track partial shipments
+  source?: 'gudang' | 'vendor'; // Menandakan apakah ini kirim dari gudang atau drop-ship
 }
 
 export interface ReceiveInfo {
@@ -166,4 +168,16 @@ export interface ReturnRequest {
   rejectedAt?: string;
   rejectedByName?: string;
   rejectionReason?: string;
+}
+
+// --- Vendor Payables (Hutang Koperasi ke Vendor) ---
+export interface VendorPayable {
+  id: string;
+  vendorName: string;
+  orderId: string;
+  schoolName: string;
+  totalAmount: number;
+  status: 'pending' | 'paid';
+  createdAt: string;
+  paidAt?: string;
 }
