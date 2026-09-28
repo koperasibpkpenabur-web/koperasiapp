@@ -95,6 +95,63 @@ const presetSizeCharts = {
     { id: '6', name: '3L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
     { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
   ],
+  'baju_sma': [
+    { id: '1', name: 'SS', panjangBaju: 65, panjangLengan: 21, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 67, panjangLengan: 22, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 69, panjangLengan: 23, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 71, panjangLengan: 24, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 73, panjangLengan: 25, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 75, panjangLengan: 26, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 77, panjangLengan: 27, ratio: 1 },
+  ],
+  'baju_pramuka_putra_sma': [
+    { id: '1', name: 'SS', panjangBaju: 60, panjangLengan: 21, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 63, panjangLengan: 22, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 66, panjangLengan: 23, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 69, panjangLengan: 24, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 72, panjangLengan: 25, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 72, panjangLengan: 26, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 75, panjangLengan: 27, ratio: 1 },
+  ],
+  'baju_pramuka_putri_sma': [
+    { id: '1', name: 'SS', panjangBaju: 63, panjangLengan: 22, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 64, panjangLengan: 23, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 65, panjangLengan: 23, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 66, panjangLengan: 24, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 67, panjangLengan: 24, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 68, panjangLengan: 25, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 69, panjangLengan: 25, ratio: 1 },
+  ],
+  'celana_panjang_sma': [
+    { id: '1', name: '27', panjangBaju: 104, panjangLengan: 0, ratio: 1 },
+    { id: '2', name: '28', panjangBaju: 104, panjangLengan: 0, ratio: 1 },
+    { id: '3', name: '29', panjangBaju: 104, panjangLengan: 0, ratio: 2 },
+    { id: '4', name: '30', panjangBaju: 105, panjangLengan: 0, ratio: 2 },
+    { id: '5', name: '31', panjangBaju: 105, panjangLengan: 0, ratio: 2 },
+    { id: '6', name: '32', panjangBaju: 105, panjangLengan: 0, ratio: 2 },
+    { id: '7', name: '33', panjangBaju: 106, panjangLengan: 0, ratio: 2 },
+    { id: '8', name: '34', panjangBaju: 106, panjangLengan: 0, ratio: 1 },
+    { id: '9', name: '35', panjangBaju: 106, panjangLengan: 0, ratio: 1 },
+    { id: '10', name: '36', panjangBaju: 107, panjangLengan: 0, ratio: 1 },
+  ],
+  'rok_sma': [
+    { id: '1', name: 'SS', panjangBaju: 56, panjangLengan: 0, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 58, panjangLengan: 0, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 60, panjangLengan: 0, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 61, panjangLengan: 0, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 63, panjangLengan: 0, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
+  ],
+  'rok_pramuka_sma': [
+    { id: '1', name: 'SS', panjangBaju: 58, panjangLengan: 0, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 60, panjangLengan: 0, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 60, panjangLengan: 0, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
+  ],
 };
 
 const KopkarKalkulatorKain = () => {
@@ -255,6 +312,12 @@ const KopkarKalkulatorKain = () => {
                         'celana_smp': 'celana_pendek',
                         'rok_smp': 'rok',
                         'rok_pramuka_smp': 'rok',
+                        'baju_sma': 'kemeja_pendek',
+                        'baju_pramuka_putra_sma': 'kemeja_pendek',
+                        'baju_pramuka_putri_sma': 'kemeja_pendek',
+                        'celana_panjang_sma': 'celana_panjang',
+                        'rok_sma': 'rok',
+                        'rok_pramuka_sma': 'rok',
                       };
                       applyPreset(val, typeMap[val] || 'kemeja_pendek');
                     }
@@ -274,6 +337,14 @@ const KopkarKalkulatorKain = () => {
                     <option value="celana_smp">Celana Pendek SMP (Biru/Pramuka)</option>
                     <option value="rok_smp">Rok Kulot Biru SMP</option>
                     <option value="rok_pramuka_smp">Rok Kulot Pramuka SMP</option>
+                  </optgroup>
+                  <optgroup label="Seragam SMA">
+                    <option value="baju_sma">Baju Putra/Putri SMA</option>
+                    <option value="baju_pramuka_putra_sma">Baju Pramuka Putra SMA</option>
+                    <option value="baju_pramuka_putri_sma">Baju Pramuka Putri SMA</option>
+                    <option value="celana_panjang_sma">Celana Panjang SMA (Abu/Pramuka)</option>
+                    <option value="rok_sma">Rok Kulot Abu SMA</option>
+                    <option value="rok_pramuka_sma">Rok Kulot Pramuka SMA</option>
                   </optgroup>
                 </select>
               </div>
