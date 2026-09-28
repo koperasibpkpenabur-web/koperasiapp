@@ -47,6 +47,54 @@ const presetSizeCharts = {
     { id: '6', name: '3L', panjangBaju: 52, panjangLengan: 0, ratio: 1 },
     { id: '7', name: '4L', panjangBaju: 54, panjangLengan: 0, ratio: 1 },
   ],
+  'baju_smp': [
+    { id: '1', name: 'SS', panjangBaju: 65, panjangLengan: 21, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 67, panjangLengan: 22, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 69, panjangLengan: 23, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 71, panjangLengan: 24, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 73, panjangLengan: 25, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 75, panjangLengan: 26, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 77, panjangLengan: 27, ratio: 1 },
+  ],
+  'baju_pramuka_smp': [
+    { id: '1', name: 'SS', panjangBaju: 60, panjangLengan: 21, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 63, panjangLengan: 22, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 66, panjangLengan: 23, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 69, panjangLengan: 24, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 72, panjangLengan: 25, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 72, panjangLengan: 26, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 75, panjangLengan: 27, ratio: 1 },
+  ],
+  'celana_smp': [
+    { id: '1', name: '25', panjangBaju: 46, panjangLengan: 0, ratio: 1 },
+    { id: '2', name: '26', panjangBaju: 47, panjangLengan: 0, ratio: 1 },
+    { id: '3', name: '27', panjangBaju: 48, panjangLengan: 0, ratio: 1 },
+    { id: '4', name: '28', panjangBaju: 49, panjangLengan: 0, ratio: 2 },
+    { id: '5', name: '29', panjangBaju: 50, panjangLengan: 0, ratio: 2 },
+    { id: '6', name: '30', panjangBaju: 51, panjangLengan: 0, ratio: 2 },
+    { id: '7', name: '31', panjangBaju: 52, panjangLengan: 0, ratio: 2 },
+    { id: '8', name: '32', panjangBaju: 53, panjangLengan: 0, ratio: 2 },
+    { id: '9', name: '33', panjangBaju: 54, panjangLengan: 0, ratio: 1 },
+    { id: '10', name: '34', panjangBaju: 55, panjangLengan: 0, ratio: 1 },
+  ],
+  'rok_smp': [
+    { id: '1', name: 'SS', panjangBaju: 56, panjangLengan: 0, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 58, panjangLengan: 0, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 60, panjangLengan: 0, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 61, panjangLengan: 0, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 63, panjangLengan: 0, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
+  ],
+  'rok_pramuka_smp': [
+    { id: '1', name: 'SS', panjangBaju: 58, panjangLengan: 0, ratio: 1 },
+    { id: '2', name: 'S', panjangBaju: 60, panjangLengan: 0, ratio: 1 },
+    { id: '3', name: 'M', panjangBaju: 60, panjangLengan: 0, ratio: 2 },
+    { id: '4', name: 'L', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
+    { id: '5', name: 'XL', panjangBaju: 62, panjangLengan: 0, ratio: 2 },
+    { id: '6', name: '3L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
+    { id: '7', name: '4L', panjangBaju: 64, panjangLengan: 0, ratio: 1 },
+  ],
 };
 
 const KopkarKalkulatorKain = () => {
@@ -195,19 +243,38 @@ const KopkarKalkulatorKain = () => {
               <div className="form-group" style={{ margin: 0 }}>
                 <select 
                   onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'baju_sd') applyPreset('baju_sd', 'kemeja_pendek');
-                    if (val === 'baju_pramuka_penggalang_sd') applyPreset('baju_pramuka_penggalang_sd', 'kemeja_pendek');
-                    if (val === 'celana_pendek_sd') applyPreset('celana_pendek_sd', 'celana_pendek');
-                    if (val === 'rok_sd') applyPreset('rok_sd', 'rok');
+                    const val = e.target.value as keyof typeof presetSizeCharts;
+                    if (val) {
+                      const typeMap: Record<string, GarmentType> = {
+                        'baju_sd': 'kemeja_pendek',
+                        'baju_pramuka_penggalang_sd': 'kemeja_pendek',
+                        'celana_pendek_sd': 'celana_pendek',
+                        'rok_sd': 'rok',
+                        'baju_smp': 'kemeja_pendek',
+                        'baju_pramuka_smp': 'kemeja_pendek',
+                        'celana_smp': 'celana_pendek',
+                        'rok_smp': 'rok',
+                        'rok_pramuka_smp': 'rok',
+                      };
+                      applyPreset(val, typeMap[val] || 'kemeja_pendek');
+                    }
                   }}
                   style={{ padding: '6px 12px', fontSize: '0.85rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px' }}
                 >
                   <option value="">-- Load Size Chart Otomatis --</option>
-                  <option value="baju_sd">Baju SD / Pramuka Siaga</option>
-                  <option value="baju_pramuka_penggalang_sd">Baju Pramuka Penggalang SD</option>
-                  <option value="celana_pendek_sd">Celana Pendek SD (Semua)</option>
-                  <option value="rok_sd">Rok / Kulot SD (Siaga)</option>
+                  <optgroup label="Seragam SD">
+                    <option value="baju_sd">Baju SD / Pramuka Siaga</option>
+                    <option value="baju_pramuka_penggalang_sd">Baju Pramuka Penggalang SD</option>
+                    <option value="celana_pendek_sd">Celana Pendek SD (Semua)</option>
+                    <option value="rok_sd">Rok / Kulot SD (Siaga)</option>
+                  </optgroup>
+                  <optgroup label="Seragam SMP">
+                    <option value="baju_smp">Baju Putra/Putri SMP</option>
+                    <option value="baju_pramuka_smp">Baju Pramuka SMP</option>
+                    <option value="celana_smp">Celana Pendek SMP (Biru/Pramuka)</option>
+                    <option value="rok_smp">Rok Kulot Biru SMP</option>
+                    <option value="rok_pramuka_smp">Rok Kulot Pramuka SMP</option>
+                  </optgroup>
                 </select>
               </div>
             </div>
