@@ -990,10 +990,10 @@ const SchoolPemesanan = () => {
                   <select
                     value={orderPhase}
                     onChange={(e) => {
-                      const p = e.target.value as 'Tahap 1' | 'Tahap 2' | 'Tambahan';
+                      const p = e.target.value as 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan';
                       setOrderPhase(p);
                       const cat = getProductsByLevel(orderLevelFilter);
-                      if (p !== 'Tambahan') {
+                      if (!p.includes('Tambahan')) {
                         setSelectedItems(cat.map(prod => ({
                           name: prod.name,
                           type: prod.category,
@@ -1236,12 +1236,12 @@ const SchoolPemesanan = () => {
                     <strong>Tahap 2 Ditutup:</strong> Admin belum mengaktifkan pemesanan Tahap 2.
                   </div>
                 )}
-                {(orderPhase === 'Tambahan' && !tambahanOpen) && (
+                {(orderPhase.includes('Tambahan') && !tambahanOpen) && (
                   <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
                     <strong>Fase Tambahan Ditutup:</strong> Admin sedang menutup akses pesanan Tambahan.
                   </div>
                 )}
-                {(orderPhase === 'Tambahan' && tambahanOpen && !isAllowedToInput) && (
+                {(orderPhase.includes('Tambahan') && tambahanOpen && !isAllowedToInput) && (
                   <div style={{ padding: '12px 16px', background: '#fee2e2', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.9rem', color: '#b91c1c', marginBottom: '16px' }}>
                     <strong>Akses Dibatasi:</strong> Checkout tidak dapat dilakukan saat ini karena belum memasuki periode waktu pemesanan yang ditetapkan atau bukan jadwal hari pesanan jenjang Anda.
                   </div>
@@ -1251,8 +1251,8 @@ const SchoolPemesanan = () => {
                     <button 
                       type="submit" 
                       className="btn-primary"
-                      disabled={(orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase === 'Tambahan' && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0}
-                      style={((orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase === 'Tambahan' && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                      disabled={(orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase.includes('Tambahan') && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0}
+                      style={((orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase.includes('Tambahan') && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
                     >
                       🚀 Pesan Sekarang
                     </button>
