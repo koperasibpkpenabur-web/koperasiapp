@@ -207,6 +207,16 @@ const Sidebar = () => {
                   className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
                   onClick={closeMobileNav}
                 >
+                  <span className="nav-icon">🏠</span>
+                  <span className="nav-text">Menu Utama</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/school/pemesanan"
+                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                  onClick={closeMobileNav}
+                >
                   <span className="nav-icon">🛒</span>
                   <span className="nav-text">Pemesanan Barang</span>
                 </NavLink>

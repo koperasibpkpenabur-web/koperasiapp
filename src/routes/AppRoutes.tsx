@@ -6,6 +6,7 @@ import LoginPage from '../pages/Auth/LoginPage';
 import AdminDashboard from '../pages/Admin/AdminDashboard';
 import UserManagement from '../pages/Admin/UserManagement';
 import SchoolDashboard from '../pages/School/SchoolDashboard';
+import SchoolPemesanan from '../pages/School/SchoolPemesanan';
 import SchoolPayment from '../pages/School/SchoolPayment';
 import KopkarDashboard from '../pages/Kopkar/KopkarDashboard';
 import KopkarPesanan from '../pages/Kopkar/KopkarPesanan';
@@ -127,6 +128,11 @@ const AppRoutes = () => {
         <Route path="school" element={
           <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
             <SchoolDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="school/pemesanan" element={
+          <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
+            <SchoolPemesanan />
           </ProtectedRoute>
         } />
         <Route path="school/pelunasan" element={
