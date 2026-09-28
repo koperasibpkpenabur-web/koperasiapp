@@ -22,6 +22,10 @@ const StockManagement = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'safe' | 'low' | 'empty'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'stock-desc' | 'stock-asc' | 'level' | 'value-desc'>('stock-asc');
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
   // Drag & Drop
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -228,6 +232,15 @@ const StockManagement = () => {
       if (sortBy === 'value-desc') return (stockB * b.priceKopkar) - (stockA * a.priceKopkar);
       return 0;
     });
+
+  const totalPages = Math.ceil(filteredAndSortedProducts.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredAndSortedProducts.slice(indexOfFirstItem, indexOfLastItem);
+
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
 
   // Calculate Dashboard Totals
   const totalBarangJenis = products.length;
@@ -520,25 +533,25 @@ const StockManagement = () => {
               <th>Stock Gudang</th>
               <th>Stock Vendor</th>
               <th>Lokasi Penyimpanan</th>
-              <th style={{ textAlign: 'center' }}>Aksi</th>
+              <th style={{ textAlign: 'center', width: '90px' }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
-            {filteredAndSortedProducts.length === 0 ? (
+            {currentItems.length === 0 ? (
               <tr>
                 <td colSpan={10} style={{ textAlign: 'center', padding: '36px', color: '#586b84' }}>
                   Tidak ada barang yang sesuai dengan filter atau pencarian Anda.
                 </td>
               </tr>
             ) : (
-              filteredAndSortedProducts.map((p, idx) => {
+              currentItems.map((p, idx) => {
                 const stock = p.stock || 0;
                 const isOutOfStock = stock === 0;
                 const isLowStock = stock > 0 && stock <= 20;
 
                 return (
                   <tr key={p.id}>
-                    <td style={{ color: '#586b84', fontWeight: 600 }}>{idx + 1}</td>
+                    <td style={{ color: '#586b84', fontWeight: 600 }}>{indexOfFirstItem + idx + 1}</td>
                     <td>
                       <strong>{p.name}</strong>
                     </td>
@@ -580,21 +593,42 @@ const StockManagement = () => {
                     </td>
                     <td>{p.storageLocation || '-'}</td>
                     <td style={{ textAlign: 'center', position: 'relative' }}>
-                      <button
-                        className="btn-dots"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuId(activeMenuId === p.id ? null : p.id);
-                        }}
-                      >
-                        ⋮
-                      </button>
+                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                        <button
+                          className="btn-dots"
+                          title="Aksi Lainnya"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuId(activeMenuId === p.id ? null : p.id);
+                          }}
+                        >
+                          ⋮
+                        </button>
+                        <button
+                          title="Hapus Barang"
+                          style={{
+                            background: '#fef2f2',
+                            color: '#ef4444',
+                            border: '1px solid #fecaca',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            padding: '4px 8px',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          onClick={() => handleDeleteItem(p)}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      
                       {activeMenuId === p.id && (
                         <div className="action-dropdown-menu" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => { setActiveMenuId(null); handleOpenSetStock(p); }}>Update Stock</button>
                           <button onClick={() => { setActiveMenuId(null); handleOpenDetail(p); }}>Detail Harga & Lokasi</button>
                           <button onClick={() => { setActiveMenuId(null); setSupplierItem(p); setSupplierLevel(p.level); setSupplierName(p.supplierName || ''); setSupplierSchoolName(p.schoolName || ''); }}>Atur Supplier & Jenjang</button>
-                          <button className="text-danger" onClick={() => { setActiveMenuId(null); handleDeleteItem(p); }}>Hapus Barang</button>
                         </div>
                       )}
                     </td>
@@ -604,6 +638,45 @@ const StockManagement = () => {
             )}
           </tbody>
         </table>
+
+        {/* Pagination Controls */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: '#fff', borderTop: '1px solid #e2e8f0', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px' }}>
+          <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+            Menampilkan {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredAndSortedProducts.length)} dari {filteredAndSortedProducts.length} barang
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: '#64748b', marginRight: '8px' }}>
+              Baris per halaman: 
+              <select 
+                value={itemsPerPage} 
+                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                style={{ marginLeft: '8px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </span>
+            <button 
+              disabled={currentPage === 1} 
+              onClick={() => handlePageChange(currentPage - 1)}
+              style={{ padding: '6px 12px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+            >
+              &lt;
+            </button>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+              Halaman {currentPage} dari {totalPages || 1}
+            </span>
+            <button 
+              disabled={currentPage === totalPages || totalPages === 0} 
+              onClick={() => handlePageChange(currentPage + 1)}
+              style={{ padding: '6px 12px', cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+            >
+              &gt;
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* MODAL SET STOCK LANGSUNG */}

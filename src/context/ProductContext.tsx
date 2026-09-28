@@ -280,7 +280,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
         const rawLevel = levelIdx !== -1 && row[levelIdx] ? String(row[levelIdx]).trim().toUpperCase() : 'SEMUA';
         const validLevels = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA', 'SEMUA'];
-        const level = validLevels.includes(rawLevel) ? rawLevel : 'SEMUA';
+        const level = (validLevels.includes(rawLevel) ? rawLevel : 'SEMUA') as any;
 
         const priceKopkar = parsePrice(row[kopkarIdx]);
         const feeSchool = parsePrice(row[feeIdx]);
