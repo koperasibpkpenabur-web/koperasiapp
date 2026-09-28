@@ -397,6 +397,31 @@ const SchoolDashboard = () => {
         </div>
       </div>
 
+      {/* Menu Utama Action Cards */}
+      <div className="school-main-menu" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+        <div 
+          className="school-stat-card" 
+          onClick={() => { resetCreateForm('Tambahan'); setShowCreateModal(true); }}
+          style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px', cursor: 'pointer', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}
+        >
+          <div className="stat-icon" style={{ fontSize: '2rem' }}>🛒</div>
+          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Pemesanan Barang</div>
+          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Buat pesanan seragam dan buku baru ke Kopkar.</div>
+        </div>
+        
+        <Link to="/school/pelunasan" className="school-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+          <div className="stat-icon" style={{ fontSize: '2rem' }}>💳</div>
+          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Pelunasan Tagihan</div>
+          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Cek tagihan pesanan dan laporkan pembayaran siswa.</div>
+        </Link>
+        
+        <Link to="/school/retur" className="school-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+          <div className="stat-icon" style={{ fontSize: '2rem' }}>↩️</div>
+          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Retur Barang</div>
+          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Ajukan pengembalian barang cacat atau salah ukuran.</div>
+        </Link>
+      </div>
+
       {/* Stats Cards */}
       <div className="order-stats">
         <div className="order-stat-card">

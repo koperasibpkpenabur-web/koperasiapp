@@ -88,6 +88,18 @@ const KopkarDashboard = () => {
           <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Rekap Data</div>
           <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Laporan seluruh aktivitas dan download rekap PDF/Excel.</div>
         </Link>
+        
+        <Link to="/kopkar/kalkulator-kain" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
+          <div className="stat-icon" style={{ fontSize: '2rem' }}>📐</div>
+          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Kalkulator Kain</div>
+          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Hitung dan prediksi hasil seragam dari gulungan kain vendor.</div>
+        </Link>
+
+        <Link to="/kopkar/vendor" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
+          <div className="stat-icon" style={{ fontSize: '2rem' }}>🏭</div>
+          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Manajemen Vendor</div>
+          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Input barang masuk dan kontrol pembayaran/piutang ke vendor penjahit.</div>
+        </Link>
       </div>
     </div>
   );
