@@ -1105,40 +1105,40 @@ const SchoolPemesanan = () => {
               <div className="form-group">
                 <label>Pilih Barang dari Katalog Jenjang {orderLevelFilter}:</label>
 
-                {!orderPhase.includes('Tambahan') ? (
+                {!orderPhase.includes('Tambahan') ? (() => {
+                  const dynamicSizeColumns = Array.from(new Set(
+                    matrixItems.flatMap((row: any) => row.variants.map((v: any) => (v.size || '').trim().toUpperCase()))
+                  )).filter(sz => sz !== '').sort((a, b) => {
+                    const ai = SIZE_ORDER.indexOf(a);
+                    const bi = SIZE_ORDER.indexOf(b);
+                    if (ai !== -1 && bi !== -1) return ai - bi;
+                    if (ai !== -1) return -1;
+                    if (bi !== -1) return 1;
+                    return a.localeCompare(b, undefined, { numeric: true });
+                  });
+
+                  return (
                   <div className="matrix-table-wrapper" style={{ overflowX: 'auto', marginBottom: '16px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                     <table className="order-table" style={{ minWidth: '800px', margin: 0 }}>
                       <thead style={{ background: '#f8fafc' }}>
                         <tr>
                           <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Nama Barang</th>
-                          {SIZE_ORDER.map(sz => {
-                            // only show column if at least one matrixItem has this size
-                            const hasAnySz = matrixItems.some((row: any) =>
-                              row.variants.some((v: any) => v.size?.trim().toUpperCase() === sz)
-                            );
-                            if (!hasAnySz) return null;
-                            return (
-                              <th key={sz} style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>{sz}</th>
-                            );
-                          })}
-                          <th style={{ width: '180px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Ukuran Lainnya</th>
+                          {dynamicSizeColumns.map(sz => (
+                            <th key={sz} style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>{sz}</th>
+                          ))}
                           <th style={{ width: '80px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {matrixItems.map((row, rIdx) => {
-                          const rowTotal = Object.values(row.sizesInput).reduce((acc: number, val: any) => acc + (parseInt(val) || 0), 0) + (parseInt(row.customQty) || 0);
+                          const rowTotal = Object.values(row.sizesInput).reduce((acc: number, val: any) => acc + (parseInt(val) || 0), 0);
                           return (
                             <tr key={rIdx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                               <td style={{ padding: '12px' }}>
                                 <strong>{row.name}</strong>
                                 <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>Rp {new Intl.NumberFormat('id-ID').format(row.priceStudent)}</div>
                               </td>
-                              {SIZE_ORDER.map(sz => {
-                                const hasSzCol = matrixItems.some((row: any) =>
-                                  row.variants.some((v: any) => v.size?.trim().toUpperCase() === sz)
-                                );
-                                if (!hasSzCol) return null;
+                              {dynamicSizeColumns.map(sz => {
                                 const variant = row.variants.find((v: any) => v.size?.trim().toUpperCase() === sz);
                                 return (
                                   <td key={sz} style={{ padding: '6px', textAlign: 'center' }}>
@@ -1159,40 +1159,18 @@ const SchoolPemesanan = () => {
                                   </td>
                                 );
                               })}
-                              <td style={{ padding: '6px' }}>
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                  <select 
-                                    value={row.customVariantId}
-                                    onChange={(e) => setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, customVariantId: e.target.value } : it))}
-                                    style={{ width: '60%', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                  >
-                                    <option value="">- Ukuran -</option>
-                                    {sortBySize(row.variants.filter((v: any) => !SIZE_ORDER.includes(v.size?.trim().toUpperCase()))).map((v: any) => (
-                                      <option key={v.id} value={v.id}>{v.size || 'No Size'}</option>
-                                    ))}
-                                  </select>
-                                  <input 
-                                    type="number" 
-                                    min="0" 
-                                    placeholder="Qty" 
-                                    value={row.customQty || ''}
-                                    onChange={(e) => setMatrixItems(prev => prev.map((it, i) => i === rIdx ? { ...it, customQty: parseInt(e.target.value) || 0 } : it))}
-                                    style={{ width: '40%', padding: '8px 4px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                    disabled={!row.customVariantId}
-                                  />
-                                </div>
-                              </td>
                               <td style={{ textAlign: 'center', fontWeight: 600, padding: '12px' }}>{rowTotal}</td>
                             </tr>
                           );
                         })}
                         {matrixItems.length === 0 && (
-                          <tr><td colSpan={9} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>Katalog kosong untuk jenjang ini.</td></tr>
+                          <tr><td colSpan={dynamicSizeColumns.length + 2} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>Katalog kosong untuk jenjang ini.</td></tr>
                         )}
                       </tbody>
                     </table>
                   </div>
-                ) : (
+                  );
+                })() : (
                   <div className="school-order-items-table">
                     {selectedItems.map((item, index) => {
                       const selectedGroup = groupedCatalog[item.name];
