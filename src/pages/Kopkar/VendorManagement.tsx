@@ -10,6 +10,8 @@ const VendorManagement = () => {
 
   // Modal Input Stock Vendor
   const [showAddStockModal, setShowAddStockModal] = useState(false);
+  const [inputLevel, setInputLevel] = useState('');
+  const [inputVendor, setInputVendor] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [addQty, setAddQty] = useState(0);
 
@@ -56,11 +58,19 @@ const VendorManagement = () => {
     const p = products.find(prod => prod.id === selectedProductId);
     if (!p) return;
     
+    // Update vendor_name/supplierName if needed
+    if (inputVendor && p.supplierName !== inputVendor) {
+      const { error } = await supabase.from('products').update({ supplier_name: inputVendor }).eq('id', p.id);
+      if (error) console.error("Error updating supplier name:", error);
+    }
+
     const newStockVendor = (p.stockVendor || 0) + addQty;
     await setProductStock(p.id, p.stock || 0, newStockVendor);
     
     setShowAddStockModal(false);
     setSelectedProductId('');
+    setInputLevel('');
+    setInputVendor('');
     setAddQty(0);
     alert(`Berhasil menambahkan ${addQty} pcs ke Stock Vendor untuk barang ${p.name}`);
   };
@@ -186,17 +196,64 @@ const VendorManagement = () => {
               Tambahkan stok barang yang dikelola/disimpan di gudang vendor.
             </p>
             <form onSubmit={handleAddVendorStock}>
+              
               <div className="form-group">
-                <label>Pilih Barang (Hanya yang memiliki Supplier)</label>
+                <label>Pilih Jenjang (Opsional, untuk filter)</label>
+                <select value={inputLevel} onChange={e => { setInputLevel(e.target.value); setSelectedProductId(''); }}>
+                  <option value="">-- Semua Jenjang --</option>
+                  <option value="TK">TK</option>
+                  <option value="SD">SD</option>
+                  <option value="SMP">SMP</option>
+                  <option value="SMA">SMA</option>
+                  <option value="SPK-SD">SPK-SD (Primary)</option>
+                  <option value="SPK-SMP">SPK-SMP (Lower Sec)</option>
+                  <option value="SPK-SMA">SPK-SMA (Upper Sec)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Pilih/Ketik Nama Vendor (Penjahit)</label>
+                <input 
+                  type="text" 
+                  list="vendor-list"
+                  value={inputVendor} 
+                  onChange={e => setInputVendor(e.target.value)} 
+                  placeholder="Misal: Andryna, Berkat, Fendy..."
+                  required
+                />
+                <datalist id="vendor-list">
+                  <option value="Andryna" />
+                  <option value="Anugerah Jaya" />
+                  <option value="Berkat" />
+                  <option value="Christy" />
+                  <option value="Fendy" />
+                  <option value="Fortuna" />
+                  <option value="Harmoni" />
+                  <option value="Intan Jaya" />
+                  <option value="Jemima" />
+                  <option value="Loki" />
+                  <option value="Sugandi" />
+                  <option value="Sumber Makmur" />
+                  <option value="Supatno" />
+                  <option value="Susanto" />
+                  <option value="Vania" />
+                  <option value="Yongki Komaladi" />
+                </datalist>
+              </div>
+
+              <div className="form-group">
+                <label>Pilih Seragam / Barang</label>
                 <select 
                   value={selectedProductId} 
                   onChange={e => setSelectedProductId(e.target.value)}
                   required
                 >
                   <option value="">-- Pilih Barang --</option>
-                  {products.map(p => (
+                  {products
+                    .filter(p => inputLevel === '' || p.level === inputLevel || p.level === 'SEMUA')
+                    .map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.supplierName ? `[${p.supplierName}] ` : ''}{p.name} (Stok Vendor: {p.stockVendor || 0})
+                      {p.name} {p.size ? `(${p.size})` : ''} - Stok Vendor: {p.stockVendor || 0} pcs
                     </option>
                   ))}
                 </select>
