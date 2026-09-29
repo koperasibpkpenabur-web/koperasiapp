@@ -12,6 +12,16 @@
   display: inline-block;
 }
 
+/* Hide spinners for number inputs in matrix tables */
+.matrix-table-wrapper input[type="number"]::-webkit-outer-spin-button,
+.matrix-table-wrapper input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.matrix-table-wrapper input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .school-welcome {
   font-size: 0.92rem;
   color: var(--text-secondary, #586b84);

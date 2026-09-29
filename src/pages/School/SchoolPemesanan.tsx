@@ -145,7 +145,6 @@ const SchoolPemesanan = () => {
                 {!isAllSize && allSizes.map(sz => (
                   <th key={sz} style={{ width: '40px', textAlign: 'center', padding: '12px 4px', borderBottom: '2px solid #cbd5e1' }}>{sz}</th>
                 ))}
-                {!isAllSize && <th style={{ minWidth: '150px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Ukuran Lainnya</th>}
                 <th style={{ width: '80px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Total</th>
               </tr>
             </thead>
@@ -153,7 +152,6 @@ const SchoolPemesanan = () => {
               {items.map((row) => {
                 const rowTotal = Object.values(row.sizesInput).reduce((acc: number, val: any) => acc + (parseInt(val) || 0), 0);
                 const standardVariants = row.variants.filter((v: any) => allSizes.includes(v.size?.trim().toUpperCase()));
-                const nonStandardVariants = sortBySize(row.variants.filter((v: any) => !allSizes.includes(v.size?.trim().toUpperCase())));
 
                 return (
                   <tr key={row.name} style={{ borderBottom: '1px solid #e2e8f0' }}>
@@ -175,7 +173,7 @@ const SchoolPemesanan = () => {
                                 const val = parseInt(e.target.value) || 0;
                                 setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [variant.id]: val } } : it));
                               }}
-                              style={{ width: '40px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                              style={{ width: '30px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
                             />
                           ) : (
                             <div style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>-</div>
@@ -183,32 +181,6 @@ const SchoolPemesanan = () => {
                         </td>
                       );
                     })}
-
-                    {!isAllSize && (
-                      <td style={{ padding: '6px' }}>
-                        {nonStandardVariants.length > 0 ? (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-                            {nonStandardVariants.map((variant: any) => (
-                              <div key={variant.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>{variant.size || 'No Size'}</span>
-                                <input 
-                                  type="number" 
-                                  min="0" 
-                                  value={row.sizesInput[variant.id] || ''}
-                                  onChange={(e) => {
-                                    const val = parseInt(e.target.value) || 0;
-                                    setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [variant.id]: val } } : it));
-                                  }}
-                                  style={{ width: '40px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{ color: '#cbd5e1', fontSize: '0.8rem', textAlign: 'center' }}>-</div>
-                        )}
-                      </td>
-                    )}
 
                     {isAllSize && (
                       <td style={{ padding: '6px', textAlign: 'center' }}>
@@ -222,7 +194,7 @@ const SchoolPemesanan = () => {
                                 const val = parseInt(e.target.value) || 0;
                                 setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [row.variants[0].id]: val } } : it));
                               }}
-                              style={{ width: '50px', textAlign: 'center', padding: '6px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                              style={{ width: '30px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
                             />
                           </div>
                         ) : (
