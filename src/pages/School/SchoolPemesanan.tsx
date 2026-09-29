@@ -143,7 +143,7 @@ const SchoolPemesanan = () => {
               <tr>
                 <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1', minWidth: '200px' }}>Nama Barang</th>
                 {!isAllSize && allSizes.map(sz => (
-                  <th key={sz} style={{ width: '60px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>{sz}</th>
+                  <th key={sz} style={{ width: '40px', textAlign: 'center', padding: '12px 4px', borderBottom: '2px solid #cbd5e1' }}>{sz}</th>
                 ))}
                 {!isAllSize && <th style={{ minWidth: '150px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Ukuran Lainnya</th>}
                 <th style={{ width: '80px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Total</th>
@@ -175,7 +175,7 @@ const SchoolPemesanan = () => {
                                 const val = parseInt(e.target.value) || 0;
                                 setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [variant.id]: val } } : it));
                               }}
-                              style={{ width: '60px', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                              style={{ width: '40px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
                             />
                           ) : (
                             <div style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>-</div>
@@ -199,7 +199,7 @@ const SchoolPemesanan = () => {
                                     const val = parseInt(e.target.value) || 0;
                                     setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [variant.id]: val } } : it));
                                   }}
-                                  style={{ width: '60px', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                                  style={{ width: '40px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
                                 />
                               </div>
                             ))}
@@ -222,7 +222,7 @@ const SchoolPemesanan = () => {
                                 const val = parseInt(e.target.value) || 0;
                                 setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [row.variants[0].id]: val } } : it));
                               }}
-                              style={{ width: '60px', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                              style={{ width: '50px', textAlign: 'center', padding: '6px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
                             />
                           </div>
                         ) : (
@@ -1270,8 +1270,8 @@ const SchoolPemesanan = () => {
                     ) : (
                       <>
                         {renderMatrixTable(pakaianItems, 'Pakaian Standar')}
-                        {renderMatrixTable(kaosKakiItems, 'Kaos Kaki')}
                         {renderMatrixTable(celanaItems, 'Celana & Rok')}
+                        {renderMatrixTable(kaosKakiItems, 'Kaos Kaki')}
                         {renderMatrixTable(sepatuItems, 'Sepatu Phantom')}
                         {renderMatrixTable(aksesorisItems, 'Aksesoris & Perlengkapan')}
                       </>
