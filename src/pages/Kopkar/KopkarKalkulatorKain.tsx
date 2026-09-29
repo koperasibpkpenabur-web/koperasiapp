@@ -452,9 +452,9 @@ const KopkarKalkulatorKain = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '24px', flexWrap: 'nowrap' }}>
         {/* KOLOM KIRI */}
-        <div style={{ flex: '1 1 500px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ flex: '1.5', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>📏</span> 1. Data Gulungan Kain
@@ -558,7 +558,7 @@ const KopkarKalkulatorKain = () => {
         </div>
 
         {/* KOLOM HASIL */}
-        <div style={{ flex: '1 1 350px' }}>
+        <div style={{ flex: '1', minWidth: '300px' }}>
           <div style={{ background: '#0f172a', padding: '24px', borderRadius: '12px', color: '#fff', position: 'sticky', top: '24px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #334155', paddingBottom: '16px' }}>
               <span>🎯</span> Prediksi Hasil Vendor
