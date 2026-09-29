@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
@@ -11,7 +12,10 @@ const AdminDashboard = () => {
 
   const totalAdmin = users.filter((u) => u.role === 'admin').length;
   const totalKopkar = users.filter((u) => u.role === 'kopkar').length;
-  const totalSekolah = users.filter((u) => u.role === 'sekolah').length;
+  const listSekolah = users.filter((u) => u.role === 'sekolah');
+  const totalSekolah = listSekolah.length;
+
+  const [selectedSchoolReset, setSelectedSchoolReset] = useState<string>('ALL');
 
   const handleToggleMaintenance = () => {
     const message = isMaintenanceMode
@@ -24,22 +28,31 @@ const AdminDashboard = () => {
   };
 
   const handleResetHistory = async () => {
-    const confirm1 = window.confirm('PERINGATAN BAHAYA: Anda akan MENGHAPUS SEMUA RIWAYAT PESANAN (Orders, Order Items, dan Returns). Tindakan ini TIDAK BISA DIBATALKAN. Yakin ingin melanjutkan?');
+    const isAll = selectedSchoolReset === 'ALL';
+    const msg = isAll 
+      ? 'PERINGATAN BAHAYA: Anda akan MENGHAPUS SEMUA RIWAYAT PESANAN (Orders, Order Items, dan Returns) dari SELURUH SEKOLAH. Tindakan ini TIDAK BISA DIBATALKAN. Yakin ingin melanjutkan?'
+      : 'PERINGATAN BAHAYA: Anda akan MENGHAPUS riwayat pesanan (Orders dan Returns) KHUSUS UNTUK SEKOLAH YANG DIPILIH. Tindakan ini TIDAK BISA DIBATALKAN. Yakin ingin melanjutkan?';
+
+    const confirm1 = window.confirm(msg);
     if (!confirm1) return;
-    const confirm2 = window.prompt('Ketik "RESET" untuk mengonfirmasi penghapusan seluruh history pengetesan:');
+    const confirm2 = window.prompt(`Ketik "RESET" untuk mengonfirmasi penghapusan history pengetesan${isAll ? ' semua sekolah' : ''}:`);
     if (confirm2 !== 'RESET') {
       alert('Konfirmasi dibatalkan. Data aman.');
       return;
     }
     
     try {
-      const { error } = await supabase.rpc('reset_testing_history');
-      if (error) {
-        alert('Gagal mereset history: ' + error.message);
+      if (isAll) {
+        const { error } = await supabase.rpc('reset_testing_history');
+        if (error) throw error;
       } else {
-        alert('BERHASIL: Seluruh history transaksi telah dihapus. Silakan muat ulang halaman (F5).');
-        window.location.reload();
+        const { error: err1 } = await supabase.from('orders').delete().eq('school_user_id', selectedSchoolReset);
+        const { error: err2 } = await supabase.from('returns').delete().eq('school_user_id', selectedSchoolReset);
+        if (err1) throw err1;
+        if (err2) throw err2;
       }
+      alert('BERHASIL: History transaksi telah dihapus. Silakan muat ulang halaman (F5).');
+      window.location.reload();
     } catch (err: any) {
       alert('Terjadi kesalahan: ' + err.message);
     }
@@ -144,26 +157,42 @@ const AdminDashboard = () => {
             Tindakan ini akan menghapus seluruh data transaksi dari tabel <strong>orders, order_items, dan returns</strong> di Supabase secara permanen. Gunakan fitur ini HANYA jika Anda ingin mengosongkan riwayat pengetesan (Master barang dan akun pengguna TIDAK akan terhapus).
           </p>
         </div>
-        <div>
-          <button
-            type="button"
-            onClick={handleResetHistory}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#e11d48',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '10px',
-              fontSize: '0.88rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(225, 29, 72, 0.25)',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            🗑️ Reset Semua History Transaksi
-          </button>
-        </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <select
+              value={selectedSchoolReset}
+              onChange={(e) => setSelectedSchoolReset(e.target.value)}
+              style={{
+                padding: '10px 14px',
+                border: '1.5px solid #fecdd3',
+                borderRadius: '10px',
+                fontSize: '0.88rem',
+                outline: 'none',
+              }}
+            >
+              <option value="ALL">SEMUA SEKOLAH (Seluruh Data)</option>
+              {listSekolah.map(s => (
+                <option key={s.id} value={s.id}>{s.schoolName || s.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleResetHistory}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#e11d48',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '0.88rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(225, 29, 72, 0.25)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              🗑️ Hapus History Transaksi
+            </button>
+          </div>
       </div>
 
       {/* Control Panel Pesanan Sekolah */}
