@@ -34,6 +34,8 @@ const SchoolReturn = () => {
     ? getProductsByLevel(schoolLevel)
     : products;
 
+  const uniqueProductNames = Array.from(new Set(availableCatalog.map(p => p.name)));
+
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([
     {
       productId: availableCatalog[0]?.id || '',
@@ -104,6 +106,24 @@ const SchoolReturn = () => {
   const handleRemoveItem = (index: number) => {
     if (returnItems.length <= 1) return;
     setReturnItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleProductNameSelect = (index: number, newName: string) => {
+    // When name changes, automatically select the first size available for this name
+    const firstMatchingProduct = availableCatalog.find((p) => p.name === newName);
+    if (!firstMatchingProduct) return;
+
+    setReturnItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== index) return item;
+        return {
+          ...item,
+          productId: firstMatchingProduct.id,
+          productCode: firstMatchingProduct.code,
+          productName: firstMatchingProduct.name,
+        };
+      })
+    );
   };
 
   const handleProductSelect = (index: number, prodId: string) => {
@@ -411,10 +431,12 @@ const SchoolReturn = () => {
                     <div className="return-items-header">
                       Daftar Barang yang Diretur ({ret.items.length} item)
                     </div>
-                    {ret.items.map((it, idx) => (
+                    {ret.items.map((it, idx) => {
+                      const prodInfo = products.find(p => p.id === it.productId);
+                      return (
                       <div key={idx} className="return-item-row">
                         <div className="return-item-info">
-                          <span className="return-item-name">{it.productName}</span>
+                          <span className="return-item-name">{it.productName} {prodInfo?.size ? `(Size ${prodInfo.size})` : ''}</span>
                           {it.productCode && (
                             <span className="return-item-code">Kode: {it.productCode}</span>
                           )}
@@ -426,7 +448,7 @@ const SchoolReturn = () => {
                         </div>
                         <span className="return-item-qty">{it.quantity} Pcs</span>
                       </div>
-                    ))}
+                      )})}
                   </div>
 
                   {/* Right: Logistics & Reason Panel */}
@@ -572,21 +594,42 @@ const SchoolReturn = () => {
                     </span>
                   </div>
 
-                  {returnItems.map((item, idx) => (
+                  {returnItems.map((item, idx) => {
+                    const currentProduct = products.find(p => p.id === item.productId);
+                    const matchingSizes = availableCatalog.filter(p => p.name === (currentProduct?.name || item.productName));
+
+                    return (
                     <div key={idx} className="builder-item-card">
-                      <div className="builder-item-row">
+                      <div className="builder-item-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '10px', alignItems: 'end' }}>
                         <div>
                           <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                             Pilih Nama Barang
                           </label>
                           <select
                             className="form-select"
+                            value={currentProduct?.name || ''}
+                            onChange={(e) => handleProductNameSelect(idx, e.target.value)}
+                          >
+                            {uniqueProductNames.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Ukuran
+                          </label>
+                          <select
+                            className="form-select"
                             value={item.productId || ''}
                             onChange={(e) => handleProductSelect(idx, e.target.value)}
                           >
-                            {availableCatalog.map((prod) => (
+                            {matchingSizes.map((prod) => (
                               <option key={prod.id} value={prod.id}>
-                                [{prod.code}] {prod.name} ({prod.category.toUpperCase()} - {prod.level})
+                                {prod.size || 'ALL SIZE'}
                               </option>
                             ))}
                           </select>
@@ -629,7 +672,7 @@ const SchoolReturn = () => {
                         />
                       </div>
                     </div>
-                  ))}
+                  )})}
 
                   <button
                     type="button"
@@ -838,10 +881,12 @@ const SchoolReturn = () => {
                   Rincian Barang Retur
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {viewingReturn.items.map((it, idx) => (
+                  {viewingReturn.items.map((it, idx) => {
+                    const prodInfo = products.find(p => p.id === it.productId);
+                    return (
                     <div key={idx} className="return-item-row">
                       <div>
-                        <div style={{ fontWeight: 600 }}>{it.productName}</div>
+                        <div style={{ fontWeight: 600 }}>{it.productName} {prodInfo?.size ? `(Size ${prodInfo.size})` : ''}</div>
                         {it.productCode && (
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                             Kode: {it.productCode}
@@ -855,7 +900,7 @@ const SchoolReturn = () => {
                       </div>
                       <div className="return-item-qty">{it.quantity} Pcs</div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
 

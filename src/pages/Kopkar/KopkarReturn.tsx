@@ -1,13 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
-
+import { useProducts } from '../../context/ProductContext';
 import type { ReturnRequest } from '../../types';
 import '../School/returns.css';
 
 const KopkarReturn = () => {
   const { user } = useAuth();
   const { returns, confirmReturn, receiveReturn, rejectReturn } = useReturns();
+  const { products } = useProducts();
 
   // Filter tabs & search
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'koperasi_confirmed' | 'sekolah_dikirim' | 'koperasi_diterima' | 'rejected'>('pending');
@@ -327,10 +328,12 @@ const KopkarReturn = () => {
                     <div className="return-items-header">
                       Rincian Barang yang Diretur ({ret.items.length} item)
                     </div>
-                    {ret.items.map((it, idx) => (
+                    {ret.items.map((it, idx) => {
+                      const prodInfo = products.find(p => p.id === it.productId);
+                      return (
                       <div key={idx} className="return-item-row">
                         <div className="return-item-info">
-                          <span className="return-item-name">{it.productName}</span>
+                          <span className="return-item-name">{it.productName} {prodInfo?.size ? `(Size ${prodInfo.size})` : ''}</span>
                           {it.productCode && (
                             <span className="return-item-code">Kode: {it.productCode}</span>
                           )}
@@ -342,7 +345,7 @@ const KopkarReturn = () => {
                         </div>
                         <span className="return-item-qty">{it.quantity} Pcs</span>
                       </div>
-                    ))}
+                    )})}
                   </div>
 
                   {/* Right: Logistics & Reason Panel */}
@@ -713,10 +716,12 @@ const KopkarReturn = () => {
                   Daftar Barang yang Diretur
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {viewingReturn.items.map((it, idx) => (
+                  {viewingReturn.items.map((it, idx) => {
+                    const prodInfo = products.find(p => p.id === it.productId);
+                    return (
                     <div key={idx} className="return-item-row">
                       <div>
-                        <div style={{ fontWeight: 600 }}>{it.productName}</div>
+                        <div style={{ fontWeight: 600 }}>{it.productName} {prodInfo?.size ? `(Size ${prodInfo.size})` : ''}</div>
                         {it.itemReason && (
                           <div style={{ fontSize: '0.8rem', color: '#d97706' }}>
                             {it.itemReason}
@@ -725,7 +730,7 @@ const KopkarReturn = () => {
                       </div>
                       <div className="return-item-qty">{it.quantity} Pcs</div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
 
