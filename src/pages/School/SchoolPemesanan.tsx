@@ -99,7 +99,12 @@ const SchoolPemesanan = () => {
     } else if (nameLower.includes('kaos kaki')) {
       kaosKakiItems.push(row);
     } else if (row.type === 'celana/rok' || nameLower.includes('celana') || nameLower.includes('rok')) {
-      celanaItems.push(row);
+      const isNumeric = row.variants.some((v: any) => /^\d+$/.test(v.size?.trim()));
+      if (isNumeric) {
+        celanaItems.push(row);
+      } else {
+        pakaianItems.push(row);
+      }
     } else if (row.type === 'aksesoris' || row.type === 'buku' || (row.variants.length <= 1 && (!row.variants[0]?.size || row.variants[0]?.size.trim().toUpperCase() === 'ALL SIZE'))) {
       aksesorisItems.push(row);
     } else {
@@ -170,7 +175,7 @@ const SchoolPemesanan = () => {
                                 const val = parseInt(e.target.value) || 0;
                                 setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [variant.id]: val } } : it));
                               }}
-                              style={{ width: '100%', maxWidth: '60px', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                              style={{ width: '60px', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.9rem', boxSizing: 'border-box' }}
                             />
                           ) : (
                             <div style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>-</div>
@@ -194,7 +199,7 @@ const SchoolPemesanan = () => {
                                     const val = parseInt(e.target.value) || 0;
                                     setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [variant.id]: val } } : it));
                                   }}
-                                  style={{ width: '50px', textAlign: 'center', padding: '4px', border: '1px solid #94a3b8', borderRadius: '4px', fontSize: '0.8rem' }}
+                                  style={{ width: '60px', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.9rem', boxSizing: 'border-box' }}
                                 />
                               </div>
                             ))}
@@ -217,7 +222,7 @@ const SchoolPemesanan = () => {
                                 const val = parseInt(e.target.value) || 0;
                                 setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [row.variants[0].id]: val } } : it));
                               }}
-                              style={{ width: '100%', maxWidth: '80px', textAlign: 'center', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                              style={{ width: '60px', textAlign: 'center', padding: '8px 4px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.9rem', boxSizing: 'border-box' }}
                             />
                           </div>
                         ) : (
