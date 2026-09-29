@@ -28,7 +28,7 @@
 
 .login-left {
   flex: 1;
-  background: var(--primary-blue, #395886);
+  background: linear-gradient(145deg, #395886 0%, #243956 100%);
   padding: 40px;
   display: flex;
   flex-direction: column;
