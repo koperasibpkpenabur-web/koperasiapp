@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useReturns } from '../../context/ReturnContext';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './kopkar.css';
 
 const KopkarDashboard = () => {
@@ -11,6 +12,33 @@ const KopkarDashboard = () => {
 
   const pendingOrders = orders.filter((o) => o.status === 'pending').length;
   const cancelRequestsCount = orders.filter((o) => o.status === 'cancellation_requested').length;
+
+  // Calculate Sales by School for Chart
+  const salesBySchool = orders
+    .filter(o => o.status !== 'cancelled' && o.status !== 'rejected')
+    .reduce((acc, order) => {
+      const existing = acc.find(item => item.name === order.schoolName);
+      if (existing) {
+        existing.Omzet += (order.totalPriceStudent || 0);
+        existing.Laba += (order.totalPriceKopkar || 0);
+      } else {
+        acc.push({
+          name: order.schoolName || 'Unknown',
+          Omzet: order.totalPriceStudent || 0,
+          Laba: order.totalPriceKopkar || 0
+        });
+      }
+      return acc;
+    }, [] as { name: string; Omzet: number; Laba: number }[])
+    .sort((a, b) => b.Omzet - a.Omzet)
+    .slice(0, 5); // Top 5 Schools
+
+  const formatRupiah = (value: number) => {
+    if (value >= 1000000) {
+      return `Rp ${(value / 1000000).toFixed(1)}Jt`;
+    }
+    return `Rp ${(value / 1000).toFixed(0)}K`;
+  };
 
   return (
     <div className="kopkar-dashboard">
@@ -50,6 +78,35 @@ const KopkarDashboard = () => {
           </Link>
         )}
       </div>
+
+      {/* Chart Section */}
+      {salesBySchool.length > 0 && (
+        <div className="kopkar-stat-card" style={{ marginBottom: '24px', padding: '24px' }}>
+          <h3 style={{ marginBottom: '16px', color: '#1e293b', fontSize: '1.2rem', fontWeight: 700 }}>
+            📊 Top 5 Sekolah Berdasarkan Omzet
+          </h3>
+          <div style={{ width: '100%', height: '300px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={salesBySchool}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tickFormatter={formatRupiah} tick={{ fontSize: 12, fill: '#64748b' }} />
+                <Tooltip 
+                  formatter={(value: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)}
+                  cursor={{ fill: '#f8fafc' }}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                <Bar dataKey="Omzet" name="Total Omzet (Tagihan Siswa)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
+                <Bar dataKey="Laba" name="Laba Koperasi (HPP)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* Menu Utama Action Cards */}
       <div className="kopkar-main-menu" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
