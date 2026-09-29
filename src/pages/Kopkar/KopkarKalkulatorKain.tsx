@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 
 type GarmentType = 'kemeja' | 'celana' | 'rok' | 'rompi';
 
@@ -298,44 +299,57 @@ const KopkarKalkulatorKain = () => {
     const preset = PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0];
     setCurrentPreset(preset);
 
-    const savedData = localStorage.getItem('koperasi_size_presets');
-    if (savedData) {
+    const loadFromSupabase = async () => {
       try {
-        const parsed = JSON.parse(savedData);
-        if (parsed[preset.key]) {
-          setSizes(parsed[preset.key].map((s: any) => ({ ...s, id: Math.random().toString() })));
-          return;
+        const { data, error } = await supabase
+          .from('kalkulator_size_charts')
+          .select('sizes_data')
+          .eq('preset_key', preset.key)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          throw error;
         }
-      } catch (e) {
-        console.error(e);
+
+        if (data && data.sizes_data) {
+          setSizes(data.sizes_data.map((s: any) => ({ ...s, id: Math.random().toString() })));
+        } else {
+          setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
+        }
+      } catch (err) {
+        console.error('Error fetching size chart from supabase:', err);
+        setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
       }
-    }
-    
-    setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
+    };
+
+    loadFromSupabase();
   }, [selectedPresetKey]);
 
-  const savePresetToLocal = () => {
-    const savedData = localStorage.getItem('koperasi_size_presets');
-    let parsed: any = {};
-    if (savedData) {
-      try { parsed = JSON.parse(savedData); } catch (e) {}
+  const savePresetToSupabase = async () => {
+    const presetData = sizes.map(s => ({ name: s.name, ratio: s.ratio, data: s.data }));
+    try {
+      // Upsert: update if exists, insert if not. Supabase uses the unique preset_key to resolve conflict.
+      const { error } = await supabase
+        .from('kalkulator_size_charts')
+        .upsert({ preset_key: selectedPresetKey, sizes_data: presetData }, { onConflict: 'preset_key' });
+      
+      if (error) throw error;
+      alert('Size Chart berhasil disimpan ke database (Supabase)!');
+    } catch (err: any) {
+      alert('Gagal menyimpan: ' + err.message);
+      console.error(err);
     }
-    parsed[selectedPresetKey] = sizes.map(s => ({ name: s.name, ratio: s.ratio, data: s.data }));
-    localStorage.setItem('koperasi_size_presets', JSON.stringify(parsed));
-    alert('Size Chart berhasil disimpan secara lokal!');
   };
 
-  const resetPresetToDefault = () => {
-    if (!window.confirm('Kembalikan size chart ini ke pengaturan awal?')) return;
+  const resetPresetToDefault = async () => {
+    if (!window.confirm('Kembalikan size chart ini ke pengaturan awal? Data di database juga akan dihapus.')) return;
     const preset = PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0];
     setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
-    const savedData = localStorage.getItem('koperasi_size_presets');
-    if (savedData) {
-      try { 
-        const parsed = JSON.parse(savedData); 
-        delete parsed[selectedPresetKey];
-        localStorage.setItem('koperasi_size_presets', JSON.stringify(parsed));
-      } catch (e) {}
+    
+    try {
+      await supabase.from('kalkulator_size_charts').delete().eq('preset_key', selectedPresetKey);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -473,7 +487,7 @@ const KopkarKalkulatorKain = () => {
               </h3>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={resetPresetToDefault} style={{ padding: '6px 12px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>Reset</button>
-                <button onClick={savePresetToLocal} style={{ padding: '6px 12px', background: '#3b82f6', border: 'none', borderRadius: '6px', fontSize: '0.8rem', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>💾 Simpan Perubahan</button>
+                <button onClick={savePresetToSupabase} style={{ padding: '6px 12px', background: '#3b82f6', border: 'none', borderRadius: '6px', fontSize: '0.8rem', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>💾 Simpan Perubahan</button>
               </div>
             </div>
             
