@@ -34,7 +34,9 @@ const SchoolReturn = () => {
     ? getProductsByLevel(schoolLevel)
     : products;
 
-  const uniqueProductNames = Array.from(new Set(availableCatalog.map(p => p.name)));
+  const uniqueProducts = Array.from(
+    new Map(availableCatalog.map(p => [p.name, { name: p.name, code: p.code }])).values()
+  ).sort((a, b) => a.code.localeCompare(b.code));
 
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([
     {
@@ -610,9 +612,9 @@ const SchoolReturn = () => {
                             value={currentProduct?.name || ''}
                             onChange={(e) => handleProductNameSelect(idx, e.target.value)}
                           >
-                            {uniqueProductNames.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
+                            {uniqueProducts.map((prod) => (
+                              <option key={prod.name} value={prod.name}>
+                                [{prod.code}] {prod.name}
                               </option>
                             ))}
                           </select>
