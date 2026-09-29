@@ -1,17 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
-import { useProducts } from '../../context/ProductContext';
+
 import type { ReturnRequest } from '../../types';
 import '../School/returns.css';
 
 const KopkarReturn = () => {
   const { user } = useAuth();
-  const { returns, acceptReturn, rejectReturn } = useReturns();
-  const { restockProduct } = useProducts();
+  const { returns, confirmReturn, receiveReturn, rejectReturn } = useReturns();
 
   // Filter tabs & search
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('pending');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'koperasi_confirmed' | 'sekolah_dikirim' | 'koperasi_diterima' | 'rejected'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
@@ -39,15 +38,19 @@ const KopkarReturn = () => {
 
   // Stats calculation
   const totalCount = returns.length;
-  const pendingCount = returns.filter((r) => r.status === 'requested' || r.status === 'in_transit').length;
-  const acceptedCount = returns.filter((r) => r.status === 'accepted').length;
+  const pendingCount = returns.filter((r) => r.status === 'pending').length;
+  const confirmedCount = returns.filter((r) => r.status === 'koperasi_confirmed').length;
+  const sentCount = returns.filter((r) => r.status === 'sekolah_dikirim').length;
+  const receivedCount = returns.filter((r) => r.status === 'koperasi_diterima').length;
   const rejectedCount = returns.filter((r) => r.status === 'rejected').length;
 
   // Filter returns
   const filteredReturns = returns.filter((r) => {
     let matchTab = true;
-    if (activeTab === 'pending') matchTab = r.status === 'requested' || r.status === 'in_transit';
-    else if (activeTab === 'accepted') matchTab = r.status === 'accepted';
+    if (activeTab === 'pending') matchTab = r.status === 'pending';
+    else if (activeTab === 'koperasi_confirmed') matchTab = r.status === 'koperasi_confirmed';
+    else if (activeTab === 'sekolah_dikirim') matchTab = r.status === 'sekolah_dikirim';
+    else if (activeTab === 'koperasi_diterima') matchTab = r.status === 'koperasi_diterima';
     else if (activeTab === 'rejected') matchTab = r.status === 'rejected';
 
     const matchSearch =
@@ -59,17 +62,24 @@ const KopkarReturn = () => {
     return matchTab && matchSearch;
   });
 
-  const handleOpenAcceptModal = (ret: ReturnRequest) => {
+  const handleConfirmReturnClick = async (ret: ReturnRequest) => {
+    if (window.confirm('Yakin ingin menyetujui pengajuan retur ini? (Sekolah akan diminta mengirimkan barang)')) {
+      await confirmReturn(ret.id, { confirmedByName: user?.name || 'Kopkar' });
+      setActionSuccess(`Retur ${ret.id} telah disetujui.`);
+      setTimeout(() => setActionSuccess(''), 3000);
+    }
+  };
+
+  const handleOpenReceiveModal = (ret: ReturnRequest) => {
     setAcceptingReturn(ret);
     setAcceptedByName(user?.name ? `${user.name} (Kopkar)` : 'Staf Koperasi');
     setAcceptedAtDate(todayStr);
     setAcceptedAtTime(currentTimeStr);
-    setAcceptedNotes('Barang telah kami terima di gudang Koperasi dan diverifikasi fisik lengkap sesuai permohonan.');
-    setIsRestockChecked(false);
+    setAcceptedNotes('Barang telah kami terima di gudang Koperasi dan diverifikasi.');
     setAcceptError('');
   };
 
-  const handleConfirmAccept = (e: FormEvent) => {
+  const handleConfirmReceive = async (e: FormEvent) => {
     e.preventDefault();
     if (!acceptingReturn) return;
 
@@ -81,33 +91,17 @@ const KopkarReturn = () => {
       setAcceptError('Tanggal dan jam penerimaan fisik wajib diisi.');
       return;
     }
-    if (!acceptedNotes.trim()) {
-      setAcceptError('Catatan konfirmasi penerimaan fisik wajib diisi.');
-      return;
-    }
 
-    // Process return acceptance
-    acceptReturn(acceptingReturn.id, {
+    await receiveReturn(acceptingReturn.id, {
       acceptedByName: acceptedByName.trim(),
       acceptedAtDate,
       acceptedAtTime,
       acceptedNotes: acceptedNotes.trim(),
-      isRestocked: isRestockChecked,
     });
 
-    // Optionally restock if checked
-    if (isRestockChecked && restockProduct) {
-      acceptingReturn.items.forEach((item) => {
-        if (item.productId && item.quantity > 0) {
-          restockProduct(item.productId, item.quantity);
-        }
-      });
-    }
-
-    const returnId = acceptingReturn.id;
+    setActionSuccess(`Barang retur ${acceptingReturn.id} telah dicatat sebagai diterima.`);
+    setTimeout(() => setActionSuccess(''), 3000);
     setAcceptingReturn(null);
-    setActionSuccess(`Retur ${returnId} berhasil dikonfirmasi diterima oleh Koperasi!`);
-    setTimeout(() => setActionSuccess(''), 5000);
   };
 
   const handleOpenRejectModal = (ret: ReturnRequest) => {
@@ -182,11 +176,19 @@ const KopkarReturn = () => {
           </div>
         </div>
 
+        <div className="return-stat-card success" style={{ background: '#e0f2fe', borderColor: '#bae6fd' }}>
+          <div className="return-stat-icon">📋</div>
+          <div className="return-stat-info">
+            <div className="return-stat-label" style={{ color: '#0369a1' }}>Disetujui</div>
+            <div className="return-stat-val" style={{ color: '#0369a1' }}>{confirmedCount}</div>
+          </div>
+        </div>
+
         <div className="return-stat-card success">
           <div className="return-stat-icon">✅</div>
           <div className="return-stat-info">
             <div className="return-stat-label">Selesai Diterima</div>
-            <div className="return-stat-val">{acceptedCount}</div>
+            <div className="return-stat-val">{receivedCount}</div>
           </div>
         </div>
 
@@ -218,10 +220,24 @@ const KopkarReturn = () => {
           </button>
           <button
             type="button"
-            className={`returns-tab-btn ${activeTab === 'accepted' ? 'active' : ''}`}
-            onClick={() => setActiveTab('accepted')}
+            className={`returns-tab-btn ${activeTab === 'koperasi_confirmed' ? 'active' : ''}`}
+            onClick={() => setActiveTab('koperasi_confirmed')}
           >
-            ✅ Selesai Diterima <span className="tab-badge">{acceptedCount}</span>
+            📋 Disetujui <span className="tab-badge">{confirmedCount}</span>
+          </button>
+          <button
+            type="button"
+            className={`returns-tab-btn ${activeTab === 'sekolah_dikirim' ? 'active' : ''}`}
+            onClick={() => setActiveTab('sekolah_dikirim')}
+          >
+            🚚 Dikirim Sekolah <span className="tab-badge">{sentCount}</span>
+          </button>
+          <button
+            type="button"
+            className={`returns-tab-btn ${activeTab === 'koperasi_diterima' ? 'active' : ''}`}
+            onClick={() => setActiveTab('koperasi_diterima')}
+          >
+            ✅ Selesai Diterima <span className="tab-badge">{receivedCount}</span>
           </button>
           <button
             type="button"
@@ -257,9 +273,11 @@ const KopkarReturn = () => {
       ) : (
         <div className="returns-list">
           {filteredReturns.map((ret) => {
-            const isAccepted = ret.status === 'accepted';
+            const isPending = ret.status === 'pending';
+            const isConfirmed = ret.status === 'koperasi_confirmed';
+            const isSent = ret.status === 'sekolah_dikirim';
+            const isReceived = ret.status === 'koperasi_diterima';
             const isRejected = ret.status === 'rejected';
-            const isRequested = ret.status === 'requested' || ret.status === 'in_transit';
 
             return (
               <div key={ret.id} className="return-card">
@@ -274,19 +292,29 @@ const KopkarReturn = () => {
                   </div>
 
                   <div>
-                    {isRequested && (
+                    {isPending && (
                       <span className="return-status-pill requested">
-                        ⏳ Menunggu Konfirmasi Penerimaan
+                        ⏳ Menunggu Konfirmasi Koperasi
                       </span>
                     )}
-                    {isAccepted && (
+                    {isConfirmed && (
+                      <span className="return-status-pill accepted" style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}>
+                        📋 Disetujui (Menunggu Sekolah Kirim)
+                      </span>
+                    )}
+                    {isSent && (
+                      <span className="return-status-pill requested" style={{ background: '#fef3c7', color: '#d97706', borderColor: '#fde68a' }}>
+                        🚚 Sedang Dikirim Sekolah
+                      </span>
+                    )}
+                    {isReceived && (
                       <span className="return-status-pill accepted">
-                        ✅ Barang Sudah Diterima Koperasi
+                        ✅ Diterima Koperasi
                       </span>
                     )}
                     {isRejected && (
                       <span className="return-status-pill rejected">
-                        ❌ Retur Ditolak
+                        ❌ Permohonan Retur Ditolak
                       </span>
                     )}
                   </div>
@@ -349,8 +377,7 @@ const KopkarReturn = () => {
                   </div>
                 </div>
 
-                {/* Acceptance proof if already accepted */}
-                {isAccepted && (
+                {isReceived && (
                   <div className="return-accepted-alert">
                     <div className="accepted-check-icon">✓</div>
                     <div className="accepted-alert-content">
@@ -358,11 +385,18 @@ const KopkarReturn = () => {
                         Telah Dikonfirmasi Diterima oleh Karyawan Koperasi
                       </div>
                       <div className="accepted-alert-meta">
-                        Petugas Penerima: <strong>{ret.acceptedByName}</strong> • Waktu Penerimaan: <strong>{ret.acceptedAtDate || formatDateId(ret.acceptedAt)} {ret.acceptedAtTime ? `pukul ${ret.acceptedAtTime} WIB` : ''}</strong>
+                        Petugas Penerima: <strong>{ret.koperasiDiterimaByName}</strong> • Waktu Penerimaan: <strong>{formatDateId(ret.koperasiDiterimaAt)}</strong>
                       </div>
-                      {ret.acceptedNotes && (
+                      {ret.koperasiDiterimaNotes && (
                         <div className="accepted-alert-notes">
-                          "Catatan Fisik: {ret.acceptedNotes}"
+                          "Catatan Fisik: {ret.koperasiDiterimaNotes}"
+                        </div>
+                      )}
+                      
+                      {/* Note for exchange sizes */}
+                      {ret.reasonCategory === 'Ukuran Tidak Sesuai' && (
+                        <div style={{ marginTop: '8px', padding: '8px', background: '#e0f2fe', borderRadius: '6px', fontSize: '0.82rem', color: '#0369a1' }}>
+                          ℹ️ Sistem mengingatkan: Harap kirim kembali barang pengganti ke Sekolah.
                         </div>
                       )}
                     </div>
@@ -397,7 +431,7 @@ const KopkarReturn = () => {
                     🔍 Lihat Rincian
                   </button>
 
-                  {isRequested && (
+                  {isPending && (
                     <>
                       <button
                         type="button"
@@ -409,11 +443,21 @@ const KopkarReturn = () => {
                       <button
                         type="button"
                         className="btn-accept-action"
-                        onClick={() => handleOpenAcceptModal(ret)}
+                        onClick={() => handleConfirmReturnClick(ret)}
                       >
-                        ✓ Konfirmasi Terima Retur
+                        ✓ Setujui Retur (Minta Kirim)
                       </button>
                     </>
+                  )}
+                  {isSent && (
+                    <button
+                      type="button"
+                      className="btn-accept-action"
+                      style={{ background: '#2563eb' }}
+                      onClick={() => handleOpenReceiveModal(ret)}
+                    >
+                      📦 Terima Barang dari Sekolah
+                    </button>
                   )}
                 </div>
               </div>
@@ -437,7 +481,7 @@ const KopkarReturn = () => {
               </button>
             </div>
 
-            <form onSubmit={handleConfirmAccept}>
+            <form onSubmit={handleConfirmReceive}>
               <div className="return-modal-body">
                 {acceptError && (
                   <div className="return-info-callout" style={{ borderLeftColor: '#e11d48', background: '#fff1f2', color: '#be123c' }}>
@@ -646,17 +690,17 @@ const KopkarReturn = () => {
 
             <div className="return-modal-body">
               {/* Status info */}
-              {viewingReturn.status === 'accepted' && (
+              {viewingReturn.status === 'koperasi_diterima' && (
                 <div className="return-accepted-alert">
                   <div className="accepted-check-icon">✓</div>
                   <div className="accepted-alert-content">
                     <div className="accepted-alert-title">Diterima oleh Karyawan Koperasi</div>
                     <div style={{ fontSize: '0.86rem', color: '#166534' }}>
-                      Diterima oleh: <strong>{viewingReturn.acceptedByName}</strong> pada <strong>{viewingReturn.acceptedAtDate} ({viewingReturn.acceptedAtTime} WIB)</strong>
+                      Diterima oleh: <strong>{viewingReturn.koperasiDiterimaByName}</strong> pada <strong>{formatDateId(viewingReturn.koperasiDiterimaAt)}</strong>
                     </div>
-                    {viewingReturn.acceptedNotes && (
+                    {viewingReturn.koperasiDiterimaNotes && (
                       <div className="accepted-alert-notes">
-                        Catatan: {viewingReturn.acceptedNotes}
+                        Catatan: {viewingReturn.koperasiDiterimaNotes}
                       </div>
                     )}
                   </div>

@@ -6,24 +6,22 @@ import type { ReturnRequest, ReturnItem, SchoolLevel } from '../../types';
 import './returns.css';
 
 const REASON_CATEGORIES = [
-  'Cacat Jahitan / Bahan Pabrik',
-  'Salah Ukuran / Salah Kirim',
-  'Buku Cacat Cetak / Rusak Fisik',
-  'Kerusakan Selama Pengiriman',
-  'Kelebihan Kuantiti Pengiriman',
+  'Rusak',
+  'Ukuran Tidak Sesuai',
+  'Kelebihan Stok',
   'Lainnya',
 ];
 
 const SchoolReturn = () => {
   const { user } = useAuth();
-  const { getReturnsBySchoolId, createReturn } = useReturns();
+  const { getReturnsBySchoolId, createReturn, shipReturn } = useReturns();
   const { products, getProductsByLevel } = useProducts();
 
   // All returns for this school
   const schoolReturns = user ? getReturnsBySchoolId(user.id) : [];
 
   // Filter tabs & search
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'koperasi_confirmed' | 'sekolah_dikirim' | 'koperasi_diterima' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
@@ -59,15 +57,19 @@ const SchoolReturn = () => {
 
   // Stats calculation
   const totalCount = schoolReturns.length;
-  const pendingCount = schoolReturns.filter((r) => r.status === 'requested' || r.status === 'in_transit').length;
-  const acceptedCount = schoolReturns.filter((r) => r.status === 'accepted').length;
+  const pendingCount = schoolReturns.filter((r) => r.status === 'pending').length;
+  const confirmedCount = schoolReturns.filter((r) => r.status === 'koperasi_confirmed').length;
+  const sentCount = schoolReturns.filter((r) => r.status === 'sekolah_dikirim').length;
+  const receivedCount = schoolReturns.filter((r) => r.status === 'koperasi_diterima').length;
   const rejectedCount = schoolReturns.filter((r) => r.status === 'rejected').length;
 
   // Filtered returns
   const filteredReturns = schoolReturns.filter((r) => {
     let matchTab = true;
-    if (activeTab === 'pending') matchTab = r.status === 'requested' || r.status === 'in_transit';
-    else if (activeTab === 'accepted') matchTab = r.status === 'accepted';
+    if (activeTab === 'pending') matchTab = r.status === 'pending';
+    else if (activeTab === 'koperasi_confirmed') matchTab = r.status === 'koperasi_confirmed';
+    else if (activeTab === 'sekolah_dikirim') matchTab = r.status === 'sekolah_dikirim';
+    else if (activeTab === 'koperasi_diterima') matchTab = r.status === 'koperasi_diterima';
     else if (activeTab === 'rejected') matchTab = r.status === 'rejected';
 
     const matchSearch =
@@ -77,6 +79,12 @@ const SchoolReturn = () => {
 
     return matchTab && matchSearch;
   });
+
+  const handleShipReturn = async (ret: ReturnRequest) => {
+    if (window.confirm('Apakah Anda yakin sudah menyerahkan barang ini ke kurir/ekspedisi?')) {
+      await shipReturn(ret.id, { shippingNotes: ret.shippingNote || 'Dikirim oleh sekolah' });
+    }
+  };
 
   // Handlers for Items Builder
   const handleAddItem = () => {
@@ -252,11 +260,19 @@ const SchoolReturn = () => {
           </div>
         </div>
 
+        <div className="return-stat-card success" style={{ background: '#e0f2fe', borderColor: '#bae6fd' }}>
+          <div className="return-stat-icon">📋</div>
+          <div className="return-stat-info">
+            <div className="return-stat-label" style={{ color: '#0369a1' }}>Disetujui</div>
+            <div className="return-stat-val" style={{ color: '#0369a1' }}>{confirmedCount}</div>
+          </div>
+        </div>
+
         <div className="return-stat-card success">
           <div className="return-stat-icon">✅</div>
           <div className="return-stat-info">
             <div className="return-stat-label">Diterima Koperasi</div>
-            <div className="return-stat-val">{acceptedCount}</div>
+            <div className="return-stat-val">{receivedCount}</div>
           </div>
         </div>
 
@@ -288,10 +304,24 @@ const SchoolReturn = () => {
           </button>
           <button
             type="button"
-            className={`returns-tab-btn ${activeTab === 'accepted' ? 'active' : ''}`}
-            onClick={() => setActiveTab('accepted')}
+            className={`returns-tab-btn ${activeTab === 'koperasi_confirmed' ? 'active' : ''}`}
+            onClick={() => setActiveTab('koperasi_confirmed')}
           >
-            ✅ Sudah Diterima <span className="tab-badge">{acceptedCount}</span>
+            📋 Disetujui <span className="tab-badge">{confirmedCount}</span>
+          </button>
+          <button
+            type="button"
+            className={`returns-tab-btn ${activeTab === 'sekolah_dikirim' ? 'active' : ''}`}
+            onClick={() => setActiveTab('sekolah_dikirim')}
+          >
+            🚚 Dikirim <span className="tab-badge">{sentCount}</span>
+          </button>
+          <button
+            type="button"
+            className={`returns-tab-btn ${activeTab === 'koperasi_diterima' ? 'active' : ''}`}
+            onClick={() => setActiveTab('koperasi_diterima')}
+          >
+            ✅ Selesai Diterima <span className="tab-badge">{receivedCount}</span>
           </button>
           <button
             type="button"
@@ -327,9 +357,11 @@ const SchoolReturn = () => {
       ) : (
         <div className="returns-list">
           {filteredReturns.map((ret) => {
-            const isAccepted = ret.status === 'accepted';
+            const isPending = ret.status === 'pending';
+            const isConfirmed = ret.status === 'koperasi_confirmed';
+            const isSent = ret.status === 'sekolah_dikirim';
+            const isReceived = ret.status === 'koperasi_diterima';
             const isRejected = ret.status === 'rejected';
-            const isRequested = ret.status === 'requested' || ret.status === 'in_transit';
 
             return (
               <div key={ret.id} className="return-card">
@@ -344,14 +376,24 @@ const SchoolReturn = () => {
                   </div>
 
                   <div>
-                    {isRequested && (
+                    {isPending && (
                       <span className="return-status-pill requested">
                         ⏳ Menunggu Konfirmasi Koperasi
                       </span>
                     )}
-                    {isAccepted && (
+                    {isConfirmed && (
+                      <span className="return-status-pill accepted" style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}>
+                        📋 Disetujui (Silakan Kirim)
+                      </span>
+                    )}
+                    {isSent && (
+                      <span className="return-status-pill requested" style={{ background: '#fef3c7', color: '#d97706', borderColor: '#fde68a' }}>
+                        🚚 Sedang Dikirim ke Koperasi
+                      </span>
+                    )}
+                    {isReceived && (
                       <span className="return-status-pill accepted">
-                        ✅ Diterima oleh Koperasi
+                        ✅ Diterima Koperasi
                       </span>
                     )}
                     {isRejected && (
@@ -419,20 +461,40 @@ const SchoolReturn = () => {
                   </div>
                 </div>
 
+                {/* Actions for School */}
+                {isConfirmed && (
+                  <div className="return-card-actions" style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button 
+                      className="btn-primary" 
+                      onClick={() => handleShipReturn(ret)}
+                      style={{ padding: '8px 16px', borderRadius: '8px' }}
+                    >
+                      Kirim Barang Sekarang
+                    </button>
+                  </div>
+                )}
+
                 {/* Proof / Verification Alert when Accepted by Koperasi */}
-                {isAccepted && (
+                {isReceived && (
                   <div className="return-accepted-alert">
                     <div className="accepted-check-icon">✓</div>
                     <div className="accepted-alert-content">
                       <div className="accepted-alert-title">
-                        Bukti Konfirmasi Penerimaan oleh Koperasi
+                        Bukti Penerimaan oleh Koperasi
                       </div>
                       <div className="accepted-alert-meta">
-                        Diterima oleh Petugas Koperasi: <strong>{ret.acceptedByName || 'Staf Koperasi'}</strong> • Waktu Diterima: <strong>{ret.acceptedAtDate || formatDateId(ret.acceptedAt)} {ret.acceptedAtTime ? `pukul ${ret.acceptedAtTime} WIB` : ''}</strong>
+                        Diterima oleh: <strong>{ret.koperasiDiterimaByName || 'Staf Koperasi'}</strong> • Waktu: <strong>{formatDateId(ret.koperasiDiterimaAt)}</strong>
                       </div>
-                      {ret.acceptedNotes && (
+                      {ret.koperasiDiterimaNotes && (
                         <div className="accepted-alert-notes">
-                          "Catatan Koperasi: {ret.acceptedNotes}"
+                          "Catatan: {ret.koperasiDiterimaNotes}"
+                        </div>
+                      )}
+                      
+                      {/* Note for exchange sizes */}
+                      {ret.reasonCategory === 'Ukuran Tidak Sesuai' && (
+                        <div style={{ marginTop: '8px', padding: '8px', background: '#e0f2fe', borderRadius: '6px', fontSize: '0.82rem', color: '#0369a1' }}>
+                          ℹ️ Koperasi akan mengirimkan kembali barang pengganti ke sekolah Anda.
                         </div>
                       )}
                     </div>
@@ -702,41 +764,69 @@ const SchoolReturn = () => {
                   </div>
                 </div>
 
-                <div className={`timeline-step ${viewingReturn.status === 'accepted' ? 'completed' : viewingReturn.status === 'rejected' ? 'rejected' : 'current'}`}>
+                <div className={`timeline-step ${viewingReturn.status !== 'pending' && viewingReturn.status !== 'rejected' ? 'completed' : viewingReturn.status === 'rejected' ? 'rejected' : 'current'}`}>
                   <div className="timeline-icon">
-                    {viewingReturn.status === 'accepted' ? '✓' : viewingReturn.status === 'rejected' ? '✕' : '2'}
+                    {viewingReturn.status !== 'pending' && viewingReturn.status !== 'rejected' ? '✓' : viewingReturn.status === 'rejected' ? '✕' : '2'}
                   </div>
                   <div className="timeline-content">
                     <div className="timeline-title">
-                      {viewingReturn.status === 'accepted'
-                        ? 'Dikonfirmasi Diterima oleh Karyawan Koperasi'
+                      {viewingReturn.status !== 'pending' && viewingReturn.status !== 'rejected'
+                        ? 'Pengajuan Retur Disetujui'
                         : viewingReturn.status === 'rejected'
                         ? 'Retur Ditolak oleh Koperasi'
-                        : 'Menunggu Pemeriksaan Fisik di Koperasi'}
+                        : 'Menunggu Persetujuan Koperasi'}
                     </div>
                     <div className="timeline-desc">
-                      {viewingReturn.status === 'accepted'
-                        ? `Diterima oleh ${viewingReturn.acceptedByName || 'Staf Gudang'} pada ${viewingReturn.acceptedAtDate || formatDateId(viewingReturn.acceptedAt)} pukul ${viewingReturn.acceptedAtTime || '-'} WIB`
+                      {viewingReturn.status !== 'pending' && viewingReturn.status !== 'rejected'
+                        ? `Disetujui oleh ${viewingReturn.confirmedByName || 'Koperasi'}`
                         : viewingReturn.status === 'rejected'
                         ? `Ditolak oleh ${viewingReturn.rejectedByName || 'Koperasi'}: ${viewingReturn.rejectionReason}`
-                        : 'Barang sedang dalam perjalanan atau menunggu antrean pengecekan fisik di gudang koperasi.'}
+                        : 'Menunggu verifikasi pengajuan retur oleh staf Koperasi.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`timeline-step ${viewingReturn.status === 'koperasi_diterima' || viewingReturn.status === 'sekolah_dikirim' ? 'completed' : 'pending'}`}>
+                  <div className="timeline-icon">
+                    {viewingReturn.status === 'koperasi_diterima' || viewingReturn.status === 'sekolah_dikirim' ? '✓' : '3'}
+                  </div>
+                  <div className="timeline-content">
+                    <div className="timeline-title">Barang Dikirim ke Koperasi</div>
+                    <div className="timeline-desc">
+                      {viewingReturn.status === 'sekolah_dikirim' || viewingReturn.status === 'koperasi_diterima'
+                        ? `Telah dikirim: ${viewingReturn.sekolahDikirimNotes || 'Dikirim oleh sekolah'}`
+                        : 'Menunggu sekolah mengirimkan fisik barang retur'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`timeline-step ${viewingReturn.status === 'koperasi_diterima' ? 'completed' : 'pending'}`}>
+                  <div className="timeline-icon">
+                    {viewingReturn.status === 'koperasi_diterima' ? '✓' : '4'}
+                  </div>
+                  <div className="timeline-content">
+                    <div className="timeline-title">Selesai Diterima Koperasi</div>
+                    <div className="timeline-desc">
+                      {viewingReturn.status === 'koperasi_diterima'
+                        ? `Diterima oleh ${viewingReturn.koperasiDiterimaByName} pada ${formatDateId(viewingReturn.koperasiDiterimaAt)}`
+                        : 'Menunggu barang sampai di gudang koperasi'}
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Acceptance Details Box */}
-              {viewingReturn.status === 'accepted' && (
+              {viewingReturn.status === 'koperasi_diterima' && (
                 <div className="return-accepted-alert">
                   <div className="accepted-check-icon">✅</div>
                   <div className="accepted-alert-content">
-                    <div className="accepted-alert-title">Konfirmasi Resmi Koperasi Karyawan</div>
+                    <div className="accepted-alert-title">Konfirmasi Resmi Penerimaan Barang</div>
                     <div style={{ fontSize: '0.88rem', color: '#166534', marginTop: '4px' }}>
-                      Petugas Penerima: <strong>{viewingReturn.acceptedByName}</strong><br />
-                      Waktu Diterima Fisik: <strong>{viewingReturn.acceptedAtDate} • {viewingReturn.acceptedAtTime} WIB</strong>
+                      Petugas Penerima: <strong>{viewingReturn.koperasiDiterimaByName}</strong><br />
+                      Waktu Diterima Fisik: <strong>{formatDateId(viewingReturn.koperasiDiterimaAt)}</strong>
                     </div>
                     <div className="accepted-alert-notes" style={{ marginTop: '8px' }}>
-                      <strong>Catatan Fisik Koperasi:</strong> {viewingReturn.acceptedNotes || 'Barang telah diterima dalam kondisi sesuai.'}
+                      <strong>Catatan Fisik Koperasi:</strong> {viewingReturn.koperasiDiterimaNotes || 'Barang telah diterima.'}
                     </div>
                   </div>
                 </div>

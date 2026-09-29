@@ -30,7 +30,9 @@ interface RejectReturnInput {
 interface ReturnContextType {
   returns: ReturnRequest[];
   createReturn: (data: CreateReturnInput) => Promise<{ success: boolean; id?: string; error?: string }>;
-  acceptReturn: (returnId: string, data: AcceptReturnInput) => Promise<void>;
+  confirmReturn: (returnId: string, data: { confirmedByName: string }) => Promise<void>;
+  shipReturn: (returnId: string, data: { shippingNotes: string }) => Promise<void>;
+  receiveReturn: (returnId: string, data: AcceptReturnInput) => Promise<void>;
   rejectReturn: (returnId: string, data: RejectReturnInput) => Promise<void>;
   getReturnsBySchoolId: (schoolUserId: string) => ReturnRequest[];
   pendingCount: number;
@@ -60,11 +62,18 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
       shippingNote: d.shipping_note,
       status: d.status,
       createdAt: d.created_at,
-      acceptedAt: d.accepted_at,
-      acceptedAtDate: d.accepted_at_date,
-      acceptedAtTime: d.accepted_at_time,
-      acceptedByName: d.accepted_by_name,
-      acceptedNotes: d.accepted_notes,
+      
+      confirmedAt: d.confirmed_at,
+      confirmedByName: d.confirmed_by_name,
+      
+      sekolahDikirimAt: d.sekolah_dikirim_at,
+      sekolahDikirimNotes: d.sekolah_dikirim_notes,
+      
+      koperasiDiterimaAt: d.koperasi_diterima_at,
+      koperasiDiterimaByName: d.koperasi_diterima_by_name,
+      koperasiDiterimaNotes: d.koperasi_diterima_notes,
+      
+      rejectedAt: d.rejected_at,
       rejectedByName: d.rejected_by_name,
       rejectionReason: d.rejection_reason,
       isRestocked: d.is_restocked
@@ -110,7 +119,7 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
         departure_date: data.departureDate,
         departure_time: data.departureTime,
         shipping_note: data.shippingNote?.trim() || null,
-        status: 'requested',
+        status: 'pending',
         created_at: new Date().toISOString(),
       };
 
@@ -126,24 +135,80 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
     [generateReturnId, fetchReturns]
   );
 
-  const acceptReturn = useCallback(async (returnId: string, data: AcceptReturnInput) => {
+  const confirmReturn = useCallback(async (returnId: string, data: { confirmedByName: string }) => {
     const updates = {
-      status: 'accepted',
-      accepted_at: new Date().toISOString(),
-      accepted_at_date: data.acceptedAtDate,
-      accepted_at_time: data.acceptedAtTime,
-      accepted_by_name: data.acceptedByName,
-      accepted_notes: data.acceptedNotes,
-      is_restocked: Boolean(data.isRestocked),
+      status: 'koperasi_confirmed',
+      confirmed_at: new Date().toISOString(),
+      confirmed_by_name: data.confirmedByName,
     };
     
     const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
     if (!error) {
       await fetchReturns();
     } else {
-      console.error('Error accepting return:', error);
+      console.error('Error confirming return:', error);
     }
   }, [fetchReturns]);
+
+  const shipReturn = useCallback(async (returnId: string, data: { shippingNotes: string }) => {
+    const updates = {
+      status: 'sekolah_dikirim',
+      sekolah_dikirim_at: new Date().toISOString(),
+      sekolah_dikirim_notes: data.shippingNotes,
+    };
+    
+    const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
+    if (!error) {
+      await fetchReturns();
+    } else {
+      console.error('Error shipping return:', error);
+    }
+  }, [fetchReturns]);
+
+  const receiveReturn = useCallback(async (returnId: string, data: AcceptReturnInput) => {
+    const updates = {
+      status: 'koperasi_diterima',
+      koperasi_diterima_at: new Date().toISOString(),
+      koperasi_diterima_by_name: data.acceptedByName,
+      koperasi_diterima_notes: data.acceptedNotes,
+      is_restocked: Boolean(data.isRestocked),
+    };
+    
+    const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
+    if (!error) {
+      // NOTE: We should update the inventory here if Kelebihan Stok or Rusak.
+      // Since we don't have direct access to ProductContext, we do it directly to supabase.
+      // But we need the items first.
+      const currentReturn = returns.find(r => r.id === returnId);
+      if (currentReturn) {
+        if (currentReturn.reasonCategory === 'Kelebihan Stok') {
+          // Tambah ke stok gudang utama
+          for (const item of currentReturn.items) {
+            if (item.productId) {
+              const { data: pData } = await supabase.from('products').select('stock').eq('id', item.productId).single();
+              if (pData) {
+                await supabase.from('products').update({ stock: pData.stock + item.quantity }).eq('id', item.productId);
+              }
+            }
+          }
+        } else if (currentReturn.reasonCategory === 'Rusak') {
+          // Tambah ke stok_rusak
+          for (const item of currentReturn.items) {
+            if (item.productId) {
+              const { data: pData } = await supabase.from('products').select('stock_rusak').eq('id', item.productId).single();
+              if (pData) {
+                await supabase.from('products').update({ stock_rusak: (pData.stock_rusak || 0) + item.quantity }).eq('id', item.productId);
+              }
+            }
+          }
+        }
+      }
+
+      await fetchReturns();
+    } else {
+      console.error('Error receiving return:', error);
+    }
+  }, [fetchReturns, returns]);
 
   const rejectReturn = useCallback(async (returnId: string, data: RejectReturnInput) => {
     const updates = {
@@ -167,14 +232,16 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
     [returns]
   );
 
-  const pendingCount = returns.filter((r) => r.status === 'requested').length;
+  const pendingCount = returns.filter((r) => r.status === 'pending').length;
 
   return (
     <ReturnContext.Provider
       value={{
         returns,
         createReturn,
-        acceptReturn,
+        confirmReturn,
+        shipReturn,
+        receiveReturn,
         rejectReturn,
         getReturnsBySchoolId,
         pendingCount,

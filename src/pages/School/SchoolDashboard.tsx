@@ -16,7 +16,7 @@ const SchoolDashboard = () => {
   const allSchoolOrders = getOrdersBySchoolId(user.id);
   const schoolReturns = getReturnsBySchoolId(user.id);
   
-  const activeReturnsCount = schoolReturns.filter((r) => r.status === 'requested' || r.status === 'in_transit').length;
+  const activeReturnsCount = schoolReturns.filter((r) => r.status === 'pending' || r.status === 'koperasi_confirmed' || r.status === 'sekolah_dikirim').length;
   const pendingCount = allSchoolOrders.filter((o) => o.status === 'pending').length;
   const approvedCount = allSchoolOrders.filter((o) => o.status === 'approved').length;
   const shippedCount = allSchoolOrders.filter((o) => o.status === 'shipped').length;

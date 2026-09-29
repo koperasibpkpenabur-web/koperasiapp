@@ -32,6 +32,7 @@ export interface ProductItem {
   feeSchool: number;       // Fee Sekolah (Margin Hak Sekolah)
   priceStudent: number;    // Harga Siswa = priceKopkar + feeSchool
   stock: number;           // Jumlah stok fisik di gudang koperasi (stock_gudang)
+  stockRusak?: number;     // Stok barang rusak hasil retur
   stockVendor?: number;    // Jumlah stok fisik di tempat vendor (stock_vendor)
   minStock?: number;       // Batas minimum stok
   size?: string;           // Ukuran
@@ -135,7 +136,7 @@ export interface Order {
 
 // --- Retur Barang System ---
 
-export type ReturnStatus = 'requested' | 'in_transit' | 'accepted' | 'rejected';
+export type ReturnStatus = 'pending' | 'koperasi_confirmed' | 'sekolah_dikirim' | 'koperasi_diterima' | 'rejected';
 
 export interface ReturnItem {
   productId?: string;
@@ -158,13 +159,21 @@ export interface ReturnRequest {
   shippingNote?: string;      // Catatan pengiriman/armada/sopir
   status: ReturnStatus;
   createdAt: string;          // ISO timestamp pengajuan
-  // Filled when accepted
-  acceptedAt?: string;
-  acceptedAtDate?: string;    // Tanggal penerimaan fisik di koperasi (YYYY-MM-DD)
-  acceptedAtTime?: string;    // Jam penerimaan fisik di koperasi (HH:mm)
-  acceptedByName?: string;    // Nama staf koperasi yang menerima
-  acceptedNotes?: string;     // Catatan verifikasi fisik barang oleh koperasi
+  
+  // Filled when koperasi confirmed
+  confirmedAt?: string;
+  confirmedByName?: string;
+  
+  // Filled when sekolah dikirim
+  sekolahDikirimAt?: string;
+  sekolahDikirimNotes?: string;
+  
+  // Filled when koperasi diterima
+  koperasiDiterimaAt?: string;
+  koperasiDiterimaByName?: string;
+  koperasiDiterimaNotes?: string;
   isRestocked?: boolean;      // Apakah barang dimasukkan kembali ke stok fisik
+
   // Filled when rejected
   rejectedAt?: string;
   rejectedByName?: string;

@@ -237,7 +237,7 @@ const SchoolPemesanan = () => {
   // Filter orders for logged-in school
   const allSchoolOrders = user ? getOrdersBySchoolId(user.id) : [];
   const schoolReturns = user ? getReturnsBySchoolId(user.id) : [];
-  const activeReturnsCount = schoolReturns.filter((r) => r.status === 'requested' || r.status === 'in_transit').length;
+  const activeReturnsCount = schoolReturns.filter((r) => r.status === 'pending' || r.status === 'koperasi_confirmed' || r.status === 'sekolah_dikirim').length;
 
   // 1. Pesanan Berjalan: pending, approved, shipped
   const activeOrders = allSchoolOrders.filter(

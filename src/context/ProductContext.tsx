@@ -63,6 +63,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       feeSchool: d.fee_school,
       priceStudent: d.price_student,
       stock: d.stock,
+      stockRusak: d.stock_rusak || 0,
       stockVendor: d.stock_vendor || 0,
       minStock: d.min_stock,
       size: d.size,
