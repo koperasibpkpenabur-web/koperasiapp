@@ -18,17 +18,7 @@ const VIEW_MODE_KEY = 'koperasi_view_mode';
 const SIDEBAR_COLLAPSED_KEY = 'koperasi_sidebar_collapsed';
 
 export function UIProvider({ children }: { children: ReactNode }) {
-  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
-    try {
-      const saved = localStorage.getItem(VIEW_MODE_KEY);
-      if (saved === 'mobile' || saved === 'desktop' || saved === 'auto') {
-        return saved;
-      }
-    } catch {
-      // fallback
-    }
-    return 'auto';
-  });
+  const [viewMode, setViewModeState] = useState<ViewMode>('auto');
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {

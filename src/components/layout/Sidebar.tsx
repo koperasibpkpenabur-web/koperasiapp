@@ -5,7 +5,7 @@ import { useReturns } from '../../context/ReturnContext';
 
 const Sidebar = () => {
   const { user } = useAuth();
-  const { isMobileNavOpen, closeMobileNav, isSidebarCollapsed, viewMode, setViewMode } = useUI();
+  const { isMobileNavOpen, closeMobileNav, isSidebarCollapsed } = useUI();
   const { pendingCount } = useReturns();
 
   if (!user) return null;
@@ -248,38 +248,8 @@ const Sidebar = () => {
         </ul>
       </nav>
 
-      {/* Mode Switcher di Paling Bawah Sidebar */}
+      {/* Sidebar Footer */}
       <div className="sidebar-bottom-section">
-        <div className="bottom-mode-label">Mode Tampilan Layar:</div>
-        <div className="mode-switcher-sidebar">
-          <button
-            type="button"
-            className={`sidebar-mode-btn ${viewMode === 'auto' ? 'active' : ''}`}
-            onClick={() => setViewMode('auto')}
-            title="Otomatis mengikuti ukuran layar device"
-          >
-            <span style={{ fontSize: '1rem' }}>🔄</span>
-            <span>Auto</span>
-          </button>
-          <button
-            type="button"
-            className={`sidebar-mode-btn ${viewMode === 'mobile' ? 'active' : ''}`}
-            onClick={() => setViewMode('mobile')}
-            title="Simulasi Tampilan Smartphone Mobile"
-          >
-            <span style={{ fontSize: '1rem' }}>📱</span>
-            <span>Mobile</span>
-          </button>
-          <button
-            type="button"
-            className={`sidebar-mode-btn ${viewMode === 'desktop' ? 'active' : ''}`}
-            onClick={() => setViewMode('desktop')}
-            title="Tampilan Layar Penuh Desktop"
-          >
-            <span style={{ fontSize: '1rem' }}>💻</span>
-            <span>Desktop</span>
-          </button>
-        </div>
         <div className="sidebar-footer-brand">
           © 2026 SINARA • Sinergi Administrasi Koperasi
         </div>
