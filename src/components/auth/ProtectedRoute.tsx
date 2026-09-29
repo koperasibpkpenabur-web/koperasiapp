@@ -77,7 +77,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
               marginBottom: '24px',
             }}
           >
-            Sistem <strong>SYNERA</strong> saat ini sedang dalam proses pemeliharaan atau update oleh Administrator.
+            Sistem <strong>SINARA</strong> saat ini sedang dalam proses pemeliharaan atau update oleh Administrator.
             Akses untuk pengguna Karyawan Koperasi dan Sekolah ditutup sementara.
           </p>
 

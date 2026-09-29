@@ -48,58 +48,61 @@ const LoginPage = () => {
 
   return (
     <div className="login-page">
-      <div className="login-card">
-        {/* Brand Logo Header */}
-        <div className="login-header">
-          <img src={`${import.meta.env.BASE_URL}logo-synera1.png`} alt="Logo Synera Koperasi" className="login-logo-img" />
-          <h1 className="login-welcome-title">Web-App Synera Koperasi</h1>
+      <div className="login-card split-layout">
+        <div className="login-left">
+          <img src={`${import.meta.env.BASE_URL}logo-synera1.png`} alt="Logo SINARA Koperasi" className="login-logo-img" />
+          <h1 className="login-welcome-title">Welcome to SINARA</h1>
+          <p className="login-tagline">Sinergi Administrasi Koperasi</p>
         </div>
 
-        <form className="login-form" onSubmit={handleSubmit}>
-          {error && <div className="login-error">{error}</div>}
+        <div className="login-right">
+          <h2 className="login-heading" style={{ marginBottom: '24px', fontSize: '1.5rem', color: '#395886', fontWeight: 800 }}>Login</h2>
+          <form className="login-form" onSubmit={handleSubmit}>
+            {error && <div className="login-error">{error}</div>}
 
-          <div className="form-group">
-            <label htmlFor="username">Username</label>
-            <input
-              id="username"
-              type="text"
-              placeholder="Masukkan username..."
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-            />
+            <div className="form-group">
+              <label htmlFor="username">Username</label>
+              <input
+                id="username"
+                type="text"
+                placeholder="Masukkan username..."
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '8px' }}>
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Masukkan password..."
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', fontSize: '0.85rem', color: '#64748b' }}>
+              <input 
+                type="checkbox" 
+                id="show-password" 
+                checked={showPassword} 
+                onChange={() => setShowPassword(!showPassword)}
+                style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+              />
+              <label htmlFor="show-password" style={{ cursor: 'pointer', margin: 0, fontWeight: 'normal', color: '#475569' }}>Tampilkan password</label>
+            </div>
+
+            <button type="submit" className="login-btn" disabled={isLoading}>
+              {isLoading ? 'Memeriksa...' : 'Login'}
+            </button>
+          </form>
+
+          <div className="login-footer">
+            © 2026 SINARA • Sinergi Administrasi Koperasi
           </div>
-
-          <div className="form-group" style={{ marginBottom: '8px' }}>
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              placeholder="Masukkan password..."
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', fontSize: '0.85rem', color: '#64748b' }}>
-            <input 
-              type="checkbox" 
-              id="show-password" 
-              checked={showPassword} 
-              onChange={() => setShowPassword(!showPassword)}
-              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-            />
-            <label htmlFor="show-password" style={{ cursor: 'pointer', margin: 0, fontWeight: 'normal', color: '#475569' }}>Tampilkan password</label>
-          </div>
-
-          <button type="submit" className="login-btn" disabled={isLoading}>
-            {isLoading ? 'Memeriksa...' : 'Login'}
-          </button>
-        </form>
-
-        <div className="login-footer">
-          © 2026 SYNERA • Koperasi BPK PENABUR
         </div>
       </div>
     </div>

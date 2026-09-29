@@ -7,14 +7,17 @@
   padding: 24px;
 }
 
-.login-card {
+.login-card.split-layout {
+  display: flex;
+  flex-direction: row;
+  max-width: 850px;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
   background: #ffffff;
   border-radius: 20px;
   border: 1px solid var(--border-subtle, #d5deef);
   box-shadow: 0 24px 60px rgba(20, 35, 58, 0.22);
-  padding: 44px 38px 36px;
-  width: 100%;
-  max-width: 440px;
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -23,12 +26,18 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.login-header {
+.login-left {
+  flex: 1;
+  background: var(--primary-blue, #395886);
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   text-align: center;
-  margin-bottom: 24px;
+  color: white;
 }
 
-/* Actual CYNERA logo image on login */
 .login-logo-img {
   width: 180px;
   height: auto;
@@ -36,43 +45,39 @@
   margin: 0 auto;
 }
 
-.login-welcome-title {
-  font-size: 1.4rem;
+.login-left .login-welcome-title {
+  color: white;
+  margin-top: 24px;
+  font-size: 1.6rem;
   font-weight: 700;
-  color: var(--primary-blue, #395886);
   letter-spacing: 0.02em;
-  margin-top: 18px;
-  margin-bottom: 8px;
-  line-height: 1.35;
 }
 
-.synera-title {
-  font-size: 1.65rem;
-  font-weight: 800;
-  color: var(--primary-blue, #395886);
-  letter-spacing: 0.06em;
-  margin-bottom: 6px;
+.login-left .login-tagline {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.95rem;
+  margin-top: 8px;
 }
 
-/* Elegant Tagline */
-.synera-tagline {
+.login-right {
+  flex: 1;
+  padding: 44px 44px 36px;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
 }
 
-.synera-tagline span:first-child {
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: var(--text-primary, #1e2d42);
-  letter-spacing: 0.02em;
-}
-
-.synera-subtag {
-  font-size: 0.76rem;
-  color: var(--text-secondary, #586b84);
-  font-weight: 400;
-  letter-spacing: 0.01em;
+@media (max-width: 768px) {
+  .login-card.split-layout {
+    flex-direction: column;
+  }
+  .login-left {
+    padding: 40px 24px;
+  }
+  .login-right {
+    padding: 30px 24px 36px;
+  }
 }
 
 .login-form {
