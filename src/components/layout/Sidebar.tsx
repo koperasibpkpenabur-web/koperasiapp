@@ -258,7 +258,8 @@ const Sidebar = () => {
             onClick={() => setViewMode('auto')}
             title="Otomatis mengikuti ukuran layar device"
           >
-            🔄 Auto
+            <span style={{ fontSize: '1rem' }}>🔄</span>
+            <span>Auto</span>
           </button>
           <button
             type="button"
@@ -266,7 +267,8 @@ const Sidebar = () => {
             onClick={() => setViewMode('mobile')}
             title="Simulasi Tampilan Smartphone Mobile"
           >
-            📱 Mobile
+            <span style={{ fontSize: '1rem' }}>📱</span>
+            <span>Mobile</span>
           </button>
           <button
             type="button"
@@ -274,7 +276,8 @@ const Sidebar = () => {
             onClick={() => setViewMode('desktop')}
             title="Tampilan Layar Penuh Desktop"
           >
-            💻 Desktop
+            <span style={{ fontSize: '1rem' }}>💻</span>
+            <span>Desktop</span>
           </button>
         </div>
         <div className="sidebar-footer-brand">

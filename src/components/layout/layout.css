@@ -225,9 +225,9 @@
 
 .mode-switcher-sidebar {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   background: rgba(0, 0, 0, 0.15);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 4px;
   gap: 4px;
 }
@@ -236,17 +236,19 @@
   flex: 1;
   background: transparent;
   border: none;
-  border-radius: 7px;
-  padding: 8px 12px;
-  font-size: 0.8rem;
+  border-radius: 6px;
+  padding: 6px 4px;
+  font-size: 0.65rem;
   font-weight: 600;
   color: #dce4f2;
   cursor: pointer;
   transition: all 0.2s ease;
-  text-align: left;
+  text-align: center;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 4px;
 }
 
 .sidebar-mode-btn:hover {
