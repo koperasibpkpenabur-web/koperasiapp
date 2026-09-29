@@ -452,35 +452,35 @@ const KopkarKalkulatorKain = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '24px', flexWrap: 'nowrap' }}>
-        {/* KOLOM KIRI */}
-        <div style={{ flex: '1.5', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>📏</span> 1. Data Gulungan Kain
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-              <div className="form-group">
-                <label>Jml Gulungan (Roll)</label>
-                <input type="number" min="1" value={totalRolls} onChange={e => setTotalRolls(Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label>Yard per Gulung</label>
-                <input type="number" min="1" value={yardsPerRoll} onChange={e => setYardsPerRoll(Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label>Lebar Kain (cm)</label>
-                <input type="number" value={fabricWidth} disabled style={{ background: '#f1f5f9' }} />
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>*Standar bidang 150cm</span>
-              </div>
-              <div className="form-group">
-                <label>Toleransi Cacat (%)</label>
-                <input type="number" min="0" max="100" value={defectTolerance} onChange={e => setDefectTolerance(Number(e.target.value))} />
-              </div>
-            </div>
+      <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+        <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>📏</span> 1. Data Gulungan Kain
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+          <div className="form-group">
+            <label>Jml Gulungan (Roll)</label>
+            <input type="number" min="1" value={totalRolls} onChange={e => setTotalRolls(Number(e.target.value))} />
           </div>
+          <div className="form-group">
+            <label>Yard per Gulung</label>
+            <input type="number" min="1" value={yardsPerRoll} onChange={e => setYardsPerRoll(Number(e.target.value))} />
+          </div>
+          <div className="form-group">
+            <label>Lebar Kain (cm)</label>
+            <input type="number" value={fabricWidth} disabled style={{ background: '#f1f5f9' }} />
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>*Standar bidang 150cm</span>
+          </div>
+          <div className="form-group">
+            <label>Toleransi Cacat (%)</label>
+            <input type="number" min="0" max="100" value={defectTolerance} onChange={e => setDefectTolerance(Number(e.target.value))} />
+          </div>
+        </div>
+      </div>
 
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+      {/* GABUNGAN BOX DATA MODEL & HASIL VENDOR */}
+      <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', gap: '24px', flexWrap: 'nowrap', overflowX: 'auto' }}>
+        {/* KOLOM KIRI: DATA MODEL */}
+        <div style={{ flex: '1.5', minWidth: '550px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <h3 style={{ margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>👕</span> 2. Data Model & Size Chart
@@ -554,12 +554,11 @@ const KopkarKalkulatorKain = () => {
                 + Tambah Baris Size
               </button>
             </div>
-          </div>
         </div>
 
-        {/* KOLOM HASIL */}
-        <div style={{ flex: '1', minWidth: '300px' }}>
-          <div style={{ background: '#0f172a', padding: '24px', borderRadius: '12px', color: '#fff', position: 'sticky', top: '24px' }}>
+        {/* KOLOM KANAN: PREDIKSI HASIL */}
+        <div style={{ flex: '1', minWidth: '320px' }}>
+          <div style={{ background: '#0f172a', padding: '24px', borderRadius: '12px', color: '#fff', height: '100%' }}>
             <h3 style={{ marginTop: 0, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #334155', paddingBottom: '16px' }}>
               <span>🎯</span> Prediksi Hasil Vendor
             </h3>
