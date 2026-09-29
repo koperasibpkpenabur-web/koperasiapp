@@ -85,30 +85,35 @@ const SchoolPemesanan = () => {
   const [formError, setFormError] = useState('');
 
   // Derived categorized items for matrix tables
-  const pakaianLetterItems: any[] = [];
-  const pakaianNumericItems: any[] = [];
+  const pakaianItems: any[] = [];
+  const kaosKakiItems: any[] = [];
+  const celanaItems: any[] = [];
   const sepatuItems: any[] = [];
-  const allSizeItems: any[] = [];
+  const aksesorisItems: any[] = [];
 
   matrixItems.forEach(row => {
-    if (row.type === 'sepatu') {
+    const nameLower = row.name.toLowerCase();
+    
+    if (nameLower.includes('sepatu')) {
       sepatuItems.push(row);
-      return;
-    }
-    if (row.type === 'aksesoris' || row.type === 'buku' || (row.variants.length <= 1 && (!row.variants[0]?.size || row.variants[0]?.size.trim().toUpperCase() === 'ALL SIZE'))) {
-      allSizeItems.push(row);
-      return;
-    }
-    const isNumeric = row.variants.some((v: any) => /^\d+$/.test(v.size?.trim()));
-    if (isNumeric) {
-      pakaianNumericItems.push(row);
+    } else if (nameLower.includes('kaos kaki')) {
+      kaosKakiItems.push(row);
+    } else if (row.type === 'celana/rok' || nameLower.includes('celana') || nameLower.includes('rok')) {
+      celanaItems.push(row);
+    } else if (row.type === 'aksesoris' || row.type === 'buku' || (row.variants.length <= 1 && (!row.variants[0]?.size || row.variants[0]?.size.trim().toUpperCase() === 'ALL SIZE'))) {
+      aksesorisItems.push(row);
     } else {
-      pakaianLetterItems.push(row);
+      pakaianItems.push(row);
     }
   });
 
-  const renderMatrixTable = (items: any[], title: string, isAllSize: boolean) => {
+  const renderMatrixTable = (items: any[], title: string) => {
     if (items.length === 0) return null;
+
+    // Check if ALL items in this specific table are "All Size" (max 1 variant with no specific size)
+    const isAllSize = items.every(row => 
+      row.variants.length <= 1 && (!row.variants[0]?.size || row.variants[0]?.size.trim().toUpperCase() === 'ALL SIZE')
+    );
 
     let allSizes: string[] = [];
     if (!isAllSize) {
@@ -1259,10 +1264,11 @@ const SchoolPemesanan = () => {
                       <div style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>Katalog kosong untuk jenjang ini.</div>
                     ) : (
                       <>
-                        {renderMatrixTable(pakaianLetterItems, 'Pakaian Standar (Ukuran Huruf SS-10L)', false)}
-                        {renderMatrixTable(pakaianNumericItems, 'Celana / Rok (Ukuran Angka)', false)}
-                        {renderMatrixTable(sepatuItems, 'Sepatu', false)}
-                        {renderMatrixTable(allSizeItems, 'Aksesoris & Perlengkapan (All Size)', true)}
+                        {renderMatrixTable(pakaianItems, 'Pakaian Standar')}
+                        {renderMatrixTable(kaosKakiItems, 'Kaos Kaki')}
+                        {renderMatrixTable(celanaItems, 'Celana & Rok')}
+                        {renderMatrixTable(sepatuItems, 'Sepatu Phantom')}
+                        {renderMatrixTable(aksesorisItems, 'Aksesoris & Perlengkapan')}
                       </>
                     )}
                   </div>
