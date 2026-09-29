@@ -297,8 +297,47 @@ const KopkarKalkulatorKain = () => {
   useEffect(() => {
     const preset = PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0];
     setCurrentPreset(preset);
+
+    const savedData = localStorage.getItem('koperasi_size_presets');
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed[preset.key]) {
+          setSizes(parsed[preset.key].map((s: any) => ({ ...s, id: Math.random().toString() })));
+          return;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    
     setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
   }, [selectedPresetKey]);
+
+  const savePresetToLocal = () => {
+    const savedData = localStorage.getItem('koperasi_size_presets');
+    let parsed: any = {};
+    if (savedData) {
+      try { parsed = JSON.parse(savedData); } catch (e) {}
+    }
+    parsed[selectedPresetKey] = sizes.map(s => ({ name: s.name, ratio: s.ratio, data: s.data }));
+    localStorage.setItem('koperasi_size_presets', JSON.stringify(parsed));
+    alert('Size Chart berhasil disimpan secara lokal!');
+  };
+
+  const resetPresetToDefault = () => {
+    if (!window.confirm('Kembalikan size chart ini ke pengaturan awal?')) return;
+    const preset = PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0];
+    setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
+    const savedData = localStorage.getItem('koperasi_size_presets');
+    if (savedData) {
+      try { 
+        const parsed = JSON.parse(savedData); 
+        delete parsed[selectedPresetKey];
+        localStorage.setItem('koperasi_size_presets', JSON.stringify(parsed));
+      } catch (e) {}
+    }
+  };
 
   const updateSize = (id: string, field: string, value: string | number) => {
     setSizes(sizes.map(s => {
@@ -394,45 +433,48 @@ const KopkarKalkulatorKain = () => {
     <div className="kopkar-container">
       <div className="kopkar-header">
         <div>
-          <h2 className="kopkar-title">Kalkulator Efisiensi Kain (Fabric Yield)</h2>
+          <h2 className="kopkar-title" style={{ fontVariantLigatures: 'none' }}>Kalkulator Efisiensi Kain (Fabric Yield)</h2>
           <p className="kopkar-subtitle">Prediksi akurat jumlah seragam yang bisa dijahit dari gulungan kain, anti-kecurangan vendor.</p>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-        {/* KOLOM INPUT */}
-        <div style={{ flex: '1 1 500px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>📏</span> 1. Data Gulungan Kain
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div className="form-group">
-                <label>Jml Gulungan (Roll)</label>
-                <input type="number" min="1" value={totalRolls} onChange={e => setTotalRolls(Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label>Yard per Gulung</label>
-                <input type="number" min="1" value={yardsPerRoll} onChange={e => setYardsPerRoll(Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label>Lebar Kain (cm)</label>
-                <input type="number" value={fabricWidth} disabled style={{ background: '#f1f5f9' }} />
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>*Standar bidang 150cm</span>
-              </div>
-              <div className="form-group">
-                <label>Toleransi Cacat (%)</label>
-                <input type="number" min="0" max="100" value={defectTolerance} onChange={e => setDefectTolerance(Number(e.target.value))} />
-              </div>
-            </div>
+      <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+        <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>📏</span> 1. Data Gulungan Kain
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+          <div className="form-group">
+            <label>Jml Gulungan (Roll)</label>
+            <input type="number" min="1" value={totalRolls} onChange={e => setTotalRolls(Number(e.target.value))} />
           </div>
+          <div className="form-group">
+            <label>Yard per Gulung</label>
+            <input type="number" min="1" value={yardsPerRoll} onChange={e => setYardsPerRoll(Number(e.target.value))} />
+          </div>
+          <div className="form-group">
+            <label>Lebar Kain (cm)</label>
+            <input type="number" value={fabricWidth} disabled style={{ background: '#f1f5f9' }} />
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>*Standar bidang 150cm</span>
+          </div>
+          <div className="form-group">
+            <label>Toleransi Cacat (%)</label>
+            <input type="number" min="0" max="100" value={defectTolerance} onChange={e => setDefectTolerance(Number(e.target.value))} />
+          </div>
+        </div>
+      </div>
 
+      <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+        {/* KOLOM KIRI */}
+        <div style={{ flex: '1 1 500px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <h3 style={{ margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span>👕</span> 2. Data Model & Size Chart
               </h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={resetPresetToDefault} style={{ padding: '6px 12px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>Reset</button>
+                <button onClick={savePresetToLocal} style={{ padding: '6px 12px', background: '#3b82f6', border: 'none', borderRadius: '6px', fontSize: '0.8rem', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>💾 Simpan Perubahan</button>
+              </div>
             </div>
             
             <div className="form-group" style={{ marginBottom: '20px' }}>
