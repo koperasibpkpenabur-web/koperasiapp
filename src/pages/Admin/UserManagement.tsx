@@ -202,6 +202,7 @@ const UserManagement = () => {
     const data = filteredUsers.map((u) => ({
       'Nama PIC': u.name,
       'Username': u.username,
+      'Password': u.password || '-',
       'Role': getRoleLabel(u.role),
       'Nama Sekolah': u.schoolName || '-',
       'Jenjang': u.schoolLevel || '-',
@@ -283,6 +284,7 @@ const UserManagement = () => {
               <tr>
                 <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>Nama PIC {sortField === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
                 <th onClick={() => handleSort('username')} style={{ cursor: 'pointer' }}>Username {sortField === 'username' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
+                <th>Password</th>
                 <th onClick={() => handleSort('role')} style={{ cursor: 'pointer' }}>Role {sortField === 'role' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
                 <th onClick={() => handleSort('schoolName')} style={{ cursor: 'pointer' }}>Nama Sekolah {sortField === 'schoolName' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
                 <th>Jenjang</th>
@@ -295,6 +297,7 @@ const UserManagement = () => {
                 <tr key={u.id}>
                   <td><strong>{u.name}</strong></td>
                   <td><code>{u.username}</code></td>
+                  <td><code>{u.password || '-'}</code></td>
                   <td>
                     <span className={`role-badge ${u.role}`}>{getRoleLabel(u.role)}</span>
                   </td>
