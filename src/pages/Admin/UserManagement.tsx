@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole, SchoolLevel } from '../../types';
 import './admin.css';
@@ -34,15 +35,30 @@ const UserManagement = () => {
   const [formError, setFormError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.username.toLowerCase().includes(search.toLowerCase()) ||
-      (u.schoolName && u.schoolName.toLowerCase().includes(search.toLowerCase()));
-    const matchesRole = filterRole === 'all' || u.role === filterRole;
-    const matchesLevel = filterLevel === 'all' || (u.role === 'sekolah' && u.schoolLevel === filterLevel);
-    return matchesSearch && matchesRole && matchesLevel;
-  });
+  const [sortField, setSortField] = useState<'name' | 'username' | 'role' | 'schoolName' | 'createdAt'>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const filteredUsers = users
+    .filter((u) => {
+      const matchesSearch =
+        u.name.toLowerCase().includes(search.toLowerCase()) ||
+        u.username.toLowerCase().includes(search.toLowerCase()) ||
+        (u.schoolName && u.schoolName.toLowerCase().includes(search.toLowerCase()));
+      const matchesRole = filterRole === 'all' || u.role === filterRole;
+      const matchesLevel = filterLevel === 'all' || (u.role === 'sekolah' && u.schoolLevel === filterLevel);
+      return matchesSearch && matchesRole && matchesLevel;
+    })
+    .sort((a, b) => {
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
+
+      if (!aValue) aValue = '';
+      if (!bValue) bValue = '';
+
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   const resetForm = () => {
     setFormName('');
@@ -182,6 +198,31 @@ const UserManagement = () => {
     return labels[role];
   };
 
+  const exportToExcel = () => {
+    const data = filteredUsers.map((u) => ({
+      'Nama PIC': u.name,
+      'Username': u.username,
+      'Role': getRoleLabel(u.role),
+      'Nama Sekolah': u.schoolName || '-',
+      'Jenjang': u.schoolLevel || '-',
+      'Tanggal Dibuat': formatDate(u.createdAt),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Akun');
+    XLSX.writeFile(workbook, 'Data_Akun_Koperasi.xlsx');
+  };
+
+  const handleSort = (field: 'name' | 'username' | 'role' | 'schoolName' | 'createdAt') => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
   return (
     <div className="user-management">
       <h2>Manajemen Pengguna (Sekolah & Koperasi)</h2>
@@ -225,9 +266,14 @@ const UserManagement = () => {
           )}
         </div>
 
-        <button className="btn-primary" onClick={handleOpenModal}>
-          + Tambah Akun Baru
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button className="btn-secondary" onClick={exportToExcel} title="Export ke Excel" style={{ padding: '8px 16px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+            📥 Export Excel
+          </button>
+          <button className="btn-primary" onClick={handleOpenModal}>
+            + Tambah Akun Baru
+          </button>
+        </div>
       </div>
 
       <div className="user-table-container">
@@ -235,12 +281,12 @@ const UserManagement = () => {
           <table className="user-table">
             <thead>
               <tr>
-                <th>Nama PIC</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Nama Sekolah</th>
+                <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>Nama PIC {sortField === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
+                <th onClick={() => handleSort('username')} style={{ cursor: 'pointer' }}>Username {sortField === 'username' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
+                <th onClick={() => handleSort('role')} style={{ cursor: 'pointer' }}>Role {sortField === 'role' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
+                <th onClick={() => handleSort('schoolName')} style={{ cursor: 'pointer' }}>Nama Sekolah {sortField === 'schoolName' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
                 <th>Jenjang</th>
-                <th>Dibuat</th>
+                <th onClick={() => handleSort('createdAt')} style={{ cursor: 'pointer' }}>Dibuat {sortField === 'createdAt' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
                 <th>Aksi</th>
               </tr>
             </thead>
