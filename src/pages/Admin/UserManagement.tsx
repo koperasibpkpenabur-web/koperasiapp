@@ -1,12 +1,18 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import * as XLSX from 'xlsx';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole, SchoolLevel } from '../../types';
 import './admin.css';
 
 const UserManagement = () => {
-  const { getUsers, addUser, updateUser, deleteUser, updateUserPassword } = useAuth();
-  const users = getUsers();
+  const { addUser, updateUser, deleteUser, updateUserPassword } = useAuth();
+
+  const [serverUsers, setServerUsers] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [loading, setLoading] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -38,27 +44,49 @@ const UserManagement = () => {
   const [sortField, setSortField] = useState<'name' | 'username' | 'role' | 'schoolName' | 'createdAt'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  const filteredUsers = users
-    .filter((u) => {
-      const matchesSearch =
-        u.name.toLowerCase().includes(search.toLowerCase()) ||
-        u.username.toLowerCase().includes(search.toLowerCase()) ||
-        (u.schoolName && u.schoolName.toLowerCase().includes(search.toLowerCase()));
-      const matchesRole = filterRole === 'all' || u.role === filterRole;
-      const matchesLevel = filterLevel === 'all' || (u.role === 'sekolah' && u.schoolLevel === filterLevel);
-      return matchesSearch && matchesRole && matchesLevel;
-    })
-    .sort((a, b) => {
-      let aValue: any = a[sortField];
-      let bValue: any = b[sortField];
+  const fetchUsers = async () => {
+    setLoading(true);
+    let query = supabase.from('app_users').select('*', { count: 'exact' });
 
-      if (!aValue) aValue = '';
-      if (!bValue) bValue = '';
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,username.ilike.%${search}%,school_name.ilike.%${search}%`);
+    }
+    if (filterRole !== 'all') {
+      query = query.eq('role', filterRole);
+    }
+    if (filterRole === 'sekolah' && filterLevel !== 'all') {
+      query = query.eq('school_level', filterLevel);
+    }
 
-      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
+    const dbSortField = sortField === 'schoolName' ? 'school_name' : 
+                        sortField === 'createdAt' ? 'created_at' : sortField;
+                        
+    query = query.order(dbSortField, { ascending: sortOrder === 'asc' });
+
+    const from = (currentPage - 1) * itemsPerPage;
+    const to = from + itemsPerPage - 1;
+    query = query.range(from, to);
+
+    const { data, count, error } = await query;
+    if (!error && data) {
+      setServerUsers(data.map(u => ({
+        id: u.id,
+        username: u.username,
+        password: u.password,
+        name: u.name,
+        role: u.role,
+        schoolName: u.school_name,
+        schoolLevel: u.school_level,
+        createdAt: u.created_at,
+      })));
+      if (count !== null) setTotalCount(count);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, [search, filterRole, filterLevel, sortField, sortOrder, currentPage, itemsPerPage]);
 
   const resetForm = () => {
     setFormName('');
@@ -128,6 +156,7 @@ const UserManagement = () => {
       
       const result = await updateUser(editTargetId, updates);
       if (result.success) {
+        await fetchUsers();
         handleCloseModal();
       } else {
         setFormError(result.error || 'Gagal mengubah user');
@@ -143,6 +172,7 @@ const UserManagement = () => {
       });
 
       if (result.success) {
+        await fetchUsers();
         handleCloseModal();
       } else {
         setFormError(result.error || 'Gagal menambahkan user');
@@ -153,6 +183,7 @@ const UserManagement = () => {
   const handleDelete = async (id: string, name: string) => {
     if (window.confirm(`Hapus akun "${name}"? Tindakan ini tidak dapat dibatalkan.`)) {
       await deleteUser(id);
+      await fetchUsers();
     }
   };
 
@@ -198,18 +229,39 @@ const UserManagement = () => {
     return labels[role];
   };
 
-  const exportToExcel = () => {
-    const data = filteredUsers.map((u) => ({
+  const exportToExcel = async () => {
+    let query = supabase.from('app_users').select('*');
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,username.ilike.%${search}%,school_name.ilike.%${search}%`);
+    }
+    if (filterRole !== 'all') {
+      query = query.eq('role', filterRole);
+    }
+    if (filterRole === 'sekolah' && filterLevel !== 'all') {
+      query = query.eq('school_level', filterLevel);
+    }
+    
+    const dbSortField = sortField === 'schoolName' ? 'school_name' : 
+                        sortField === 'createdAt' ? 'created_at' : sortField;
+    query = query.order(dbSortField, { ascending: sortOrder === 'asc' });
+
+    const { data, error } = await query;
+    if (error || !data) {
+      alert('Gagal mengambil data untuk export');
+      return;
+    }
+
+    const exportData = data.map((u: any) => ({
       'Nama PIC': u.name,
       'Username': u.username,
       'Password': u.password || '-',
       'Role': getRoleLabel(u.role),
-      'Nama Sekolah': u.schoolName || '-',
-      'Jenjang': u.schoolLevel || '-',
-      'Tanggal Dibuat': formatDate(u.createdAt),
+      'Nama Sekolah': u.school_name || '-',
+      'Jenjang': u.school_level || '-',
+      'Tanggal Dibuat': formatDate(u.created_at),
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Akun');
     XLSX.writeFile(workbook, 'Data_Akun_Koperasi.xlsx');
@@ -278,7 +330,9 @@ const UserManagement = () => {
       </div>
 
       <div className="user-table-container">
-        {filteredUsers.length > 0 ? (
+        {loading ? (
+          <div style={{ padding: '20px', textAlign: 'center' }}>Memuat data...</div>
+        ) : serverUsers.length > 0 ? (
           <table className="user-table">
             <thead>
               <tr>
@@ -293,7 +347,7 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((u) => (
+              {serverUsers.map((u) => (
                 <tr key={u.id}>
                   <td><strong>{u.name}</strong></td>
                   <td><code>{u.username}</code></td>
@@ -370,9 +424,45 @@ const UserManagement = () => {
         )}
       </div>
 
-      <div className="user-count">
-        Menampilkan {filteredUsers.length} dari {users.length} akun pengguna
-      </div>
+      {!loading && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+          <div className="user-count" style={{ marginTop: 0 }}>
+            Menampilkan {serverUsers.length} dari total {totalCount} akun pengguna
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.88rem', color: '#64748b' }}>Tampilkan per halaman:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none' }}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                style={{ padding: '6px 12px', border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1 }}
+              >
+                Sebelumnya
+              </button>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / itemsPerPage), prev + 1))}
+                disabled={currentPage * itemsPerPage >= totalCount}
+                style={{ padding: '6px 12px', border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', cursor: currentPage * itemsPerPage >= totalCount ? 'not-allowed' : 'pointer', opacity: currentPage * itemsPerPage >= totalCount ? 0.5 : 1 }}
+              >
+                Selanjutnya
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add User Modal */}
       {showModal && (

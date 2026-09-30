@@ -14,8 +14,6 @@ interface AuthContextType {
   updateUser: (id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>) => Promise<{ success: boolean; error?: string }>;
   updateUserPassword: (id: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   deleteUser: (id: string) => Promise<void>;
-  getUsers: () => User[];
-  getUsersByRole: (role: UserRole) => User[];
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -43,7 +41,6 @@ function loadMaintenanceMode(): boolean {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => loadAuth());
-  const [users, setUsers] = useState<User[]>([]);
   const [isMaintenanceMode, setIsMaintenanceMode] = useState<boolean>(() => loadMaintenanceMode());
 
   useEffect(() => {
@@ -58,26 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(MAINTENANCE_KEY, String(isMaintenanceMode));
   }, [isMaintenanceMode]);
 
-  const fetchUsers = useCallback(async () => {
-    const { data, error } = await supabase.from('app_users').select('*');
-    if (!error && data) {
-      const mapped = data.map(u => ({
-        id: u.id,
-        username: u.username,
-        password: u.password,
-        name: u.name,
-        role: u.role as UserRole,
-        schoolName: u.school_name,
-        schoolLevel: u.school_level,
-        createdAt: u.created_at,
-      }));
-      setUsers(mapped);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    localStorage.setItem(MAINTENANCE_KEY, String(isMaintenanceMode));
+  }, [isMaintenanceMode]);
 
   const setMaintenanceMode = useCallback((enabled: boolean) => {
     setIsMaintenanceMode(enabled);
@@ -146,9 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: error.message };
     }
 
-    await fetchUsers();
     return { success: true };
-  }, [fetchUsers]);
+  }, []);
 
   const updateUserPassword = useCallback(async (id: string, newPassword: string) => {
     const { error } = await supabase
@@ -160,9 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: error.message };
     }
     
-    await fetchUsers();
     return { success: true };
-  }, [fetchUsers]);
+  }, []);
 
   const updateUser = useCallback(async (id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>) => {
     const dbUpdates: any = {};
@@ -190,22 +168,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: error.message };
     }
     
-    await fetchUsers();
     return { success: true };
-  }, [fetchUsers]);
+  }, []);
 
   const deleteUser = useCallback(async (id: string) => {
     await supabase.from('app_users').delete().eq('id', id);
-    await fetchUsers();
-  }, [fetchUsers]);
-
-  const getUsers = useCallback(() => users, [users]);
-
-  const getUsersByRole = useCallback(
-    (role: UserRole) => users.filter((u) => u.role === role),
-    [users]
-  );
-
+  }, []);
   return (
     <AuthContext.Provider
       value={{
@@ -220,8 +188,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateUser,
         updateUserPassword,
         deleteUser,
-        getUsers,
-        getUsersByRole,
       }}
     >
       {children}

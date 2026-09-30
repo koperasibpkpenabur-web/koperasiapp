@@ -1,19 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
 import './admin.css';
 
 const AdminDashboard = () => {
-  const { getUsers, isMaintenanceMode, toggleMaintenanceMode } = useAuth();
+  const { isMaintenanceMode, toggleMaintenanceMode } = useAuth();
   const settings = useSettings();
   const { phase1Open, phase2Open, updatePhaseStatus } = settings;
-  const users = getUsers();
 
-  const totalAdmin = users.filter((u) => u.role === 'admin').length;
-  const totalKopkar = users.filter((u) => u.role === 'kopkar').length;
-  const listSekolah = users.filter((u) => u.role === 'sekolah');
+  const [totalAdmin, setTotalAdmin] = useState(0);
+  const [totalKopkar, setTotalKopkar] = useState(0);
+  const [listSekolah, setListSekolah] = useState<any[]>([]);
   const totalSekolah = listSekolah.length;
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const { data, error } = await supabase.from('app_users').select('id, role, school_name');
+      if (!error && data) {
+        setTotalAdmin(data.filter((u) => u.role === 'admin').length);
+        setTotalKopkar(data.filter((u) => u.role === 'kopkar').length);
+        setListSekolah(data.filter((u) => u.role === 'sekolah').map(u => ({ id: u.id, name: u.school_name || u.id })));
+      }
+    };
+    fetchStats();
+  }, []);
 
   const [selectedSchoolReset, setSelectedSchoolReset] = useState<string>('ALL');
 
@@ -171,7 +182,7 @@ const AdminDashboard = () => {
             >
               <option value="ALL">SEMUA SEKOLAH (Seluruh Data)</option>
               {listSekolah.map(s => (
-                <option key={s.id} value={s.id}>{s.schoolName || s.name}</option>
+                <option key={s.id} value={s.id}>{s.name || s.id}</option>
               ))}
             </select>
             <button
@@ -360,7 +371,7 @@ const AdminDashboard = () => {
         <div className="stat-card">
           <div className="stat-icon">👥</div>
           <div className="stat-label">Total User</div>
-          <div className="stat-value">{users.length}</div>
+          <div className="stat-value">{totalAdmin + totalKopkar + totalSekolah}</div>
         </div>
       </div>
     </div>
