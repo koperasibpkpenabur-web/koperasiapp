@@ -32,6 +32,7 @@ const UserManagement = () => {
   const [formSchoolName, setFormSchoolName] = useState('');
   const [formSchoolLevel, setFormSchoolLevel] = useState<SchoolLevel>('SMP');
   const [formError, setFormError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
@@ -51,6 +52,7 @@ const UserManagement = () => {
     setFormSchoolName('');
     setFormSchoolLevel('SMP');
     setFormError('');
+    setShowPassword(false);
   };
 
   const handleOpenModal = () => {
@@ -143,6 +145,7 @@ const UserManagement = () => {
     setEditPassUserName(name);
     setEditNewPassword('');
     setEditPassError('');
+    setShowPassword(false);
     setShowEditPassModal(true);
   };
 
@@ -356,13 +359,20 @@ const UserManagement = () => {
               {!editMode && (
                 <div className="form-group">
                   <label htmlFor="newPassword">Password *</label>
-                  <input
-                    id="newPassword"
-                    type="password"
-                    placeholder="Minimal 6 karakter"
-                    value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
-                  />
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      id="newPassword"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Minimal 6 karakter"
+                      value={formPassword}
+                      onChange={(e) => setFormPassword(e.target.value)}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'normal', color: '#64748b' }}>
+                    <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} style={{ width: 'auto', padding: 0 }} />
+                    Tampilkan Password
+                  </label>
                 </div>
               )}
 
@@ -438,14 +448,21 @@ const UserManagement = () => {
               {editPassError && <div className="modal-error">{editPassError}</div>}
               <div className="form-group">
                 <label htmlFor="editNewPassword">Password Baru</label>
-                <input
-                  id="editNewPassword"
-                  type="password"
-                  placeholder="Minimal 6 karakter"
-                  value={editNewPassword}
-                  onChange={(e) => setEditNewPassword(e.target.value)}
-                  autoFocus
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    id="editNewPassword"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Minimal 6 karakter"
+                    value={editNewPassword}
+                    onChange={(e) => setEditNewPassword(e.target.value)}
+                    autoFocus
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'normal', color: '#64748b' }}>
+                  <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} style={{ width: 'auto', padding: 0 }} />
+                  Tampilkan Password
+                </label>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn-secondary" onClick={() => setShowEditPassModal(false)}>
