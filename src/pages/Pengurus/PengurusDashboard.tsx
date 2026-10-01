@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+
 import * as XLSX from 'xlsx';
 import {
   BarChart,
@@ -171,40 +170,7 @@ const PengurusDashboard = () => {
     XLSX.writeFile(wb, "Rekap_Keuangan_Pengurus.xlsx");
   };
 
-  const handleDownloadPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text('Laporan Keuangan Koperasi - Executive Summary', 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Tanggal Cetak: ${new Date().toLocaleString('id-ID')}`, 14, 28);
-    
-    // Summary KPI
-    doc.text(`Total Omzet: ${formatRupiah(kpis.totalOmzet)}`, 14, 40);
-    doc.text(`Total Laba Bersih: ${formatRupiah(kpis.labaBersih)}`, 100, 40);
-    doc.text(`Total Kas Masuk: ${formatRupiah(kpis.kasMasuk)}`, 14, 48);
-    doc.text(`Total Piutang: ${formatRupiah(kpis.piutang)}`, 100, 48);
 
-    const tableColumn = ["No", "Nama Sekolah", "Jenjang", "Pesanan", "Omzet", "Lunas", "Piutang"];
-    const tableRows = omzetPerSchool.map((s, i) => [
-      i + 1, s.name, s.level, s.orderCount, formatRupiah(s.omzet), formatRupiah(s.lunas), formatRupiah(s.piutang)
-    ]);
-    
-    // Total row
-    tableRows.push([
-      '', 'TOTAL', '', omzetPerSchool.reduce((s, c) => s + c.orderCount, 0).toString(), formatRupiah(kpis.totalOmzet), formatRupiah(kpis.kasMasuk), formatRupiah(kpis.piutang)
-    ]);
-
-    (doc as any).autoTable({
-      head: [tableColumn],
-      body: tableRows,
-      startY: 60,
-      theme: 'grid',
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [59, 130, 246] }
-    });
-
-    doc.save('Laporan_Keuangan_Pengurus.pdf');
-  };
 
   if (loading) {
     return (
@@ -223,9 +189,6 @@ const PengurusDashboard = () => {
           <p className="pengurus-subtitle">Ringkasan Keuangan & Performa Penjualan Koperasi</p>
         </div>
         <div className="pengurus-actions">
-          <button className="btn-export pdf" onClick={handleDownloadPDF}>
-            <span className="icon">📄</span> PDF
-          </button>
           <button className="btn-export excel" onClick={handleDownloadExcel}>
             <span className="icon">📊</span> Excel
           </button>

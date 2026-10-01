@@ -462,7 +462,7 @@ const SchoolPemesanan = () => {
     const cat = getProductsByLevel(defaultLevel);
     const grp = groupByCatalog(cat);
 
-    if (!phase.includes('Tambahan') && grp.length > 0) {
+    if (grp.length > 0) {
       setMatrixItems(grp.map((g: any) => ({
         name: g.name,
         type: g.type,
@@ -1375,7 +1375,7 @@ const SchoolPemesanan = () => {
                       const p = e.target.value as 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan';
                       setOrderPhase(p);
                       const grp = groupByCatalog(getProductsByLevel(orderLevelFilter));
-                      if (!p.includes('Tambahan')) {
+                      if (grp.length > 0) {
                         setMatrixItems(grp.map((g: any) => ({
                           name: g.name, type: g.type, priceKopkar: g.priceKopkar, feeSchool: g.feeSchool, priceStudent: g.priceStudent,
                           variants: g.variants, sizesInput: {}, customVariantId: '', customQty: 0
@@ -1399,8 +1399,7 @@ const SchoolPemesanan = () => {
               <div className="form-group">
                 <label>Pilih Barang dari Katalog Jenjang {orderLevelFilter}:</label>
 
-                {!orderPhase.includes('Tambahan') ? (
-                  <div className="matrix-tables-container" style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                <div className="matrix-tables-container" style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
                     {matrixItems.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>Katalog kosong untuk jenjang ini.</div>
                     ) : (
@@ -1413,85 +1412,6 @@ const SchoolPemesanan = () => {
                       </>
                     )}
                   </div>
-                ) : (
-                  <div className="school-order-items-table">
-                    {selectedItems.map((item, index) => {
-                      const selectedGroup = groupedCatalog[item.name];
-                      return (
-                        <div key={index} className="school-order-row">
-                          <div style={{ flexGrow: 1 }}>
-                            <select
-                              className="product-select"
-                              value={item.name || ''}
-                              onChange={(e) => handleProductSelect(index, e.target.value)}
-                            >
-                              <option value="">-- Pilih Barang --</option>
-                              {groupedCatalogArray.map((group) => (
-                                <option key={group.name} value={group.name}>
-                                  [{group.type}] {group.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div style={{ width: '160px', marginLeft: '10px' }}>
-                            <select
-                              value={item.productId || ''}
-                              onChange={(e) => {
-                                const prodId = e.target.value;
-                                const variant = selectedGroup?.variants.find(v => v.id === prodId);
-                                setSelectedItems((prev) => prev.map((it, i) => i === index ? { ...it, productId: prodId, code: variant?.code, size: variant?.size || '' } : it));
-                              }}
-                              style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#fff' }}
-                              required={item.quantity > 0}
-                              disabled={!item.name}
-                            >
-                              <option value="">-- Pilih Ukuran --</option>
-                              {sortBySize(selectedGroup?.variants || []).map(v => (
-                                <option key={v.id} value={v.id}>{v.size || 'Tanpa Ukuran'} (Stok: {v.stock})</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div style={{ width: '100px', marginLeft: '10px' }}>
-                            <input
-                              type="number"
-                              min="0"
-                              placeholder="Jumlah"
-                              value={item.quantity || ''}
-                              onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
-                              style={{ width: '100%', padding: '9px 12px', textAlign: 'center' }}
-                              required
-                            />
-                          </div>
-
-                          {selectedItems.length > 1 && (
-                            <button
-                              type="button"
-                              className="btn-remove-item"
-                              onClick={() => handleRemoveItem(index)}
-                              title="Hapus baris"
-                              style={{ marginLeft: '10px' }}
-                            >
-                              ×
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {orderPhase.includes('Tambahan') && (
-                  <button
-                    type="button"
-                    className="btn-add-item"
-                    onClick={handleAddItem}
-                    style={{ marginTop: '8px' }}
-                  >
-                    + Tambah Item Barang Lainnya
-                  </button>
-                )}
               </div>
 
               <div className="modal-actions" style={{ marginTop: '24px', flexDirection: 'column', alignItems: 'stretch' }}>

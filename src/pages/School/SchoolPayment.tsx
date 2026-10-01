@@ -11,6 +11,9 @@ const SchoolPayment = () => {
   const [unpaidOrders, setUnpaidOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Checkbox selection
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -18,28 +21,52 @@ const SchoolPayment = () => {
 
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbzhByEZzU-c5LWpJJK74Kcy0xcwQal-kmwHuIwAPnaCUJxYMbp9b_cWs5_-SNCsIJE/exec';
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadingIds, setUploadingIds] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const handleUploadClick = (orderId: string) => {
-    setUploadingId(orderId);
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIds = unpaidOrders.map(o => o.id);
+      setSelectedOrderIds(allIds);
+    } else {
+      setSelectedOrderIds([]);
+    }
+  };
+
+  const handleSelectOne = (orderId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedOrderIds(prev => [...prev, orderId]);
+    } else {
+      setSelectedOrderIds(prev => prev.filter(id => id !== orderId));
+    }
+  };
+
+  const handleUploadClick = () => {
+    if (selectedOrderIds.length === 0) {
+      alert('Pilih minimal 1 pesanan untuk diupload bukti pembayarannya.');
+      return;
+    }
+    setUploadingIds(selectedOrderIds);
     fileInputRef.current?.click();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !uploadingId) return;
+    if (!file || uploadingIds.length === 0) return;
 
     if (file.size > 5 * 1024 * 1024) {
       alert('Ukuran file maksimal 5MB.');
-      setUploadingId(null);
+      setUploadingIds([]);
       return;
     }
 
+    setIsUploading(true);
     const reader = new FileReader();
     reader.onload = async () => {
       const base64Str = reader.result?.toString().split(',')[1];
       if (!base64Str) {
-        setUploadingId(null);
+        setUploadingIds([]);
+        setIsUploading(false);
         return;
       }
       
@@ -47,7 +74,8 @@ const SchoolPayment = () => {
         const params = new URLSearchParams();
         params.append('data', base64Str);
         params.append('mimeType', file.type);
-        params.append('filename', `Bukti_Transfer_${uploadingId}_${file.name}`);
+        // Use the first ID as part of the filename, just for reference
+        params.append('filename', `Bukti_Transfer_Batch_${uploadingIds[0]}_${file.name}`);
 
         const response = await fetch(GAS_URL, {
           method: 'POST',
@@ -56,9 +84,13 @@ const SchoolPayment = () => {
         
         const result = await response.json();
         if (result.status === 'success') {
-          await uploadPaymentReceipt(uploadingId, result.url);
+          // Update all selected orders
+          for (const orderId of uploadingIds) {
+            await uploadPaymentReceipt(orderId, result.url);
+          }
           fetchUnpaidOrders(); // Refresh table
-          alert('Bukti transfer berhasil diupload!');
+          setSelectedOrderIds([]); // Clear selection
+          alert(`Bukti transfer berhasil diupload untuk ${uploadingIds.length} pesanan!`);
         } else {
           alert('Gagal upload: ' + result.message);
         }
@@ -66,7 +98,8 @@ const SchoolPayment = () => {
         console.error(err);
         alert('Terjadi kesalahan koneksi saat mengupload bukti transfer.');
       } finally {
-        setUploadingId(null);
+        setUploadingIds([]);
+        setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
     };
@@ -118,6 +151,10 @@ const SchoolPayment = () => {
     });
   };
 
+  const totalSelectedAmount = unpaidOrders
+    .filter(o => selectedOrderIds.includes(o.id))
+    .reduce((sum, o) => sum + (Number(o.total_price_student) || 0), 0);
+
   return (
     <div className="school-dashboard">
       <div className="school-header-section">
@@ -137,12 +174,20 @@ const SchoolPayment = () => {
           <strong>Bank BCA: 0760256757 a.n. Koperasi Konsumen Karyawan BPK Penabur</strong>
         </p>
         <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569', lineHeight: 1.5 }}>
-          Setelah melakukan transfer, silakan konfirmasi ke pihak Koperasi melalui WhatsApp atau bawa bukti bayar ke kantor Koperasi agar status pesanan dapat diubah menjadi <strong>Lunas</strong>.
+          Pilih satu atau lebih pesanan di bawah ini, lalu klik "Upload Bukti Transfer". Anda dapat mengupload 1 bukti transfer gabungan untuk beberapa pesanan sekaligus.
         </p>
       </div>
 
-      <div className="order-toolbar">
-        <h3>Daftar Tagihan Belum Lunas</h3>
+      <div className="order-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3>Daftar Tagihan Belum Lunas</h3>
+          {selectedOrderIds.length > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '0.9rem', color: '#0f172a' }}>
+              Terpilih <strong>{selectedOrderIds.length}</strong> pesanan (Total: <strong>{formatRupiah(totalSelectedAmount)}</strong>)
+            </div>
+          )}
+        </div>
+        
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -150,6 +195,19 @@ const SchoolPayment = () => {
           accept="image/*,application/pdf" 
           style={{ display: 'none' }} 
         />
+        <button 
+          className="btn-ship" 
+          onClick={handleUploadClick}
+          disabled={isUploading || unpaidOrders.length === 0}
+          style={{ 
+            background: isUploading ? '#94a3b8' : '#3b82f6', 
+            padding: '10px 20px', 
+            fontSize: '0.95rem',
+            cursor: isUploading ? 'wait' : 'pointer'
+          }}
+        >
+          {isUploading ? 'Mengupload...' : '📤 Upload Bukti Transfer'}
+        </button>
       </div>
 
       {loading ? (
@@ -160,127 +218,85 @@ const SchoolPayment = () => {
             <table className="order-table">
               <thead>
                 <tr>
+                  <th style={{ width: '40px', textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={unpaidOrders.length > 0 && selectedOrderIds.length === unpaidOrders.length}
+                      onChange={handleSelectAll}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
                   <th>ID Pesanan</th>
                   <th>Tanggal Pesan</th>
                   <th>Status Pesanan</th>
                   <th>Total Tagihan Siswa</th>
-                  <th>Keterangan</th>
-                  <th>Aksi</th>
+                  <th>Status Pembayaran</th>
                 </tr>
               </thead>
               <tbody>
-                {unpaidOrders.map((order: any) => (
-                  <tr key={order.id}>
-                    <td><strong>{order.id}</strong></td>
-                    <td>{formatDate(order.created_at)}</td>
-                    <td>
-                      <span className={`status-badge ${order.status}`}>
-                        {order.status === 'pending' && '⏳ Menunggu'}
-                        {order.status === 'approved' && '👍 Disetujui'}
-                        {order.status === 'shipped' && '🚚 Dikirim'}
-                        {order.status === 'received' && '✅ Diterima'}
-                      </span>
-                    </td>
-                    <td>
-                      <strong style={{ fontSize: '1.05rem', color: '#0f172a' }}>
-                        {formatRupiah(order.total_price_student)}
-                      </strong>
-                    </td>
-                    <td>
-                      <span className="badge-pay-unpaid">🔴 Menunggu Pelunasan</span>
-                    </td>
-                    <td>
-                      {order.paid_notes && order.paid_notes.includes('[BUKTI_TRANSFER]') ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span style={{ fontSize: '0.8rem', color: '#047857', fontWeight: 600 }}>✅ Sedang diverifikasi Koperasi</span>
-                          <a href={order.paid_notes.replace('[BUKTI_TRANSFER] ', '')} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: '#3b82f6' }}>Lihat Bukti</a>
-                        </div>
-                      ) : (
-                        <button 
-                          className="btn-ship" 
-                          style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                          onClick={() => handleUploadClick(order.id)}
-                          disabled={uploadingId === order.id}
-                        >
-                          {uploadingId === order.id ? 'Mengupload...' : 'Upload Bukti'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {unpaidOrders.map((order: any) => {
+                  const isChecked = selectedOrderIds.includes(order.id);
+                  const isWaitingVerification = order.paid_notes && order.paid_notes.includes('[BUKTI_TRANSFER]');
+                  
+                  return (
+                    <tr key={order.id} style={{ background: isChecked ? '#eff6ff' : 'transparent' }}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => handleSelectOne(order.id, e.target.checked)}
+                          style={{ cursor: 'pointer' }}
+                          disabled={isWaitingVerification} // prevent re-upload if already waiting
+                        />
+                      </td>
+                      <td><strong>{order.id}</strong></td>
+                      <td>{formatDate(order.created_at)}</td>
+                      <td>
+                        <span className={`status-badge ${order.status}`}>
+                          {order.status === 'pending' && '⏳ Menunggu'}
+                          {order.status === 'approved' && '👍 Disetujui'}
+                          {order.status === 'shipped' && '🚚 Dikirim'}
+                          {order.status === 'received' && '✅ Diterima'}
+                        </span>
+                      </td>
+                      <td>
+                        <strong style={{ fontSize: '1.05rem', color: '#0f172a' }}>
+                          {formatRupiah(order.total_price_student)}
+                        </strong>
+                      </td>
+                      <td>
+                        {isWaitingVerification ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '0.8rem', color: '#047857', fontWeight: 600 }}>✅ Sedang diverifikasi Koperasi</span>
+                            <a href={order.paid_notes.replace('[BUKTI_TRANSFER] ', '')} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: '#3b82f6' }}>Lihat Bukti Upload</a>
+                          </div>
+                        ) : (
+                          <span className="badge-pay-unpaid">🔴 Menunggu Pelunasan</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-
-          {/* Mobile View */}
-          <div className="mobile-cards-view">
-            {unpaidOrders.map((order) => (
-              <div className="mobile-order-card" key={order.id}>
-                <div className="mobile-card-header">
-                  <div>
-                    <span className="mobile-order-id">{order.id}</span>
-                    <div className="mobile-card-date">{formatDate(order.created_at)}</div>
-                  </div>
-                  <span className={`status-badge ${order.status}`}>
-                    {order.status === 'pending' && '⏳ Menunggu'}
-                    {order.status === 'approved' && '👍 Disetujui'}
-                    {order.status === 'shipped' && '🚚 Dikirim'}
-                    {order.status === 'received' && '✅ Diterima'}
-                  </span>
-                </div>
-                
-                <div className="mobile-price-summary" style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', marginTop: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="price-sub-label">Total Tagihan:</span>
-                    <strong style={{ fontSize: '1.1rem' }}>{formatRupiah(order.total_price_student)}</strong>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {order.paid_notes && order.paid_notes.includes('[BUKTI_TRANSFER]') ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span className="badge-pay-paid">⏳ Sedang Diverifikasi Koperasi</span>
-                      <a href={order.paid_notes.replace('[BUKTI_TRANSFER] ', '')} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: '#3b82f6', textAlign: 'center' }}>Lihat Foto Bukti</a>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="badge-pay-unpaid">
-                        🔴 Menunggu Pelunasan
-                      </span>
-                      {order.status === 'received' && (
-                        <button 
-                          className="btn-ship" 
-                          style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                          onClick={() => handleUploadClick(order.id)}
-                          disabled={uploadingId === order.id}
-                        >
-                          {uploadingId === order.id ? 'Mengupload...' : 'Upload Bukti'}
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pagination UI */}
+          
           {totalCount > itemsPerPage && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '24px' }}>
+            <div className="pagination" style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
               <button 
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage === 1 ? '#f1f5f9' : '#fff', color: currentPage === 1 ? '#94a3b8' : '#1e293b', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage === 1 ? '#f1f5f9' : '#fff', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
               >
                 ← Sebelumnya
               </button>
-              <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>
+              <span style={{ fontSize: '0.9rem', color: '#64748b', display: 'flex', alignItems: 'center' }}>
                 Halaman {currentPage} dari {Math.ceil(totalCount / itemsPerPage)}
               </span>
               <button 
                 disabled={currentPage >= Math.ceil(totalCount / itemsPerPage)}
                 onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / itemsPerPage), prev + 1))}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage >= Math.ceil(totalCount / itemsPerPage) ? '#f1f5f9' : '#fff', color: currentPage >= Math.ceil(totalCount / itemsPerPage) ? '#94a3b8' : '#1e293b', cursor: currentPage >= Math.ceil(totalCount / itemsPerPage) ? 'not-allowed' : 'pointer' }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage >= Math.ceil(totalCount / itemsPerPage) ? '#f1f5f9' : '#fff', cursor: currentPage >= Math.ceil(totalCount / itemsPerPage) ? 'not-allowed' : 'pointer' }}
               >
                 Selanjutnya →
               </button>
@@ -289,9 +305,7 @@ const SchoolPayment = () => {
         </>
       ) : (
         <div className="order-empty">
-          <div style={{ fontSize: '2rem', marginBottom: '10px' }}>🎉</div>
-          <p><strong>Tidak ada tagihan yang belum lunas.</strong></p>
-          <p style={{ color: '#64748b' }}>Terima kasih atas kerja sama Anda yang baik dengan Koperasi.</p>
+          <p>Semua tagihan Anda sudah lunas atau belum ada tagihan aktif.</p>
         </div>
       )}
     </div>
