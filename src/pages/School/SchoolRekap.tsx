@@ -16,14 +16,37 @@ const SchoolRekap = () => {
   const [statusFilter, setStatusFilter] = useState('all_active');
   const [phaseFilter, setPhaseFilter] = useState('all');
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       if (!user?.id) return;
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('orders')
-        .select('*, order_items(*)')
+        .select('*, order_items(*)', { count: 'exact' })
         .eq('school_user_id', user.id);
+        
+      if (statusFilter === 'all_active') {
+        query = query.in('status', ['pending', 'approved', 'shipped', 'received']);
+      } else {
+        query = query.eq('status', statusFilter);
+      }
+      
+      if (phaseFilter !== 'all') {
+        query = query.eq('order_phase', phaseFilter);
+      }
+      
+      // Pagination range
+      const from = (currentPage - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
+      query = query.order('created_at', { ascending: false }).range(from, to);
+
+      const { data, count, error } = await query;
         
       if (!error && data) {
         setOrders(data.map((row: any) => ({
@@ -39,33 +62,14 @@ const SchoolRekap = () => {
             feeSchool: Number(it.fee_school) || 0,
           }))
         })));
+        if (count !== null) setTotalCount(count);
       }
       setLoading(false);
     };
     fetchData();
-  }, [user?.id]);
+  }, [user?.id, statusFilter, phaseFilter, currentPage]);
 
   const recapData = useMemo(() => {
-    const filteredOrders = orders.filter((o: any) => {
-      if (statusFilter === 'all_active') {
-        if (o.status === 'cancelled' || o.status === 'rejected' || o.status === 'cancellation_requested') return false;
-      } else if (statusFilter === 'pending') {
-        if (o.status !== 'pending') return false;
-      } else if (statusFilter === 'approved') {
-        if (o.status !== 'approved') return false;
-      } else if (statusFilter === 'shipped') {
-        if (o.status !== 'shipped') return false;
-      } else if (statusFilter === 'received') {
-        if (o.status !== 'received') return false;
-      }
-
-      if (phaseFilter !== 'all' && o.orderPhase !== phaseFilter) {
-        return false;
-      }
-
-      return true;
-    });
-
     interface RecapRow {
       phase: string;
       itemName: string;
@@ -81,7 +85,7 @@ const SchoolRekap = () => {
     }
 
     const rows: RecapRow[] = [];
-    filteredOrders.forEach((o: any) => {
+    orders.forEach((o: any) => {
       o.items.forEach((it: any) => {
         if (it.quantity > 0) {
           rows.push({
@@ -107,7 +111,7 @@ const SchoolRekap = () => {
     });
 
     return rows;
-  }, [orders, statusFilter, phaseFilter]);
+  }, [orders]);
 
   const totalQuantity = recapData.reduce((acc, row) => acc + row.quantity, 0);
   const totalRupiahStudent = recapData.reduce((acc, row) => acc + row.totalStudent, 0);
@@ -122,13 +126,64 @@ const SchoolRekap = () => {
     }).format(num);
   };
 
-  const handleDownloadExcel = () => {
-    if (recapData.length === 0) {
+  const fetchAllForExport = async () => {
+    if (!user?.id) return [];
+    
+    let query = supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('school_user_id', user.id);
+      
+    if (statusFilter === 'all_active') {
+      query = query.in('status', ['pending', 'approved', 'shipped', 'received']);
+    } else {
+      query = query.eq('status', statusFilter);
+    }
+    
+    if (phaseFilter !== 'all') {
+      query = query.eq('order_phase', phaseFilter);
+    }
+    
+    const { data, error } = await query;
+    if (error || !data) return [];
+    
+    const rows: any[] = [];
+    data.forEach((o: any) => {
+      (o.order_items || []).forEach((it: any) => {
+        if (it.quantity > 0) {
+          rows.push({
+            phase: o.order_phase || '-',
+            itemName: it.name,
+            itemType: it.type,
+            quantity: it.quantity,
+            priceStudent: Number(it.price_student) || 0,
+            priceKopkar: Number(it.price_kopkar) || 0,
+            feeSchool: Number(it.fee_school) || 0,
+            totalStudent: it.quantity * (Number(it.price_student) || 0),
+            totalKopkar: it.quantity * (Number(it.price_kopkar) || 0),
+            totalFee: it.quantity * (Number(it.fee_school) || 0),
+            status: o.status,
+          });
+        }
+      });
+    });
+    
+    rows.sort((a, b) => {
+      if (a.phase !== b.phase) return a.phase.localeCompare(b.phase);
+      return a.itemName.localeCompare(b.itemName);
+    });
+    
+    return rows;
+  };
+
+  const handleDownloadExcel = async () => {
+    const allData = await fetchAllForExport();
+    if (allData.length === 0) {
       alert('Tidak ada data untuk didownload');
       return;
     }
 
-    const exportData = recapData.map((row, index) => ({
+    const exportData = allData.map((row, index) => ({
       'No': index + 1,
       'Fase Pesanan': row.phase,
       'Nama Barang': row.itemName,
@@ -146,18 +201,9 @@ const SchoolRekap = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     
     const wscols = [
-      { wch: 5 },
-      { wch: 20 },
-      { wch: 35 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 20 },
+      { wch: 5 }, { wch: 20 }, { wch: 35 }, { wch: 15 }, { wch: 15 },
+      { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+      { wch: 20 }, { wch: 20 },
     ];
     worksheet['!cols'] = wscols;
 
@@ -166,8 +212,9 @@ const SchoolRekap = () => {
     XLSX.writeFile(workbook, `Rekap_Pesanan_${user?.name}_${new Date().getTime()}.xlsx`);
   };
 
-  const handleDownloadPDF = () => {
-    if (recapData.length === 0) {
+  const handleDownloadPDF = async () => {
+    const allData = await fetchAllForExport();
+    if (allData.length === 0) {
       alert('Tidak ada data untuk didownload');
       return;
     }
@@ -182,8 +229,18 @@ const SchoolRekap = () => {
 
     const tableColumn = ["No", "Fase", "Barang", "Status", "Qty", "H.Kopkar", "T.Kopkar", "Fee", "T.Fee", "H.Siswa", "T.Siswa"];
     const tableRows: any[] = [];
+    
+    let sumQty = 0;
+    let sumKopkar = 0;
+    let sumFee = 0;
+    let sumStudent = 0;
 
-    recapData.forEach((row, index) => {
+    allData.forEach((row, index) => {
+      sumQty += row.quantity;
+      sumKopkar += row.totalKopkar;
+      sumFee += row.totalFee;
+      sumStudent += row.totalStudent;
+      
       const dataRow = [
         index + 1,
         row.phase,
@@ -203,10 +260,10 @@ const SchoolRekap = () => {
     // Add footer row
     tableRows.push([
       '', '', 'TOTAL', '',
-      totalQuantity,
-      '', formatRupiah(totalRupiahKopkar),
-      '', formatRupiah(totalRupiahFee),
-      '', formatRupiah(totalRupiahStudent)
+      sumQty,
+      '', formatRupiah(sumKopkar),
+      '', formatRupiah(sumFee),
+      '', formatRupiah(sumStudent)
     ]);
 
     (doc as any).autoTable({
@@ -226,6 +283,11 @@ const SchoolRekap = () => {
     doc.save(`Rekap_Pesanan_${user?.name}_${new Date().getTime()}.pdf`);
   };
 
+  const handleFilterChange = (setter: any, val: any) => {
+    setter(val);
+    setCurrentPage(1);
+  };
+
   return (
     <div className="kopkar-dashboard">
       <h2>📊 Rekapitulasi Pesanan</h2>
@@ -235,7 +297,7 @@ const SchoolRekap = () => {
 
       <div className="kopkar-toolbar">
         <div className="kopkar-filters">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select value={statusFilter} onChange={(e) => handleFilterChange(setStatusFilter, e.target.value)}>
             <option value="all_active">Semua Aktif (Berjalan & Selesai)</option>
             <option value="pending">Hanya Menunggu Persetujuan</option>
             <option value="approved">Hanya Disetujui (Siap Kirim)</option>
@@ -243,7 +305,7 @@ const SchoolRekap = () => {
             <option value="received">Hanya Selesai (Diterima)</option>
           </select>
 
-          <select value={phaseFilter} onChange={(e) => setPhaseFilter(e.target.value)}>
+          <select value={phaseFilter} onChange={(e) => handleFilterChange(setPhaseFilter, e.target.value)}>
             <option value="all">Semua Fase</option>
             <option value="Tahap 1">Tahap 1</option>
             <option value="Tambahan Tahap 1">Tambahan Tahap 1</option>
@@ -257,39 +319,23 @@ const SchoolRekap = () => {
           <button 
             onClick={handleDownloadExcel} 
             style={{
-              background: '#059669', 
-              color: 'white', 
-              border: 'none', 
-              padding: '10px 16px', 
-              borderRadius: '8px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
+              background: '#059669', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px',
+              fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
               boxShadow: '0 4px 6px rgba(5, 150, 105, 0.2)'
             }}
           >
-            <span>📗</span> Excel
+            <span>📗</span> Export Semua ke Excel
           </button>
           
           <button 
             onClick={handleDownloadPDF} 
             style={{
-              background: '#dc2626', 
-              color: 'white', 
-              border: 'none', 
-              padding: '10px 16px', 
-              borderRadius: '8px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
+              background: '#dc2626', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px',
+              fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
               boxShadow: '0 4px 6px rgba(220, 38, 38, 0.2)'
             }}
           >
-            <span>📕</span> PDF
+            <span>📕</span> Export Semua ke PDF
           </button>
         </div>
       </div>
@@ -299,22 +345,22 @@ const SchoolRekap = () => {
       <div className="kopkar-stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '24px' }}>
         <div className="kopkar-stat-card">
           <div className="stat-icon">📦</div>
-          <div className="stat-label">Total Kuantitas</div>
+          <div className="stat-label">Kuantitas (Halaman Ini)</div>
           <div className="stat-value">{totalQuantity} pcs</div>
         </div>
         <div className="kopkar-stat-card">
           <div className="stat-icon">💳</div>
-          <div className="stat-label">Total Belanja (Harga Koperasi)</div>
+          <div className="stat-label">Belanja Kopkar (Halaman Ini)</div>
           <div className="stat-value">{formatRupiah(totalRupiahKopkar)}</div>
         </div>
         <div className="kopkar-stat-card">
           <div className="stat-icon">🎁</div>
-          <div className="stat-label">Total Potensi Fee Sekolah</div>
+          <div className="stat-label">Fee Sekolah (Halaman Ini)</div>
           <div className="stat-value" style={{ color: '#059669' }}>{formatRupiah(totalRupiahFee)}</div>
         </div>
         <div className="kopkar-stat-card">
           <div className="stat-icon">💰</div>
-          <div className="stat-label">Total Tagihan (Ke Siswa)</div>
+          <div className="stat-label">Tagihan Siswa (Halaman Ini)</div>
           <div className="stat-value">{formatRupiah(totalRupiahStudent)}</div>
         </div>
       </div>
@@ -363,6 +409,28 @@ const SchoolRekap = () => {
           </tbody>
         </table>
       </div>
+
+      {totalCount > itemsPerPage && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '24px' }}>
+          <button 
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage === 1 ? '#f1f5f9' : '#fff', color: currentPage === 1 ? '#94a3b8' : '#1e293b', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+          >
+            ← Sebelumnya
+          </button>
+          <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>
+            Halaman {currentPage} dari {Math.ceil(totalCount / itemsPerPage)}
+          </span>
+          <button 
+            disabled={currentPage >= Math.ceil(totalCount / itemsPerPage)}
+            onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / itemsPerPage), prev + 1))}
+            style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage >= Math.ceil(totalCount / itemsPerPage) ? '#f1f5f9' : '#fff', color: currentPage >= Math.ceil(totalCount / itemsPerPage) ? '#94a3b8' : '#1e293b', cursor: currentPage >= Math.ceil(totalCount / itemsPerPage) ? 'not-allowed' : 'pointer' }}
+          >
+            Selanjutnya →
+          </button>
+        </div>
+      )}
       </>
       )}
     </div>
