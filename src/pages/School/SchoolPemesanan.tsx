@@ -1,4 +1,4 @@
-import { useState, type FormEvent , useEffect} from 'react';
+﻿import { useState, type FormEvent , useEffect} from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
@@ -181,16 +181,20 @@ const SchoolPemesanan = () => {
   );
   const [orderPhase, setOrderPhase] = useState<'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan'>('Tahap 1');
 
+  // Available products for current school level
+  const availableCatalog = getProductsByLevel(orderLevelFilter);
 
-
-
-
+  // Group products by name for smarter forms, sorted by kode barang (same as Karyawan stock list)
+  const groupedCatalogArray = groupByCatalog(availableCatalog);
+  // Lookup map by name for fast access
+  const groupedCatalog = Object.fromEntries(groupedCatalogArray.map(g => [g.name, g]));
 
 
   // Selected items in order form
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [matrixItems, setMatrixItems] = useState<any[]>([]);
   const [notes, setNotes] = useState('');
+  const [cartPhase, setCartPhase] = useState<'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan' | ''>('');
   const [formError, setFormError] = useState('');
 
   // Derived categorized items for matrix tables
@@ -244,7 +248,7 @@ const SchoolPemesanan = () => {
     return (
       <div style={{ marginBottom: '32px' }} key={title}>
         <h4 style={{ margin: '0 0 12px 0', color: '#1e293b', borderBottom: '2px solid #cbd5e1', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {title.includes('Sepatu') ? '👟' : title.includes('Angka') ? '👖' : title.includes('Huruf') ? '👕' : '🎒'} {title}
+          {title.includes('Sepatu') ? '≡ƒæƒ' : title.includes('Angka') ? '≡ƒæû' : title.includes('Huruf') ? '≡ƒæò' : '≡ƒÄÆ'} {title}
         </h4>
         <div className="matrix-table-wrapper" style={{ overflowX: 'auto', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
           <table className="order-table" style={{ minWidth: isAllSize ? '400px' : '800px', margin: 0 }}>
@@ -380,9 +384,28 @@ const SchoolPemesanan = () => {
   const hasPhase1Order = paginatedOrders.some(o => o.orderPhase === 'Tahap 1' && o.status !== 'cancelled' && o.status !== 'rejected');
   const hasPhase2Order = paginatedOrders.some(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected');
 
-  
+  const handleAddItem = () => {
+    const firstGroup = groupedCatalogArray[0];
+    setSelectedItems((prev) => [
+      ...prev,
+      {
+        name: firstGroup ? firstGroup.name : '',
+        type: firstGroup ? (firstGroup.type as import('../../types').OrderItemType) : 'seragam',
+        quantity: 1,
+        size: '',
+        priceKopkar: firstGroup ? firstGroup.priceKopkar : 0,
+        feeSchool: firstGroup ? firstGroup.feeSchool : 0,
+        priceStudent: firstGroup ? firstGroup.priceStudent : 0,
+        productId: '',
+        code: '',
+      },
+    ]);
+  };
 
-  
+  const handleRemoveItem = (index: number) => {
+    if (selectedItems.length <= 1) return;
+    setSelectedItems((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleUpdateCartQty = (index: number, newQty: number) => {
     if (newQty < 1) return;
@@ -397,9 +420,41 @@ const SchoolPemesanan = () => {
     setCartItems(updated);
   };
 
-  
+  const handleProductSelect = (index: number, productName: string) => {
+    const group = groupedCatalog[productName];
+    if (!group) return;
 
-  
+    setSelectedItems((prev) =>
+      prev.map((item, i) => {
+        if (i === index) {
+          return {
+            ...item,
+            name: group.name,
+            type: group.type as import('../../types').OrderItemType,
+            priceKopkar: group.priceKopkar,
+            feeSchool: group.feeSchool,
+            priceStudent: group.priceStudent,
+            productId: '', // reset until size is picked
+            code: '',
+            size: '',
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleQuantityChange = (index: number, qty: number) => {
+    const validQty = Math.max(1, qty);
+    setSelectedItems((prev) =>
+      prev.map((item, i) => {
+        if (i === index) {
+          return { ...item, quantity: validQty };
+        }
+        return item;
+      })
+    );
+  };
 
   const resetCreateForm = (phase: 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan') => {
     const defaultLevel = user?.schoolLevel || 'SMP';
@@ -408,7 +463,7 @@ const SchoolPemesanan = () => {
     const cat = getProductsByLevel(defaultLevel);
     const grp = groupByCatalog(cat);
 
-    if (grp.length > 0) {
+    if (!phase.includes('Tambahan') && grp.length > 0) {
       setMatrixItems(grp.map((g: any) => ({
         name: g.name,
         type: g.type,
@@ -499,6 +554,7 @@ const SchoolPemesanan = () => {
     }
 
     // Add to global cart state
+    if (cartItems.length === 0) { setCartPhase(orderPhase); }
     setCartItems(prev => [...prev, ...itemsToSubmit]);
     setShowCreateModal(false);
     resetCreateForm(orderPhase);
@@ -519,7 +575,7 @@ const SchoolPemesanan = () => {
       schoolUserId: user.id,
       schoolName: user.schoolName || user.name,
       schoolLevel: user.schoolLevel || orderLevelFilter, // default to user's level
-      orderPhase: orderPhase,
+      orderPhase: (cartPhase as any) || orderPhase,
       items: cartItems,
       notes: notes.trim(),
     });
@@ -621,7 +677,7 @@ const SchoolPemesanan = () => {
             onClick={() => { resetCreateForm('Tambahan Mingguan'); setShowCreateModal(true); }}
             style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <span>➕</span> Buat Pesanan
+            <span>Γ₧ò</span> Buat Pesanan
           </button>
           <Link
             to="/school/retur"
@@ -636,7 +692,7 @@ const SchoolPemesanan = () => {
               gap: '6px',
             }}
           >
-            <span>↩️</span> Retur Barang
+            <span>Γå⌐∩╕Å</span> Retur Barang
             {activeReturnsCount > 0 && (
               <span
                 style={{
@@ -658,27 +714,27 @@ const SchoolPemesanan = () => {
       {/* Stats Cards */}
       <div className="order-stats">
         <div className="order-stat-card">
-          <div className="stat-icon">📦</div>
+          <div className="stat-icon">≡ƒôª</div>
           <div className="stat-label">Total Pesanan</div>
           <div className="stat-value">{totalAllCount}</div>
         </div>
         <div className="order-stat-card">
-          <div className="stat-icon">⏳</div>
+          <div className="stat-icon">ΓÅ│</div>
           <div className="stat-label">Menunggu</div>
           <div className="stat-value">{pendingCount}</div>
         </div>
         <div className="order-stat-card">
-          <div className="stat-icon">👍</div>
+          <div className="stat-icon">≡ƒæì</div>
           <div className="stat-label">Disetujui</div>
           <div className="stat-value">{approvedCount}</div>
         </div>
         <div className="order-stat-card">
-          <div className="stat-icon">🚚</div>
+          <div className="stat-icon">≡ƒÜÜ</div>
           <div className="stat-label">Sedang Dikirim</div>
           <div className="stat-value" style={{ color: '#2563eb' }}>{shippedCount}</div>
         </div>
         <div className="order-stat-card">
-          <div className="stat-icon">✅</div>
+          <div className="stat-icon">Γ£à</div>
           <div className="stat-label">History Diterima</div>
           <div className="stat-value" style={{ color: '#059669' }}>{receivedCount}</div>
         </div>
@@ -690,19 +746,19 @@ const SchoolPemesanan = () => {
           className={`tab-button ${activeTab === 'active' ? 'active' : ''}`}
           onClick={() => setActiveTab('active')}
         >
-          📋 Pesanan Berjalan ({paginatedOrders.length})
+          ≡ƒôï Pesanan Berjalan ({paginatedOrders.length})
         </button>
         <button
           className={`tab-button ${activeTab === 'received' ? 'active' : ''}`}
           onClick={() => setActiveTab('received')}
         >
-          ✅ History Diterima ({receivedCount})
+          Γ£à History Diterima ({receivedCount})
         </button>
         <button
           className={`tab-button ${activeTab === 'cancellations' ? 'active' : ''}`}
           onClick={() => setActiveTab('cancellations')}
         >
-          🚫 History Pembatalan ({totalAllCount})
+          ≡ƒÜ½ History Pembatalan ({totalAllCount})
         </button>
       </div>
 
@@ -750,21 +806,21 @@ const SchoolPemesanan = () => {
                         </td>
                         <td>
                           {order.paymentStatus === 'paid' ? (
-                            <span className="badge-pay-paid">🟢 Lunas ke Koperasi</span>
+                            <span className="badge-pay-paid">≡ƒƒó Lunas ke Koperasi</span>
                           ) : (
-                            <span className="badge-pay-unpaid">🔴 Menunggu Pelunasan</span>
+                            <span className="badge-pay-unpaid">≡ƒö┤ Menunggu Pelunasan</span>
                           )}
                         </td>
                         <td>
                           {order.status === 'pending' && (
-                            <span className="status-badge pending">⏳ Menunggu Persetujuan</span>
+                            <span className="status-badge pending">ΓÅ│ Menunggu Persetujuan</span>
                           )}
                           {order.status === 'approved' && (
-                            <span className="status-badge approved">👍 Disetujui (Siap Kirim)</span>
+                            <span className="status-badge approved">≡ƒæì Disetujui (Siap Kirim)</span>
                           )}
                           {order.status === 'shipped' && (
                             <div className="shipping-badge-container">
-                              <span className="status-badge shipped">🚚 Sedang Dikirim</span>
+                              <span className="status-badge shipped">≡ƒÜÜ Sedang Dikirim</span>
                               {order.shippingInfo && (
                                 <div className="shipping-info-box">
                                   <div>{order.shippingInfo.shippedAtDate} (Pk {order.shippingInfo.shippedAtTime})</div>
@@ -781,14 +837,14 @@ const SchoolPemesanan = () => {
                               title="Lihat Detail"
                               onClick={() => setDetailOrder(order)}
                             >
-                              ⋯
+                              Γï»
                             </button>
                             {order.status === 'shipped' && (
                               <button
                                 className="btn-receive"
                                 onClick={() => handleOpenReceiveModal(order)}
                               >
-                                📦 Konfirmasi Terima
+                                ≡ƒôª Konfirmasi Terima
                               </button>
                             )}
                             {(order.status === 'pending' || order.status === 'approved') && (
@@ -796,7 +852,7 @@ const SchoolPemesanan = () => {
                                 className="btn-cancel-request"
                                 onClick={() => handleOpenCancelModal(order)}
                               >
-                                ✕ Batalkan
+                                Γ£ò Batalkan
                               </button>
                             )}
                           </div>
@@ -817,9 +873,9 @@ const SchoolPemesanan = () => {
                         <div className="mobile-card-date">{formatDate(order.createdAt)}</div>
                       </div>
                       <span className={`status-badge ${order.status}`}>
-                        {order.status === 'pending' && '⏳ Menunggu'}
-                        {order.status === 'approved' && '👍 Disetujui'}
-                        {order.status === 'shipped' && '🚚 Dikirim'}
+                        {order.status === 'pending' && 'ΓÅ│ Menunggu'}
+                        {order.status === 'approved' && '≡ƒæì Disetujui'}
+                        {order.status === 'shipped' && '≡ƒÜÜ Dikirim'}
                       </span>
                     </div>
 
@@ -829,7 +885,7 @@ const SchoolPemesanan = () => {
                         {order.items.map((it, idx) => (
                           <li key={idx}>
                             <span className={`item-type ${it.type}`}>{it.type}</span>
-                            {it.name} — {it.quantity} pcs
+                            {it.name} ΓÇö {it.quantity} pcs
                           </li>
                         ))}
                       </ul>
@@ -848,14 +904,14 @@ const SchoolPemesanan = () => {
 
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
                       {order.paymentStatus === 'paid' ? (
-                        <span className="badge-pay-paid">🟢 Lunas</span>
+                        <span className="badge-pay-paid">≡ƒƒó Lunas</span>
                       ) : (
-                        <span className="badge-pay-unpaid">🔴 Belum Lunas</span>
+                        <span className="badge-pay-unpaid">≡ƒö┤ Belum Lunas</span>
                       )}
                       {order.feeStatus === 'disbursed' ? (
-                        <span className="badge-fee-disbursed">💰 Fee Cair</span>
+                        <span className="badge-fee-disbursed">≡ƒÆ░ Fee Cair</span>
                       ) : (
-                        <span className="badge-fee-locked">🔒 Fee Belum Cair</span>
+                        <span className="badge-fee-locked">≡ƒöÆ Fee Belum Cair</span>
                       )}
                     </div>
 
@@ -865,7 +921,7 @@ const SchoolPemesanan = () => {
                           className="btn-receive full-width-touch"
                           onClick={() => handleOpenReceiveModal(order)}
                         >
-                          📦 Konfirmasi Terima Barang
+                          ≡ƒôª Konfirmasi Terima Barang
                         </button>
                       )}
                       {(order.status === 'pending' || order.status === 'approved') && (
@@ -873,7 +929,7 @@ const SchoolPemesanan = () => {
                           className="btn-cancel-request full-width-touch"
                           onClick={() => handleOpenCancelModal(order)}
                         >
-                          ✕ Batalkan Pesanan
+                          Γ£ò Batalkan Pesanan
                         </button>
                       )}
                     </div>
@@ -889,7 +945,7 @@ const SchoolPemesanan = () => {
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage === 1 ? '#f1f5f9' : '#fff', color: currentPage === 1 ? '#94a3b8' : '#1e293b', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
                   >
-                    ← Sebelumnya
+                    ΓåÉ Sebelumnya
                   </button>
                   <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>
                     Halaman {currentPage} dari {Math.ceil(totalTabCount / itemsPerPage)}
@@ -899,7 +955,7 @@ const SchoolPemesanan = () => {
                     onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalTabCount / itemsPerPage), prev + 1))}
                     style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage >= Math.ceil(totalTabCount / itemsPerPage) ? '#f1f5f9' : '#fff', color: currentPage >= Math.ceil(totalTabCount / itemsPerPage) ? '#94a3b8' : '#1e293b', cursor: currentPage >= Math.ceil(totalTabCount / itemsPerPage) ? 'not-allowed' : 'pointer' }}
                   >
-                    Selanjutnya →
+                    Selanjutnya ΓåÆ
                   </button>
                 </div>
               )}
@@ -956,7 +1012,7 @@ const SchoolPemesanan = () => {
                         <td>
                           {order.paymentStatus === 'paid' ? (
                             <div>
-                              <span className="badge-pay-paid">🟢 Lunas ke Koperasi</span>
+                              <span className="badge-pay-paid">≡ƒƒó Lunas ke Koperasi</span>
                               {order.paidAt && (
                                 <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
                                   {formatDate(order.paidAt)}
@@ -964,11 +1020,11 @@ const SchoolPemesanan = () => {
                               )}
                             </div>
                           ) : (
-                            <span className="badge-pay-unpaid">🔴 Menunggu Pelunasan</span>
+                            <span className="badge-pay-unpaid">≡ƒö┤ Menunggu Pelunasan</span>
                           )}
                         </td>
                         <td>
-                          <span className="status-badge received">✅ Selesai Diterima</span>
+                          <span className="status-badge received">Γ£à Selesai Diterima</span>
                           {order.receiveInfo && (
                             <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
                               Oleh: {order.receiveInfo.receivedBy}
@@ -982,7 +1038,7 @@ const SchoolPemesanan = () => {
                               title="Lihat Detail"
                               onClick={() => setDetailOrder(order)}
                             >
-                              ⋯
+                              Γï»
                             </button>
                           </div>
                         </td>
@@ -1001,7 +1057,7 @@ const SchoolPemesanan = () => {
                         <span className="mobile-order-id">{order.id}</span>
                         <div className="mobile-card-date">{formatDate(order.createdAt)}</div>
                       </div>
-                      <span className="status-badge received">✅ Selesai Diterima</span>
+                      <span className="status-badge received">Γ£à Selesai Diterima</span>
                     </div>
 
                     <div className="mobile-items-box">
@@ -1029,17 +1085,17 @@ const SchoolPemesanan = () => {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
                       {order.paymentStatus === 'paid' ? (
-                        <div className="badge-pay-paid">🟢 Pembayaran: Lunas ke Koperasi</div>
+                        <div className="badge-pay-paid">≡ƒƒó Pembayaran: Lunas ke Koperasi</div>
                       ) : (
-                        <div className="badge-pay-unpaid">🔴 Pembayaran: Belum Lunas</div>
+                        <div className="badge-pay-unpaid">≡ƒö┤ Pembayaran: Belum Lunas</div>
                       )}
 
                       {order.feeStatus === 'disbursed' ? (
-                        <div className="badge-fee-disbursed">💰 Fee Sekolah: Telah Ditransfer Koperasi</div>
+                        <div className="badge-fee-disbursed">≡ƒÆ░ Fee Sekolah: Telah Ditransfer Koperasi</div>
                       ) : order.feeStatus === 'ready' ? (
-                        <div className="badge-fee-ready">⏳ Fee Sekolah: Siap Ditransfer (Koperasi sedang proses)</div>
+                        <div className="badge-fee-ready">ΓÅ│ Fee Sekolah: Siap Ditransfer (Koperasi sedang proses)</div>
                       ) : (
-                        <div className="badge-fee-locked">🔒 Fee Sekolah: Cair Setelah Pelunasan</div>
+                        <div className="badge-fee-locked">≡ƒöÆ Fee Sekolah: Cair Setelah Pelunasan</div>
                       )}
                     </div>
                   </div>
@@ -1054,7 +1110,7 @@ const SchoolPemesanan = () => {
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage === 1 ? '#f1f5f9' : '#fff', color: currentPage === 1 ? '#94a3b8' : '#1e293b', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
                   >
-                    ← Sebelumnya
+                    ΓåÉ Sebelumnya
                   </button>
                   <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>
                     Halaman {currentPage} dari {Math.ceil(totalTabCount / itemsPerPage)}
@@ -1064,7 +1120,7 @@ const SchoolPemesanan = () => {
                     onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalTabCount / itemsPerPage), prev + 1))}
                     style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage >= Math.ceil(totalTabCount / itemsPerPage) ? '#f1f5f9' : '#fff', color: currentPage >= Math.ceil(totalTabCount / itemsPerPage) ? '#94a3b8' : '#1e293b', cursor: currentPage >= Math.ceil(totalTabCount / itemsPerPage) ? 'not-allowed' : 'pointer' }}
                   >
-                    Selanjutnya →
+                    Selanjutnya ΓåÆ
                   </button>
                 </div>
               )}
@@ -1120,20 +1176,20 @@ const SchoolPemesanan = () => {
                         </td>
                         <td>
                           {order.paymentStatus === 'paid' ? (
-                            <span className="badge-pay-paid">🟢 Lunas</span>
+                            <span className="badge-pay-paid">≡ƒƒó Lunas</span>
                           ) : (
-                            <span className="badge-pay-unpaid">🔴 Belum Lunas</span>
+                            <span className="badge-pay-unpaid">≡ƒö┤ Belum Lunas</span>
                           )}
                         </td>
                         <td>
                           {order.status === 'cancellation_requested' && (
-                            <span className="status-badge requested">⏳ Permintaan Batal</span>
+                            <span className="status-badge requested">ΓÅ│ Permintaan Batal</span>
                           )}
                           {order.status === 'cancelled' && (
-                            <span className="status-badge cancelled">🚫 Dibatalkan</span>
+                            <span className="status-badge cancelled">≡ƒÜ½ Dibatalkan</span>
                           )}
                           {order.status === 'rejected' && (
-                            <span className="status-badge rejected">❌ Ditolak Koperasi</span>
+                            <span className="status-badge rejected">Γ¥î Ditolak Koperasi</span>
                           )}
                         </td>
                         <td>
@@ -1143,7 +1199,7 @@ const SchoolPemesanan = () => {
                               title="Opsi"
                               onClick={() => setOpenCancelMenuId(openCancelMenuId === order.id ? null : order.id)}
                             >
-                              ⋮
+                              Γï«
                             </button>
                             {openCancelMenuId === order.id && (
                               <div className="action-menu-dropdown">
@@ -1154,7 +1210,7 @@ const SchoolPemesanan = () => {
                                     setOpenCancelMenuId(null);
                                   }}
                                 >
-                                  📄 Detail
+                                  ≡ƒôä Detail
                                 </button>
                                 <button
                                   className="dropdown-item delete"
@@ -1165,7 +1221,7 @@ const SchoolPemesanan = () => {
                                     setOpenCancelMenuId(null);
                                   }}
                                 >
-                                  🗑️ Hapus Riwayat
+                                  ≡ƒùæ∩╕Å Hapus Riwayat
                                 </button>
                               </div>
                             )}
@@ -1184,9 +1240,9 @@ const SchoolPemesanan = () => {
                     <div className="mobile-card-header">
                       <span className="mobile-order-id">{order.id}</span>
                       <span className={`status-badge ${order.status}`}>
-                        {order.status === 'cancellation_requested' && '⏳ Request Batal'}
-                        {order.status === 'cancelled' && '🚫 Dibatalkan'}
-                        {order.status === 'rejected' && '❌ Ditolak'}
+                        {order.status === 'cancellation_requested' && 'ΓÅ│ Request Batal'}
+                        {order.status === 'cancelled' && '≡ƒÜ½ Dibatalkan'}
+                        {order.status === 'rejected' && 'Γ¥î Ditolak'}
                       </span>
                     </div>
 
@@ -1212,7 +1268,7 @@ const SchoolPemesanan = () => {
                         style={{ flex: 1, padding: '8px', fontSize: '0.85rem', background: '#395886' }}
                         onClick={() => setDetailOrder(order)}
                       >
-                        📄 Detail
+                        ≡ƒôä Detail
                       </button>
                       <button 
                         className="btn-reject" 
@@ -1223,7 +1279,7 @@ const SchoolPemesanan = () => {
                           }
                         }}
                       >
-                        🗑️ Hapus
+                        ≡ƒùæ∩╕Å Hapus
                       </button>
                     </div>
                   </div>
@@ -1238,7 +1294,7 @@ const SchoolPemesanan = () => {
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage === 1 ? '#f1f5f9' : '#fff', color: currentPage === 1 ? '#94a3b8' : '#1e293b', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
                   >
-                    ← Sebelumnya
+                    ΓåÉ Sebelumnya
                   </button>
                   <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>
                     Halaman {currentPage} dari {Math.ceil(totalTabCount / itemsPerPage)}
@@ -1248,7 +1304,7 @@ const SchoolPemesanan = () => {
                     onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalTabCount / itemsPerPage), prev + 1))}
                     style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage >= Math.ceil(totalTabCount / itemsPerPage) ? '#f1f5f9' : '#fff', color: currentPage >= Math.ceil(totalTabCount / itemsPerPage) ? '#94a3b8' : '#1e293b', cursor: currentPage >= Math.ceil(totalTabCount / itemsPerPage) ? 'not-allowed' : 'pointer' }}
                   >
-                    Selanjutnya →
+                    Selanjutnya ΓåÆ
                   </button>
                 </div>
               )}
@@ -1268,7 +1324,7 @@ const SchoolPemesanan = () => {
           <div className={`modal ${!orderPhase.includes('Tambahan') ? 'order-modal-extra-wide' : 'order-modal-wide'}`} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0 }}>Form Pemesanan Seragam & Buku</h3>
-              <button className="btn-close-modal" onClick={() => setShowCreateModal(false)}>✕</button>
+              <button className="btn-close-modal" onClick={() => setShowCreateModal(false)}>Γ£ò</button>
             </div>
 
             <form className="modal-form" onSubmit={handleCreateSubmit}>
@@ -1321,7 +1377,7 @@ const SchoolPemesanan = () => {
                       const p = e.target.value as 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan';
                       setOrderPhase(p);
                       const grp = groupByCatalog(getProductsByLevel(orderLevelFilter));
-                      if (grp.length > 0) {
+                      if (!p.includes('Tambahan')) {
                         setMatrixItems(grp.map((g: any) => ({
                           name: g.name, type: g.type, priceKopkar: g.priceKopkar, feeSchool: g.feeSchool, priceStudent: g.priceStudent,
                           variants: g.variants, sizesInput: {}, customVariantId: '', customQty: 0
@@ -1345,7 +1401,8 @@ const SchoolPemesanan = () => {
               <div className="form-group">
                 <label>Pilih Barang dari Katalog Jenjang {orderLevelFilter}:</label>
 
-                <div className="matrix-tables-container" style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                {!orderPhase.includes('Tambahan') ? (
+                  <div className="matrix-tables-container" style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
                     {matrixItems.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>Katalog kosong untuk jenjang ini.</div>
                     ) : (
@@ -1358,6 +1415,85 @@ const SchoolPemesanan = () => {
                       </>
                     )}
                   </div>
+                ) : (
+                  <div className="school-order-items-table">
+                    {selectedItems.map((item, index) => {
+                      const selectedGroup = groupedCatalog[item.name];
+                      return (
+                        <div key={index} className="school-order-row">
+                          <div style={{ flexGrow: 1 }}>
+                            <select
+                              className="product-select"
+                              value={item.name || ''}
+                              onChange={(e) => handleProductSelect(index, e.target.value)}
+                            >
+                              <option value="">-- Pilih Barang --</option>
+                              {groupedCatalogArray.map((group) => (
+                                <option key={group.name} value={group.name}>
+                                  [{group.type}] {group.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div style={{ width: '160px', marginLeft: '10px' }}>
+                            <select
+                              value={item.productId || ''}
+                              onChange={(e) => {
+                                const prodId = e.target.value;
+                                const variant = selectedGroup?.variants.find(v => v.id === prodId);
+                                setSelectedItems((prev) => prev.map((it, i) => i === index ? { ...it, productId: prodId, code: variant?.code, size: variant?.size || '' } : it));
+                              }}
+                              style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#fff' }}
+                              required={item.quantity > 0}
+                              disabled={!item.name}
+                            >
+                              <option value="">-- Pilih Ukuran --</option>
+                              {sortBySize(selectedGroup?.variants || []).map(v => (
+                                <option key={v.id} value={v.id}>{v.size || 'Tanpa Ukuran'} (Stok: {v.stock})</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div style={{ width: '100px', marginLeft: '10px' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="Jumlah"
+                              value={item.quantity || ''}
+                              onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
+                              style={{ width: '100%', padding: '9px 12px', textAlign: 'center' }}
+                              required
+                            />
+                          </div>
+
+                          {selectedItems.length > 1 && (
+                            <button
+                              type="button"
+                              className="btn-remove-item"
+                              onClick={() => handleRemoveItem(index)}
+                              title="Hapus baris"
+                              style={{ marginLeft: '10px' }}
+                            >
+                              ├ù
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {orderPhase.includes('Tambahan') && (
+                  <button
+                    type="button"
+                    className="btn-add-item"
+                    onClick={handleAddItem}
+                    style={{ marginTop: '8px' }}
+                  >
+                    + Tambah Item Barang Lainnya
+                  </button>
+                )}
               </div>
 
               <div className="modal-actions" style={{ marginTop: '24px', flexDirection: 'column', alignItems: 'stretch' }}>
@@ -1378,7 +1514,7 @@ const SchoolPemesanan = () => {
                     disabled={(orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order)}
                     style={((orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order)) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
                   >
-                    🛒 Tambahkan ke Keranjang
+                    ≡ƒ¢Æ Tambahkan ke Keranjang
                   </button>
                 </div>
               </div>
@@ -1392,8 +1528,8 @@ const SchoolPemesanan = () => {
         <div className="modal-overlay" onClick={() => setShowCartModal(false)}>
           <div className="modal order-modal-wide" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0 }}>Keranjang Pesanan 🛒</h3>
-              <button className="btn-close-modal" onClick={() => setShowCartModal(false)}>✕</button>
+              <h3 style={{ margin: 0 }}>Keranjang Pesanan ≡ƒ¢Æ</h3>
+              <button className="btn-close-modal" onClick={() => setShowCartModal(false)}>Γ£ò</button>
             </div>
 
             <form className="modal-form" onSubmit={handleCartSubmit}>
@@ -1432,7 +1568,7 @@ const SchoolPemesanan = () => {
                             onClick={() => handleRemoveCartItem(idx)}
                             style={{ padding: '2px 8px', borderRadius: '4px', border: 'none', background: '#fee2e2', color: '#ef4444', cursor: 'pointer', marginLeft: '4px' }}
                             title="Hapus Item"
-                          >✕</button>
+                          >Γ£ò</button>
                         </div>
                       </li>
                     ))}
@@ -1461,7 +1597,7 @@ const SchoolPemesanan = () => {
                       </div>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '8px', lineHeight: 1.4 }}>
-                      ℹ️ Sekolah menagihkan <strong>{formatRupiah(cartTotalStudent)}</strong> kepada siswa/wali murid dan membayarkannya ke Koperasi. Setelah diverifikasi lunas, Koperasi akan membayarkan fee hak sekolah sebesar <strong>{formatRupiah(cartTotalFee)}</strong>.
+                      Γä╣∩╕Å Sekolah menagihkan <strong>{formatRupiah(cartTotalStudent)}</strong> kepada siswa/wali murid dan membayarkannya ke Koperasi. Setelah diverifikasi lunas, Koperasi akan membayarkan fee hak sekolah sebesar <strong>{formatRupiah(cartTotalFee)}</strong>.
                     </div>
                   </div>
 
@@ -1507,7 +1643,7 @@ const SchoolPemesanan = () => {
                       disabled={(orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase.includes('Tambahan') && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0}
                       style={((orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase.includes('Tambahan') && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
                     >
-                      🚀 Pesan Sekarang
+                      ≡ƒÜÇ Pesan Sekarang
                     </button>
                   </div>
                 </div>
@@ -1521,7 +1657,7 @@ const SchoolPemesanan = () => {
       {receivingOrder && (
         <div className="modal-overlay" onClick={() => setReceivingOrder(null)}>
           <div className="modal" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>📦 Konfirmasi Penerimaan & Verifikasi Fisik Barang</h3>
+            <h3>≡ƒôª Konfirmasi Penerimaan & Verifikasi Fisik Barang</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '16px' }}>
               Pesanan No: <strong>{receivingOrder.id}</strong> ({receivingOrder.schoolName})
             </p>
@@ -1536,7 +1672,7 @@ const SchoolPemesanan = () => {
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                   {receivingOrder.items.map((it, idx) => (
                     <li key={idx} style={{ padding: '6px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem' }}>
-                      📦 <strong>{it.name}</strong> — {it.quantity} pcs ({it.type})
+                      ≡ƒôª <strong>{it.name}</strong> ΓÇö {it.quantity} pcs ({it.type})
                     </li>
                   ))}
                 </ul>
@@ -1587,7 +1723,7 @@ const SchoolPemesanan = () => {
                   Batal
                 </button>
                 <button type="submit" className="btn-receive">
-                  ✓ Konfirmasi & Selesai
+                  Γ£ô Konfirmasi & Selesai
                 </button>
               </div>
             </form>
@@ -1599,7 +1735,7 @@ const SchoolPemesanan = () => {
       {cancellingOrder && (
         <div className="modal-overlay" onClick={() => setCancellingOrder(null)}>
           <div className="modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ color: '#dc2626' }}>✕ Ajukan Pembatalan Pesanan</h3>
+            <h3 style={{ color: '#dc2626' }}>Γ£ò Ajukan Pembatalan Pesanan</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '16px' }}>
               Nomor Pesanan: <strong>{cancellingOrder.id}</strong>
             </p>
@@ -1623,7 +1759,7 @@ const SchoolPemesanan = () => {
               </div>
 
               <div style={{ fontSize: '0.82rem', color: '#64748b', background: '#fef2f2', padding: '10px 12px', borderRadius: '8px', border: '1px solid #fee2e2' }}>
-                ℹ️ Permintaan pembatalan ini akan masuk ke dashboard Karyawan Koperasi untuk disetujui.
+                Γä╣∩╕Å Permintaan pembatalan ini akan masuk ke dashboard Karyawan Koperasi untuk disetujui.
               </div>
 
               <div className="modal-actions">
@@ -1649,7 +1785,7 @@ const SchoolPemesanan = () => {
           <div className="modal" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0 }}>Detail Pesanan</h3>
-              <button className="btn-close-modal" onClick={() => setDetailOrder(null)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+              <button className="btn-close-modal" onClick={() => setDetailOrder(null)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>Γ£ò</button>
             </div>
             
             <div style={{ marginBottom: '20px' }}>
@@ -1668,7 +1804,7 @@ const SchoolPemesanan = () => {
                 {detailOrder.items.map((it, idx) => (
                   <li key={idx} style={{ padding: '6px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem' }}>
                     <span className={`item-type ${it.type}`} style={{ marginRight: '8px' }}>{it.type}</span>
-                    <strong>{it.name}</strong> — {it.quantity} pcs
+                    <strong>{it.name}</strong> ΓÇö {it.quantity} pcs
                   </li>
                 ))}
               </ul>
@@ -1687,21 +1823,21 @@ const SchoolPemesanan = () => {
               <div>
                 <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>Status Pelunasan</div>
                 {detailOrder.paymentStatus === 'paid' ? (
-                  <span className="badge-pay-paid">🟢 Lunas ke Koperasi</span>
+                  <span className="badge-pay-paid">≡ƒƒó Lunas ke Koperasi</span>
                 ) : (
-                  <span className="badge-pay-unpaid">🔴 Menunggu Pelunasan</span>
+                  <span className="badge-pay-unpaid">≡ƒö┤ Menunggu Pelunasan</span>
                 )}
               </div>
               <div>
                 <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>Status Pengiriman</div>
                 <span className={`status-badge ${detailOrder.status}`}>
-                  {detailOrder.status === 'pending' && '⏳ Menunggu Persetujuan'}
-                  {detailOrder.status === 'approved' && '👍 Disetujui (Siap Kirim)'}
-                  {detailOrder.status === 'shipped' && '🚚 Sedang Dikirim'}
-                  {detailOrder.status === 'received' && '✅ Selesai Diterima'}
-                  {detailOrder.status === 'cancellation_requested' && '⏳ Permintaan Batal'}
-                  {detailOrder.status === 'cancelled' && '🚫 Dibatalkan'}
-                  {detailOrder.status === 'rejected' && '❌ Ditolak Koperasi'}
+                  {detailOrder.status === 'pending' && 'ΓÅ│ Menunggu Persetujuan'}
+                  {detailOrder.status === 'approved' && '≡ƒæì Disetujui (Siap Kirim)'}
+                  {detailOrder.status === 'shipped' && '≡ƒÜÜ Sedang Dikirim'}
+                  {detailOrder.status === 'received' && 'Γ£à Selesai Diterima'}
+                  {detailOrder.status === 'cancellation_requested' && 'ΓÅ│ Permintaan Batal'}
+                  {detailOrder.status === 'cancelled' && '≡ƒÜ½ Dibatalkan'}
+                  {detailOrder.status === 'rejected' && 'Γ¥î Ditolak Koperasi'}
                 </span>
               </div>
             </div>
