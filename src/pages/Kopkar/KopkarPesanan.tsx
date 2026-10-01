@@ -1057,7 +1057,7 @@ const KopkarPesanan = () => {
                   Batal
                 </button>
                 <button type="submit" className="btn-ship">
-                  Γ£ô Konfirmasi Kirim Barang
+                  ✅ Konfirmasi Kirim Barang
                 </button>
               </div>
             </form>
