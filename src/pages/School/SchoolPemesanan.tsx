@@ -268,7 +268,7 @@ const SchoolPemesanan = () => {
             </thead>
             <tbody>
               {items.map((row) => {
-                const rowTotal = Object.values(row.sizesInput).reduce((acc: number, val: any) => acc + (parseInt(val) || 0), 0);
+                const rowTotal = Object.values(row.sizesInput).reduce<number>((acc, val: any) => acc + (parseInt(val) || 0), 0);
                 const standardVariants = row.variants.filter((v: any) => allSizes.includes(v.size?.trim().toUpperCase()));
 
                 return (
