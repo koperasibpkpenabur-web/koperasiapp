@@ -230,7 +230,7 @@ const KopkarPesanan = () => {
     setShippedQuantities(order.items.map(it => it.quantity));
   };
 
-  const handleConfirmShip = (e: FormEvent) => {
+  const handleConfirmShip = async (e: FormEvent) => {
     e.preventDefault();
     if (!shippingOrder) return;
 
@@ -253,7 +253,8 @@ const KopkarPesanan = () => {
       })),
     };
 
-    shipOrder(shippingOrder.id, shippingData);
+    await shipOrder(shippingOrder.id, shippingData);
+    setOrders(prev => prev.map(o => o.id === shippingOrder.id ? { ...o, status: 'shipped' } : o));
     setShippingOrder(null);
   };
 
