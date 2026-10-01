@@ -535,30 +535,6 @@ const KopkarPesanan = () => {
                                 </button>
                               </div>
                             )}
-
-                            {order.status === 'approved' && !order.status.includes('pending') && (
-                              <div style={{ marginBottom: '8px' }}>
-                                <button
-                                  className="btn-detail-dots"
-                                  title="Lihat Detail Pesanan"
-                                  onClick={() => setDetailOrder(order)}
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
-                                >
-                                  ⋮ Detail
-                                </button>
-                              </div>
-                            )}
-                            {order.status === 'approved' && !order.status.includes('pending') && (
-                        <div style={{ marginBottom: '12px' }}>
-                          <button
-                            className="btn-detail-dots full-width-touch"
-                            onClick={() => setDetailOrder(order)}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px', fontSize: '0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
-                          >
-                            ⋮ Detail Pesanan
-                          </button>
-                        </div>
-                      )}
                       {order.status === 'approved' && (
                               <div className="action-buttons-wrap">
                                 <button className="btn-ship" onClick={() => handleOpenShipModal(order)}>
@@ -572,30 +548,6 @@ const KopkarPesanan = () => {
                                 </button>
                               </div>
                             )}
-
-                            {order.status === 'shipped' && !order.status.includes('pending') && (
-                              <div style={{ marginBottom: '8px' }}>
-                                <button
-                                  className="btn-detail-dots"
-                                  title="Lihat Detail Pesanan"
-                                  onClick={() => setDetailOrder(order)}
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
-                                >
-                                  ⋮ Detail
-                                </button>
-                              </div>
-                            )}
-                            {order.status === 'shipped' && !order.status.includes('pending') && (
-                        <div style={{ marginBottom: '12px' }}>
-                          <button
-                            className="btn-detail-dots full-width-touch"
-                            onClick={() => setDetailOrder(order)}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px', fontSize: '0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
-                          >
-                            ⋮ Detail Pesanan
-                          </button>
-                        </div>
-                      )}
                       {order.status === 'shipped' && (
                               <div style={{ fontSize: '0.8rem', color: '#2563eb' }}>
                                 Barang sedang diantar ke sekolah.
@@ -705,18 +657,6 @@ const KopkarPesanan = () => {
                           </button>
                         </div>
                       )}
-
-                      {order.status === 'approved' && !order.status.includes('pending') && (
-                        <div style={{ marginBottom: '12px' }}>
-                          <button
-                            className="btn-detail-dots full-width-touch"
-                            onClick={() => setDetailOrder(order)}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px', fontSize: '0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
-                          >
-                            ⋮ Detail Pesanan
-                          </button>
-                        </div>
-                      )}
                       {order.status === 'approved' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
                           <button className="btn-ship full-width-touch" onClick={() => handleOpenShipModal(order)}>
@@ -727,18 +667,6 @@ const KopkarPesanan = () => {
                           </button>
                           <button className="btn-cancel-approved full-width-touch" onClick={() => handleOpenKopkarCancelModal(order)}>
                             ⚠️ Batalkan
-                          </button>
-                        </div>
-                      )}
-
-                      {order.status === 'shipped' && !order.status.includes('pending') && (
-                        <div style={{ marginBottom: '12px' }}>
-                          <button
-                            className="btn-detail-dots full-width-touch"
-                            onClick={() => setDetailOrder(order)}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px', fontSize: '0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
-                          >
-                            ⋮ Detail Pesanan
                           </button>
                         </div>
                       )}
