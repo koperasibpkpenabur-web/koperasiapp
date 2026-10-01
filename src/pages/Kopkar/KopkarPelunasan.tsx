@@ -14,54 +14,112 @@ const KopkarPelunasan = () => {
   const { pendingCount: pendingReturnsCount } = useReturns();
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  // Paginasi Server-Side
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Aggregates
+  const [totalOmzetStudent, setTotalOmzetStudent] = useState(0);
+  const [totalPaidRevenue, setTotalPaidRevenue] = useState(0);
+  const [countTahap1, setCountTahap1] = useState(0);
+  const [countTahap2, setCountTahap2] = useState(0);
+  const [countTambahan, setCountTambahan] = useState(0);
+  const [cancelRequestsCount, setCancelRequestsCount] = useState(0);
+
+  
+  const fetchAggregates = async () => {
+    const { data, error } = await supabase.from('orders').select('status, payment_status, fee_status, order_phase, total_price_student, total_fee_school');
+    if (!error && data) {
+      let omzet = 0, paid = 0, cT1 = 0, cT2 = 0, cTamb = 0, cCancelReq = 0;
+      data.forEach(o => {
+        if (o.status !== 'cancelled' && o.status !== 'rejected') omzet += Number(o.total_price_student) || 0;
+        if (o.payment_status === 'paid') paid += Number(o.total_price_student) || 0;
+        
+        if (o.status === 'cancellation_requested') cCancelReq++;
+        
+        if (o.order_phase === 'Tahap 1') cT1++;
+        else if (o.order_phase === 'Tahap 2') cT2++;
+        else if (o.order_phase && o.order_phase.includes('Tambahan')) cTamb++;
+      });
+      setTotalOmzetStudent(omzet);
+      setTotalPaidRevenue(paid);
+      setCountTahap1(cT1);
+      setCountTahap2(cT2);
+      setCountTambahan(cTamb);
+      setCancelRequestsCount(cCancelReq);
+    }
+  };
+
+  const fetchOrders = async () => {
+    setLoadingOrders(true);
+    let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' }).eq('status', 'received');
+    
+    if (paymentFilter !== 'all') {
+      query = query.eq('payment_status', paymentFilter);
+    }
+    if (searchQuery) {
+      query = query.ilike('school_name', `%${searchQuery}%`);
+    }
+
+    query = query.order('created_at', { ascending: false });
+    
+    const from = (currentPage - 1) * itemsPerPage;
+    const to = from + itemsPerPage - 1;
+    query = query.range(from, to);
+
+    const { data, count, error } = await query;
+    if (!error && data) {
+      setOrders(data.map((row: any) => ({
+        id: row.id,
+        schoolUserId: row.school_user_id,
+        schoolName: row.school_name,
+        schoolLevel: row.school_level,
+        orderPhase: row.order_phase,
+        items: (row.order_items || []).map((it: any) => ({
+          id: it.id,
+          productId: it.product_id,
+          name: it.name,
+          type: it.type,
+          size: it.size,
+          gender: it.gender,
+          quantity: it.quantity,
+          priceKopkar: Number(it.price_kopkar),
+          feeSchool: Number(it.fee_school),
+          priceStudent: Number(it.price_student),
+        })),
+        totalPriceKopkar: Number(row.total_price_kopkar),
+        totalFeeSchool: Number(row.total_fee_school),
+        totalPriceStudent: Number(row.total_price_student),
+        status: row.status,
+        rejectionReason: row.rejection_reason,
+        shippingInfo: row.shipping_info,
+        receiveInfo: row.receive_info,
+        cancellationInfo: row.cancellation_info,
+        paymentStatus: row.payment_status,
+        paidAt: row.paid_at,
+        paidNotes: row.paid_notes,
+        feeStatus: row.fee_status,
+        feeDisbursedAt: row.fee_disbursed_at,
+        feeDisbursedBy: row.fee_disbursed_by,
+        feeDisbursedNotes: row.fee_disbursed_notes,
+        createdAt: row.created_at,
+        processedAt: row.processed_at,
+        processedBy: row.processed_by,
+      })));
+      if (count !== null) setTotalCount(count);
+    }
+    setLoadingOrders(false);
+  };
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      setLoadingOrders(true);
-      const { data, error } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false });
-      if (!error && data) {
-        setOrders(data.map((row: any) => ({
-          id: row.id,
-          schoolUserId: row.school_user_id,
-          schoolName: row.school_name,
-          schoolLevel: row.school_level,
-          orderPhase: row.order_phase,
-          items: (row.order_items || []).map((it: any) => ({
-            id: it.id,
-            productId: it.product_id,
-            name: it.name,
-            type: it.type,
-            size: it.size,
-            gender: it.gender,
-            quantity: it.quantity,
-            priceKopkar: Number(it.price_kopkar),
-            feeSchool: Number(it.fee_school),
-            priceStudent: Number(it.price_student),
-          })),
-          totalPriceKopkar: Number(row.total_price_kopkar),
-          totalFeeSchool: Number(row.total_fee_school),
-          totalPriceStudent: Number(row.total_price_student),
-          status: row.status,
-          rejectionReason: row.rejection_reason,
-          shippingInfo: row.shipping_info,
-          receiveInfo: row.receive_info,
-          cancellationInfo: row.cancellation_info,
-          paymentStatus: row.payment_status,
-          paidAt: row.paid_at,
-          paidNotes: row.paid_notes,
-          feeStatus: row.fee_status,
-          feeDisbursedAt: row.fee_disbursed_at,
-          feeDisbursedBy: row.fee_disbursed_by,
-          feeDisbursedNotes: row.fee_disbursed_notes,
-          createdAt: row.created_at,
-          processedAt: row.processed_at,
-          processedBy: row.processed_by,
-        })));
-      }
-      setLoadingOrders(false);
-    };
-    fetchOrders();
+    fetchAggregates();
   }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [paymentFilter, searchQuery, currentPage]);
+
 
   const {
     approveOrder,
@@ -116,42 +174,7 @@ const KopkarPelunasan = () => {
     }
   }, [printingOrder]);
 
-  // 1. Pesanan Berjalan: pending, approved, shipped
-  const activeOrders = orders.filter(
-    (o) => o.status === 'pending' || o.status === 'approved' || o.status === 'shipped'
-  );
-
-  // 2. History Diterima (Selesai): received
-  const receivedOrders = orders.filter((o) => o.status === 'received');
-
-  // 3. History Pembatalan: cancellation_requested, cancelled, rejected
-  const cancellationOrders = orders.filter(
-    (o) => o.status === 'cancelled' || o.status === 'cancellation_requested' || o.status === 'rejected'
-  );
-
-  const pendingOrders = orders.filter((o) => o.status === 'pending').length;
-  const shippedOrders = orders.filter((o) => o.status === 'shipped').length;
-  const receivedCount = receivedOrders.length;
-  const cancelRequestsCount = orders.filter((o) => o.status === 'cancellation_requested').length;
-
-  // Financial aggregates
-  const totalOmzetStudent = orders
-    .filter((o) => o.status !== 'cancelled' && o.status !== 'rejected')
-    .reduce((acc, o) => acc + (o.totalPriceStudent || 0), 0);
-
-  const totalPaidRevenue = orders
-    .filter((o) => o.paymentStatus === 'paid')
-    .reduce((acc, o) => acc + (o.totalPriceStudent || 0), 0);
-
-  const totalSchoolFeeToDisburse = orders
-    .filter((o) => o.feeStatus === 'ready')
-    .reduce((acc, o) => acc + (o.totalFeeSchool || 0), 0);
-
-  // Phase summaries
-  const countTahap1 = orders.filter(o => o.orderPhase === 'Tahap 1' && o.status !== 'cancelled' && o.status !== 'rejected').length;
-  const countTahap2 = orders.filter(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected').length;
-  const countTambahan = orders.filter(o => o.orderPhase === 'Tambahan' && o.status !== 'cancelled' && o.status !== 'rejected').length;
-
+  
   const filteredActiveOrders = activeOrders.filter((ord) => {
     const matchesStatus = statusFilter === 'all' || ord.status === statusFilter;
     const matchesPayment = paymentFilter === 'all' || ord.paymentStatus === paymentFilter;
@@ -365,246 +388,8 @@ const KopkarPelunasan = () => {
         )}
       </div>
 
-      {/* Tabs removed, only showing received orders */}
-      {activeTab === 'active' && (
-        <div className="tab-pane">
-          <div className="kopkar-toolbar">
-            <h3>Daftar Pesanan Berjalan</h3>
-            <div className="kopkar-filters">
-              <input
-                type="text"
-                placeholder="Cari sekolah atau item..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="all">Semua Status</option>
-                <option value="pending">Menunggu Persetujuan</option>
-                <option value="approved">Disetujui (Siap Kirim)</option>
-                <option value="shipped">Sedang Dikirim</option>
-              </select>
-              <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
-                <option value="all">Semua Pembayaran</option>
-                <option value="unpaid">Belum Lunas</option>
-                <option value="paid">Lunas</option>
-              </select>
-            </div>
-          </div>
-
-          {filteredActiveOrders.length > 0 ? (
-            <>
-              {/* Desktop Table View */}
-              <div className="kopkar-table-container desktop-table-view">
-                <table className="kopkar-table">
-                  <thead>
-                    <tr>
-                      <th>ID & Sekolah</th>
-                      <th>Daftar Item</th>
-                      <th>Rincian 3 Harga</th>
-                      <th>Status Pelunasan</th>
-                      
-                      <th>Aksi Pengelolaan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredActiveOrders.map((order) => (
-                      <tr key={order.id}>
-                        <td>
-                          <strong>{order.id}</strong>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>
-                            {order.schoolName}
-                          </div>
-                          {order.schoolLevel && (
-                            <span className={`badge-level ${order.schoolLevel}`}>
-                              {order.schoolLevel}
-                            </span>
-                          )}
-                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
-                            {formatDate(order.createdAt)}
-                          </div>
-                        </td>
-                        <td>
-                          <ul className="order-items-list">
-                            {order.items.map((it, idx) => (
-                              <li key={idx}>
-                                <span className={`item-type ${it.type}`}>{it.type}</span>
-                                {it.name} (<strong>{it.quantity} pcs</strong>)
-                              </li>
-                            ))}
-                          </ul>
-                        </td>
-                        <td>
-                          <div style={{ fontSize: '0.85rem' }}>
-                            <div>
-                              <span style={{ color: '#64748b' }}>Harga Siswa (Masuk):</span>{' '}
-                              <strong>{formatRupiah(order.totalPriceStudent)}</strong>
-                            </div>
-                            <div>
-                              <span style={{ color: '#64748b' }}>Hak Koperasi:</span>{' '}
-                              <span style={{ color: '#1e40af', fontWeight: 600 }}>{formatRupiah(order.totalPriceKopkar)}</span>
-                            </div>
-                            <div>
-                              <span style={{ color: '#64748b' }}>Fee Sekolah:</span>{' '}
-                              <span style={{ color: '#059669', fontWeight: 600 }}>+{formatRupiah(order.totalFeeSchool)}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          {order.paymentStatus === 'paid' ? (
-                            <div>
-                              <span className="badge-pay-paid">✅ Lunas Diterima</span>
-                              {order.paidAt && (
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
-                                  {formatDate(order.paidAt)}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div>
-                              <span className="badge-pay-unpaid">🔴 Belum Lunas</span>
-                              <button
-                                className="btn-pay-action"
-                                style={{ marginTop: '6px' }}
-                                onClick={() => handleOpenPaymentModal(order)}
-                              >
-                                💵 Konfirmasi Pelunasan
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        
-                        <td>
-                          <div className="kopkar-actions-col">
-                            {order.status === 'pending' && (
-                              <div className="action-buttons">
-                                <button className="btn-approve" onClick={() => handleApprove(order)}>
-                                  ✓ Setujui
-                                </button>
-                                <button className="btn-reject" onClick={() => handleOpenRejectModal(order)}>
-                                  ✕ Tolak
-                                </button>
-                              </div>
-                            )}
-
-                            {order.status === 'approved' && (
-                              <div className="action-buttons-wrap">
-                                <button className="btn-ship" onClick={() => handleOpenShipModal(order)}>
-                                  🚚 Kirim Barang
-                                </button>
-                                <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => setPrintingOrder(order)}>
-                                  🖨️ Cetak Surat Jalan
-                                </button>
-                                <button className="btn-cancel-approved" onClick={() => handleOpenKopkarCancelModal(order)}>
-                                  ⚠️ Batalkan
-                                </button>
-                              </div>
-                            )}
-
-                            {order.status === 'shipped' && (
-                              <div style={{ fontSize: '0.8rem', color: '#2563eb' }}>
-                                Barang sedang diantar ke sekolah.
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Card View */}
-              <div className="mobile-cards-view">
-                {filteredActiveOrders.map((order) => (
-                  <div key={order.id} className="mobile-order-card">
-                    <div className="mobile-card-header">
-                      <div>
-                        <span className="mobile-order-id">{order.id}</span>
-                        <div style={{ fontWeight: 700, color: '#1e293b' }}>{order.schoolName}</div>
-                      </div>
-                      <span className={`status-badge ${order.status}`}>
-                        {order.status === 'pending' && 'ΓÅ│ Menunggu'}
-                        {order.status === 'approved' && '👍 Disetujui'}
-                        {order.status === 'shipped' && '🚚 Dikirim'}
-                      </span>
-                    </div>
-
-                    <div className="mobile-items-box">
-                      <div className="mobile-label">Item:</div>
-                      <ul className="order-items-list">
-                        {order.items.map((it, idx) => (
-                          <li key={idx}>
-                            <span className={`item-type ${it.type}`}>{it.type}</span>
-                            {it.name} — {it.quantity} pcs
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="mobile-price-summary">
-                      <div>
-                        <span className="price-sub-label">Harga Siswa:</span>
-                        <strong>{formatRupiah(order.totalPriceStudent)}</strong>
-                      </div>
-                      <div>
-                        <span className="price-sub-label">Fee Sekolah:</span>
-                        <strong style={{ color: '#059669' }}>+{formatRupiah(order.totalFeeSchool)}</strong>
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: '6px' }}>
-                      {order.paymentStatus === 'paid' ? (
-                        <span className="badge-pay-paid">✅ Lunas</span>
-                      ) : (
-                        <button
-                          className="btn-pay-action full-width-touch"
-                          onClick={() => handleOpenPaymentModal(order)}
-                        >
-                          💵 Konfirmasi Pelunasan Sekolah
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="mobile-card-actions">
-                      {order.status === 'pending' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                          <button className="btn-approve full-width-touch" onClick={() => handleApprove(order)}>
-                            ✓ Setujui
-                          </button>
-                          <button className="btn-reject full-width-touch" onClick={() => handleOpenRejectModal(order)}>
-                            ✕ Tolak
-                          </button>
-                        </div>
-                      )}
-
-                      {order.status === 'approved' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
-                          <button className="btn-ship full-width-touch" onClick={() => handleOpenShipModal(order)}>
-                            🚚 Kirim Barang
-                          </button>
-                          <button className="btn-secondary full-width-touch" onClick={() => setPrintingOrder(order)}>
-                            🖨️ Cetak Surat Jalan
-                          </button>
-                          <button className="btn-cancel-approved full-width-touch" onClick={() => handleOpenKopkarCancelModal(order)}>
-                            ⚠️ Batalkan
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="kopkar-empty">
-              <p>Tidak ada pesanan aktif yang sesuai filter.</p>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* TAB 2: HISTORY PEMESANAN DITERIMA & PENCAIRAN FEE SEKOLAH */}
-      {activeTab === 'received' && (
+      
         <div className="tab-pane">
           <div className="kopkar-toolbar">
             <h3>Riwayat Pesanan Selesai Diterima & Pembayaran Fee Sekolah</h3>
@@ -623,7 +408,7 @@ const KopkarPelunasan = () => {
             </div>
           </div>
 
-          {filteredReceivedOrders.length > 0 ? (
+          {orders.length > 0 ? (
             <>
               {/* Desktop Table View */}
               <div className="kopkar-table-container desktop-table-view">
@@ -639,7 +424,7 @@ const KopkarPelunasan = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredReceivedOrders.map((order) => (
+                    {orders.map((order) => (
                       <tr key={order.id}>
                         <td>
                           <strong>{order.id}</strong>
@@ -722,9 +507,32 @@ const KopkarPelunasan = () => {
                 </table>
               </div>
 
+              {/* Pagination UI */}
+              {totalCount > itemsPerPage && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '24px' }}>
+                  <button 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage === 1 ? '#f1f5f9' : '#fff', color: currentPage === 1 ? '#94a3b8' : '#1e293b', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                  >
+                    ← Sebelumnya
+                  </button>
+                  <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>
+                    Halaman {currentPage} dari {Math.ceil(totalCount / itemsPerPage)}
+                  </span>
+                  <button 
+                    disabled={currentPage >= Math.ceil(totalCount / itemsPerPage)}
+                    onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / itemsPerPage), prev + 1))}
+                    style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', background: currentPage >= Math.ceil(totalCount / itemsPerPage) ? '#f1f5f9' : '#fff', color: currentPage >= Math.ceil(totalCount / itemsPerPage) ? '#94a3b8' : '#1e293b', cursor: currentPage >= Math.ceil(totalCount / itemsPerPage) ? 'not-allowed' : 'pointer' }}
+                  >
+                    Selanjutnya →
+                  </button>
+                </div>
+              )}
+
               {/* Mobile Card View */}
               <div className="mobile-cards-view">
-                {filteredReceivedOrders.map((order) => (
+                {orders.map((order) => (
                   <div key={order.id} className="mobile-order-card completed-card">
                     <div className="mobile-card-header">
                       <div>
@@ -785,90 +593,7 @@ const KopkarPelunasan = () => {
             </div>
           )}
         </div>
-      )}
-
-      {/* TAB 3: HISTORY PEMBATALAN */}
-      {activeTab === 'cancellations' && (
-        <div className="tab-pane">
-          <div className="kopkar-toolbar">
-            <h3>Riwayat Pembatalan & Permintaan Batal Sekolah</h3>
-          </div>
-
-          {filteredCancellationOrders.length > 0 ? (
-            <div className="kopkar-table-container desktop-table-view">
-              <table className="kopkar-table">
-                <thead>
-                  <tr>
-                    <th>ID & Sekolah</th>
-                    <th>Daftar Item</th>
-                    <th>Status</th>
-                    <th>Pihak Pembatal</th>
-                    <th>Alasan Pembatalan</th>
-                    <th>Waktu</th>
-                    <th>Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCancellationOrders.map((order) => (
-                    <tr key={order.id}>
-                      <td>
-                        <strong>{order.id}</strong>
-                        <div style={{ fontWeight: 600, color: '#334155' }}>{order.schoolName}</div>
-                      </td>
-                      <td>
-                        <ul className="order-items-list">
-                          {order.items.map((it, idx) => (
-                            <li key={idx}>
-                              <span className={`item-type ${it.type}`}>{it.type}</span>
-                              {it.name} ({it.quantity} pcs)
-                            </li>
-                          ))}
-                        </ul>
-                      </td>
-                      <td>
-                        {order.status === 'cancellation_requested' && (
-                          <span className="status-badge requested">ΓÅ│ Request Batal</span>
-                        )}
-                        {order.status === 'cancelled' && (
-                          <span className="status-badge cancelled">🚫 Dibatalkan</span>
-                        )}
-                        {order.status === 'rejected' && (
-                          <span className="status-badge rejected">❌ Ditolak</span>
-                        )}
-                      </td>
-                      <td>
-                        {order.cancellationInfo?.cancelledByName || 'Koperasi'}
-                      </td>
-                      <td>
-                        <div className="reason-text-box">
-                          {order.cancellationInfo?.reason || order.rejectionReason || 'Tidak ada alasan'}
-                        </div>
-                      </td>
-                      <td>
-                        {formatDate(order.cancellationInfo?.cancelledAt || order.createdAt)}
-                      </td>
-                      <td>
-                        {order.status === 'cancellation_requested' && (
-                          <button
-                            className="btn-approve-cancel"
-                            onClick={() => handleApproveSchoolCancel(order)}
-                          >
-                            ✓ Setujui Batal
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="kopkar-empty">
-              <p>Tidak ada riwayat pembatalan pesanan.</p>
-            </div>
-          )}
-        </div>
-      )}
+      
 
       {/* Modal Input Pengiriman Barang */}
       {shippingOrder && (
