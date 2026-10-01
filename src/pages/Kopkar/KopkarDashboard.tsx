@@ -1,37 +1,55 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useOrders } from '../../context/OrderContext';
 import { useReturns } from '../../context/ReturnContext';
+import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './kopkar.css';
 
 const KopkarDashboard = () => {
   const { user } = useAuth();
   const { pendingCount: pendingReturnsCount } = useReturns();
-  const { orders } = useOrders();
+  const [pendingOrders, setPendingOrders] = useState(0);
+  const [cancelRequestsCount, setCancelRequestsCount] = useState(0);
+  const [salesBySchool, setSalesBySchool] = useState<{name: string; Omzet: number; Laba: number}[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const pendingOrders = orders.filter((o) => o.status === 'pending').length;
-  const cancelRequestsCount = orders.filter((o) => o.status === 'cancellation_requested').length;
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('orders')
+        .select('status, school_name, total_price_student, total_price_kopkar');
 
-  // Calculate Sales by School for Chart
-  const salesBySchool = orders
-    .filter(o => o.status !== 'cancelled' && o.status !== 'rejected')
-    .reduce((acc, order) => {
-      const existing = acc.find(item => item.name === order.schoolName);
-      if (existing) {
-        existing.Omzet += (order.totalPriceStudent || 0);
-        existing.Laba += (order.totalPriceKopkar || 0);
-      } else {
-        acc.push({
-          name: order.schoolName || 'Unknown',
-          Omzet: order.totalPriceStudent || 0,
-          Laba: order.totalPriceKopkar || 0
-        });
+      if (!error && data) {
+        setPendingOrders(data.filter((o: any) => o.status === 'pending').length);
+        setCancelRequestsCount(data.filter((o: any) => o.status === 'cancellation_requested').length);
+
+        const sales = data
+          .filter((o: any) => o.status !== 'cancelled' && o.status !== 'rejected')
+          .reduce((acc: any[], order: any) => {
+            const existing = acc.find(item => item.name === order.school_name);
+            if (existing) {
+              existing.Omzet += (Number(order.total_price_student) || 0);
+              existing.Laba += (Number(order.total_price_kopkar) || 0);
+            } else {
+              acc.push({
+                name: order.school_name || 'Unknown',
+                Omzet: Number(order.total_price_student) || 0,
+                Laba: Number(order.total_price_kopkar) || 0
+              });
+            }
+            return acc;
+          }, [])
+          .sort((a: any, b: any) => b.Omzet - a.Omzet)
+          .slice(0, 5);
+        
+        setSalesBySchool(sales);
       }
-      return acc;
-    }, [] as { name: string; Omzet: number; Laba: number }[])
-    .sort((a, b) => b.Omzet - a.Omzet)
-    .slice(0, 5); // Top 5 Schools
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
 
   const formatRupiah = (value: number) => {
     if (value >= 1000000) {
@@ -51,13 +69,15 @@ const KopkarDashboard = () => {
         </div>
       </div>
 
-      {/* Operational Highlights */}
-      <div className="kopkar-stats operational-stats" style={{ marginBottom: '24px' }}>
-        <div className="kopkar-stat-card summary-card">
-          <div className="stat-icon">📋</div>
-          <div className="stat-label">Menunggu Persetujuan</div>
-          <div className="stat-value warning">{pendingOrders}</div>
-        </div>
+      {loading ? <p>Memuat dashboard...</p> : (
+        <>
+          {/* Operational Highlights */}
+          <div className="kopkar-stats operational-stats" style={{ marginBottom: '24px' }}>
+            <div className="kopkar-stat-card summary-card">
+              <div className="stat-icon">📋</div>
+              <div className="stat-label">Menunggu Persetujuan</div>
+              <div className="stat-value warning">{pendingOrders}</div>
+            </div>
         {cancelRequestsCount > 0 && (
           <div className="kopkar-stat-card alert-card">
             <div className="stat-icon">⚠️</div>
@@ -81,11 +101,11 @@ const KopkarDashboard = () => {
 
       {/* Chart Section */}
       {salesBySchool.length > 0 && (
-        <div className="kopkar-stat-card" style={{ marginBottom: '24px', padding: '24px' }}>
+        <div className="kopkar-stat-card" style={{ marginBottom: '16px', padding: '16px' }}>
           <h3 style={{ marginBottom: '16px', color: '#1e293b', fontSize: '1.2rem', fontWeight: 700 }}>
             📊 Top 5 Sekolah Berdasarkan Omzet
           </h3>
-          <div style={{ width: '100%', height: '300px' }}>
+          <div style={{ width: '100%', height: '220px' }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={salesBySchool}
@@ -109,55 +129,45 @@ const KopkarDashboard = () => {
       )}
 
       {/* Menu Utama Action Cards */}
-      <div className="kopkar-main-menu" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-        <Link to="/kopkar/pesanan" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
-          <div className="stat-icon" style={{ fontSize: '2rem' }}>🛒</div>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Manajemen Pesanan</div>
-          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Setujui, tolak, dan kelola pengiriman barang pesanan fisik sekolah.</div>
+      <div className="kopkar-main-menu" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+        <Link to="/kopkar/pesanan" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '6px', padding: '16px' }}>
+          <div className="stat-icon" style={{ fontSize: '1.5rem' }}>🛒</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Manajemen Pesanan</div>
+          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Setujui, tolak, dan kelola pengiriman barang pesanan fisik sekolah.</div>
         </Link>
         
-        <Link to="/kopkar/pelunasan" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
-          <div className="stat-icon" style={{ fontSize: '2rem' }}>💰</div>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Manajemen Pelunasan</div>
-          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Kelola tagihan, uang masuk dari siswa, dan pencairan fee sekolah.</div>
+        <Link to="/kopkar/pelunasan" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '6px', padding: '16px' }}>
+          <div className="stat-icon" style={{ fontSize: '1.5rem' }}>💰</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Manajemen Pelunasan</div>
+          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Kelola tagihan, uang masuk dari siswa, dan pencairan fee sekolah.</div>
         </Link>
         
-        <Link to="/kopkar/catalog" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
-          <div className="stat-icon" style={{ fontSize: '2rem' }}>🏷️</div>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Katalog & Harga</div>
-          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Atur harga pokok, fee sekolah, dan etalase barang.</div>
+        <Link to="/kopkar/barang" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '6px', padding: '16px' }}>
+          <div className="stat-icon" style={{ fontSize: '1.5rem' }}>📦</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Manajemen Barang</div>
+          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Kelola daftar katalog, harga, stok fisik gudang, dan opname stok.</div>
         </Link>
         
-        <Link to="/kopkar/stock" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
-          <div className="stat-icon" style={{ fontSize: '2rem' }}>📦</div>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Stock Barang</div>
-          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Kontrol ketersediaan stok fisik gudang koperasi.</div>
+        <Link to="/kopkar/retur" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '6px', padding: '16px' }}>
+          <div className="stat-icon" style={{ fontSize: '1.5rem' }}>↩️</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Retur Masuk</div>
+          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Terima pengembalian barang atau komplain cacat.</div>
         </Link>
         
-        <Link to="/kopkar/retur" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
-          <div className="stat-icon" style={{ fontSize: '2rem' }}>↩️</div>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Retur Masuk</div>
-          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Terima pengembalian barang atau komplain cacat.</div>
+        <Link to="/kopkar/rekap" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '6px', padding: '16px' }}>
+          <div className="stat-icon" style={{ fontSize: '1.5rem' }}>📊</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Rekap Data</div>
+          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Laporan seluruh aktivitas dan download rekap PDF/Excel.</div>
         </Link>
         
-        <Link to="/kopkar/rekap" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
-          <div className="stat-icon" style={{ fontSize: '2rem' }}>📊</div>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Rekap Data</div>
-          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Laporan seluruh aktivitas dan download rekap PDF/Excel.</div>
-        </Link>
-        
-        <Link to="/kopkar/kalkulator-kain" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
-          <div className="stat-icon" style={{ fontSize: '2rem' }}>📐</div>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Kalkulator Kain</div>
-          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Hitung dan prediksi hasil seragam dari gulungan kain vendor.</div>
-        </Link>
-
-        <Link to="/kopkar/vendor" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '8px', padding: '24px' }}>
-          <div className="stat-icon" style={{ fontSize: '2rem' }}>🏭</div>
-          <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>Manajemen Vendor</div>
-          <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Input barang masuk dan kontrol pembayaran/piutang ke vendor penjahit.</div>
+        <Link to="/kopkar/vendor" className="kopkar-stat-card" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '6px', padding: '16px' }}>
+          <div className="stat-icon" style={{ fontSize: '1.5rem' }}>🏭</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Manajemen Vendor</div>
+          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Input barang masuk dan kontrol pembayaran/piutang ke vendor.</div>
         </Link>
       </div>
+      </>
+      )}
     </div>
   );
 };

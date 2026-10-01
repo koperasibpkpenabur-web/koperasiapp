@@ -185,12 +185,9 @@ const ProductCatalog = () => {
   return (
     <div className="catalog-page">
       {/* Header */}
-      <div className="catalog-header">
-        <div>
-          <h2>Katalog & Harga</h2>
-          <div className="catalog-subtitle">
-            Kelola data master barang, jenjang sekolah (TK, SD, SMP, SMA), dan 3 struktur harga (Harga Koperasi, Fee Sekolah, Harga Siswa).
-          </div>
+      <div className="catalog-header" style={{ alignItems: 'flex-end' }}>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ margin: 0, color: '#1e293b' }}>Daftar Harga & Barang</h3>
         </div>
 
         <div className="catalog-header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>

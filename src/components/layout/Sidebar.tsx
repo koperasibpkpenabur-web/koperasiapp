@@ -104,32 +104,12 @@ const Sidebar = () => {
               </li>
               <li>
                 <NavLink
-                  to="/kopkar/catalog"
-                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-                  onClick={closeMobileNav}
-                >
-                  <span className="nav-icon">🏷️</span>
-                  <span className="nav-text">Katalog & Harga</span>
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/kopkar/stock"
+                  to="/kopkar/barang"
                   className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
                   onClick={closeMobileNav}
                 >
                   <span className="nav-icon">📦</span>
-                  <span className="nav-text">Stock Barang</span>
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/kopkar/kalkulator-kain"
-                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-                  onClick={closeMobileNav}
-                >
-                  <span className="nav-icon">📐</span>
-                  <span className="nav-text">Kalkulator Kain</span>
+                  <span className="nav-text">Manajemen Barang</span>
                 </NavLink>
               </li>
               <li>

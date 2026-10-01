@@ -444,13 +444,7 @@ const KopkarKalkulatorKain = () => {
   }, [totalRolls, yardsPerRoll, defectTolerance, currentPreset, sizes]);
 
   return (
-    <div className="kopkar-container">
-      <div className="kopkar-header">
-        <div>
-          <h2 className="kopkar-title" style={{ fontVariantLigatures: 'none' }}>Kalkulator Efisiensi Kain (Fabric Yield)</h2>
-          <p className="kopkar-subtitle">Prediksi akurat jumlah seragam yang bisa dijahit dari gulungan kain, anti-kecurangan vendor.</p>
-        </div>
-      </div>
+    <div style={{ padding: '0' }}>
 
       <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
         <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>

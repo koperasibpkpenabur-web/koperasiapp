@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useReturns } from '../../context/ReturnContext';
+import { supabase } from '../../lib/supabase';
 import type { Order, ShippingInfo } from '../../types';
 import SuratJalanPrint from './SuratJalanPrint';
 import './kopkar.css';
@@ -11,8 +12,58 @@ import './kopkar.css';
 const KopkarPelunasan = () => {
   const { user } = useAuth();
   const { pendingCount: pendingReturnsCount } = useReturns();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      setLoadingOrders(true);
+      const { data, error } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false });
+      if (!error && data) {
+        setOrders(data.map((row: any) => ({
+          id: row.id,
+          schoolUserId: row.school_user_id,
+          schoolName: row.school_name,
+          schoolLevel: row.school_level,
+          orderPhase: row.order_phase,
+          items: (row.order_items || []).map((it: any) => ({
+            id: it.id,
+            productId: it.product_id,
+            name: it.name,
+            type: it.type,
+            size: it.size,
+            gender: it.gender,
+            quantity: it.quantity,
+            priceKopkar: Number(it.price_kopkar),
+            feeSchool: Number(it.fee_school),
+            priceStudent: Number(it.price_student),
+          })),
+          totalPriceKopkar: Number(row.total_price_kopkar),
+          totalFeeSchool: Number(row.total_fee_school),
+          totalPriceStudent: Number(row.total_price_student),
+          status: row.status,
+          rejectionReason: row.rejection_reason,
+          shippingInfo: row.shipping_info,
+          receiveInfo: row.receive_info,
+          cancellationInfo: row.cancellation_info,
+          paymentStatus: row.payment_status,
+          paidAt: row.paid_at,
+          paidNotes: row.paid_notes,
+          feeStatus: row.fee_status,
+          feeDisbursedAt: row.fee_disbursed_at,
+          feeDisbursedBy: row.fee_disbursed_by,
+          feeDisbursedNotes: row.fee_disbursed_notes,
+          createdAt: row.created_at,
+          processedAt: row.processed_at,
+          processedBy: row.processed_by,
+        })));
+      }
+      setLoadingOrders(false);
+    };
+    fetchOrders();
+  }, []);
+
   const {
-    orders,
     approveOrder,
     rejectOrder,
     shipOrder,

@@ -11,10 +11,8 @@ import SchoolPayment from '../pages/School/SchoolPayment';
 import KopkarDashboard from '../pages/Kopkar/KopkarDashboard';
 import KopkarPesanan from '../pages/Kopkar/KopkarPesanan';
 import KopkarPelunasan from '../pages/Kopkar/KopkarPelunasan';
-import ProductCatalog from '../pages/Kopkar/ProductCatalog';
-import StockManagement from '../pages/Kopkar/StockManagement';
+import ItemManagement from '../pages/Kopkar/ItemManagement';
 import VendorManagement from '../pages/Kopkar/VendorManagement';
-import KopkarKalkulatorKain from '../pages/Kopkar/KopkarKalkulatorKain';
 import KopkarReturn from '../pages/Kopkar/KopkarReturn';
 import KopkarRekap from '../pages/Kopkar/KopkarRekap';
 import SchoolReturn from '../pages/School/SchoolReturn';
@@ -86,19 +84,9 @@ const AppRoutes = () => {
             <KopkarPelunasan />
           </ProtectedRoute>
         } />
-        <Route path="kopkar/catalog" element={
+        <Route path="kopkar/barang" element={
           <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
-            <ProductCatalog />
-          </ProtectedRoute>
-        } />
-        <Route path="kopkar/stock" element={
-          <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
-            <StockManagement />
-          </ProtectedRoute>
-        } />
-        <Route path="kopkar/kalkulator-kain" element={
-          <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
-            <KopkarKalkulatorKain />
+            <ItemManagement />
           </ProtectedRoute>
         } />
         <Route path="kopkar/retur" element={

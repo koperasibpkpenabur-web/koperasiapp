@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import './school.css';
@@ -6,11 +7,19 @@ const SchoolPayment = () => {
   const { user } = useAuth();
   const { getOrdersBySchoolId } = useOrders();
 
-  const allSchoolOrders = user ? getOrdersBySchoolId(user.id) : [];
+  const [allSchoolOrders, setAllSchoolOrders] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.id) {
+      getOrdersBySchoolId(user.id).then(data => {
+        setAllSchoolOrders(data);
+      });
+    }
+  }, [user?.id, getOrdersBySchoolId]);
   
   // Ambil order yang belum lunas (unpaid), dan tidak dalam status batal/ditolak
   const unpaidOrders = allSchoolOrders.filter(
-    (o) => o.paymentStatus === 'unpaid' && 
+    (o: any) => o.paymentStatus === 'unpaid' && 
     o.status !== 'cancelled' && 
     o.status !== 'rejected' && 
     o.status !== 'cancellation_requested'
@@ -72,7 +81,7 @@ const SchoolPayment = () => {
               </tr>
             </thead>
             <tbody>
-              {unpaidOrders.map((order) => (
+              {unpaidOrders.map((order: any) => (
                 <tr key={order.id}>
                   <td><strong>{order.id}</strong></td>
                   <td>{formatDate(order.createdAt)}</td>

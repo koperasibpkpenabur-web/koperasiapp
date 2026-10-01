@@ -1,9 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { Order, OrderItem, ShippingInfo, ReceiveInfo, CancellationInfo } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface OrderContextType {
-  orders: Order[];
   createOrder: (orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>) => Promise<{ success: boolean; error?: string }>;
   approveOrder: (orderId: string, processorName: string) => Promise<void>;
   rejectOrder: (orderId: string, processorName: string, reason: string) => Promise<void>;
@@ -16,8 +15,7 @@ interface OrderContextType {
   markOrderAsPaid: (orderId: string, notes?: string) => Promise<void>;
   disburseSchoolFee: (orderId: string, stafName: string, notes?: string) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
-  getOrdersBySchoolId: (schoolUserId: string) => Order[];
-  fetchOrders: () => Promise<void>;
+  getOrdersBySchoolId: (schoolUserId: string) => Promise<Order[]>;
   cartItems: OrderItem[];
   setCartItems: React.Dispatch<React.SetStateAction<OrderItem[]>>;
   showCartModal: boolean;
@@ -27,60 +25,8 @@ interface OrderContextType {
 const OrderContext = createContext<OrderContextType | null>(null);
 
 export function OrderProvider({ children }: { children: ReactNode }) {
-  const [orders, setOrders] = useState<Order[]>([]);
   const [cartItems, setCartItems] = useState<OrderItem[]>([]);
   const [showCartModal, setShowCartModal] = useState(false);
-
-  const fetchOrders = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*, order_items(*)');
-      
-    if (!error && data) {
-      const mappedOrders: Order[] = data.map((row: any) => ({
-        id: row.id,
-        schoolUserId: row.school_user_id,
-        schoolName: row.school_name,
-        schoolLevel: row.school_level,
-        orderPhase: row.order_phase,
-        status: row.status,
-        notes: row.notes,
-        totalPriceKopkar: Number(row.total_price_kopkar),
-        totalFeeSchool: Number(row.total_fee_school),
-        totalPriceStudent: Number(row.total_price_student),
-        paymentStatus: row.payment_status,
-        paidAt: row.paid_at,
-        paidNotes: row.paid_notes,
-        feeStatus: row.fee_status,
-        feeDisbursedAt: row.fee_disbursed_at,
-        feeDisbursedBy: row.fee_disbursed_by,
-        feeDisbursedNotes: row.fee_disbursed_notes,
-        processedBy: row.processed_by,
-        processedAt: row.processed_at,
-        rejectionReason: row.rejection_reason,
-        shippingInfo: row.shipping_info,
-        receiveInfo: row.receive_info,
-        cancellationInfo: row.cancellation_info,
-        createdAt: row.created_at,
-        items: (row.order_items || []).map((item: any) => ({
-          productId: item.product_id,
-          code: item.code,
-          name: item.name,
-          type: item.type,
-          quantity: item.quantity,
-          size: item.size,
-          priceKopkar: Number(item.price_kopkar),
-          feeSchool: Number(item.fee_school),
-          priceStudent: Number(item.price_student)
-        }))
-      }));
-      setOrders(mappedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
 
   const createOrder = useCallback(
     async (orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>) => {
@@ -137,15 +83,13 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       
       if (itemsError) return { success: false, error: itemsError.message };
 
-      await fetchOrders();
       return { success: true };
     },
-    [fetchOrders]
+    []
   );
 
   const updateOrderInSupabase = async (orderId: string, updates: any) => {
     await supabase.from('orders').update(updates).eq('id', orderId);
-    await fetchOrders();
   };
 
   const approveOrder = useCallback(async (orderId: string, processorName: string) => {
@@ -155,7 +99,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       processed_at: new Date().toISOString(),
       rejection_reason: null,
     });
-  }, [fetchOrders]);
+  }, []);
 
   const rejectOrder = useCallback(async (orderId: string, processorName: string, reason: string) => {
     await updateOrderInSupabase(orderId, {
@@ -164,7 +108,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       processed_at: new Date().toISOString(),
       rejection_reason: reason,
     });
-  }, [fetchOrders]);
+  }, []);
 
   const shipOrder = useCallback(async (orderId: string, shippingData: ShippingInfo) => {
     // 1. Update order status
@@ -174,33 +118,52 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     });
 
     // 2. Deduct stock based on source
-    const order = orders.find(o => o.id === orderId);
-    if (order && order.items && order.items.length > 0) {
-      for (const item of order.items) {
-        if (!item.productId) continue;
+    const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
+    if (orderRow && orderRow.order_items && orderRow.order_items.length > 0) {
+      // Find assigned vendor for this school
+      let assignedVendorId = null;
+      if (shippingData.source === 'vendor') {
+        const { data: assignment } = await supabase.from('vendor_school_assignments')
+          .select('vendor_id')
+          .eq('school_user_id', orderRow.school_user_id)
+          .single();
+        if (assignment) assignedVendorId = assignment.vendor_id;
+      }
+
+      for (const item of orderRow.order_items) {
+        if (!item.product_id) continue;
+        const qty = item.quantity;
         
-        // fetch current stock
-        const { data: pData } = await supabase.from('products').select('stock, stock_vendor').eq('id', item.productId).single();
-        if (pData) {
-          const qty = item.quantity;
-          if (shippingData.source === 'vendor') {
-            const newStockVendor = Math.max(0, (pData.stock_vendor || 0) - qty);
-            await supabase.from('products').update({ stock_vendor: newStockVendor }).eq('id', item.productId);
-          } else {
+        if (shippingData.source === 'vendor' && assignedVendorId) {
+          // Deduct from vendor_stocks
+          const { data: vStock } = await supabase.from('vendor_stocks')
+            .select('id, quantity')
+            .eq('vendor_id', assignedVendorId)
+            .eq('product_id', item.product_id)
+            .single();
+            
+          if (vStock) {
+            const newQty = Math.max(0, (vStock.quantity || 0) - qty);
+            await supabase.from('vendor_stocks').update({ quantity: newQty }).eq('id', vStock.id);
+          }
+        } else {
+          // Deduct from Kopkar Gudang
+          const { data: pData } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+          if (pData) {
             const newStock = Math.max(0, (pData.stock || 0) - qty);
-            await supabase.from('products').update({ stock: newStock }).eq('id', item.productId);
+            await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
           }
         }
       }
     }
-  }, [orders, fetchOrders]);
+  }, []);
 
   const cancelShipment = useCallback(async (orderId: string) => {
     await updateOrderInSupabase(orderId, {
       status: 'approved',
       shipping_info: null,
     });
-  }, [fetchOrders]);
+  }, []);
 
   const receiveOrder = useCallback(
     async (orderId: string, receiveData: { receivedBy: string; isChecked: boolean; notes?: string }) => {
@@ -217,18 +180,18 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       });
 
       // 3-Way Matching: Create Vendor Payables IF shipped from vendor
-      const order = orders.find(o => o.id === orderId);
-      if (order && order.shippingInfo && order.shippingInfo.source === 'vendor') {
+      const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
+      if (orderRow && orderRow.shipping_info && orderRow.shipping_info.source === 'vendor') {
         // Find total HPP (Kopkar price) for this order
         let totalHpp = 0;
         let vendorName = 'Unknown Vendor';
         
-        for (const item of order.items) {
-          totalHpp += item.priceKopkar * item.quantity; // Note: if school only receives partial, this should ideally use received quantity, but for now we use order quantity.
-          if (!item.productId) continue;
+        for (const item of (orderRow.order_items || [])) {
+          totalHpp += item.price_kopkar * item.quantity;
+          if (!item.product_id) continue;
           
           // Get vendor name from product
-          const { data: pData } = await supabase.from('products').select('supplier_name').eq('id', item.productId).single();
+          const { data: pData } = await supabase.from('products').select('supplier_name').eq('id', item.product_id).single();
           if (pData && pData.supplier_name) {
             vendorName = pData.supplier_name;
           }
@@ -238,14 +201,14 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           await supabase.from('vendor_payables').insert([{
             vendor_name: vendorName,
             order_id: orderId,
-            school_name: order.schoolName,
+            school_name: orderRow.school_name,
             total_amount: totalHpp,
             status: 'pending'
           }]);
         }
       }
     },
-    [fetchOrders]
+    []
   );
 
   const requestCancelOrder = useCallback(async (orderId: string, reason: string, schoolUserName: string) => {
@@ -260,28 +223,28 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       status: 'cancellation_requested',
       cancellation_info: cancelInfo,
     });
-  }, [fetchOrders]);
+  }, []);
 
   const approveCancelOrder = useCallback(async (orderId: string, stafName: string) => {
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
+    const { data: orderRow } = await supabase.from('orders').select('*').eq('id', orderId).single();
+    if (!orderRow) return;
     
     const cancelInfo: CancellationInfo = {
-      ...(order.cancellationInfo || {
+      ...(orderRow.cancellation_info || {
         cancelledByRole: 'sekolah',
         cancelledByName: 'Sekolah',
         reason: 'Dibatalkan',
         requestedAt: new Date().toISOString(),
       }),
       cancelledAt: new Date().toISOString(),
-      reason: `${order.cancellationInfo?.reason || 'Pengajuan pembatalan sekolah'} (Disetujui oleh ${stafName})`,
+      reason: `${orderRow.cancellation_info?.reason || 'Pengajuan pembatalan sekolah'} (Disetujui oleh ${stafName})`,
     };
 
     await updateOrderInSupabase(orderId, {
       status: 'cancelled',
       cancellation_info: cancelInfo,
     });
-  }, [orders, fetchOrders]);
+  }, []);
 
   const kopkarCancelOrder = useCallback(async (orderId: string, reason: string, stafName: string) => {
     const cancelInfo: CancellationInfo = {
@@ -294,7 +257,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       status: 'cancelled',
       cancellation_info: cancelInfo,
     });
-  }, [fetchOrders]);
+  }, []);
 
   const markOrderAsPaid = useCallback(async (orderId: string, notes?: string) => {
     await updateOrderInSupabase(orderId, {
@@ -303,7 +266,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       paid_notes: notes || 'Pembayaran telah diverifikasi lunas oleh Koperasi',
       fee_status: 'ready',
     });
-  }, [fetchOrders]);
+  }, []);
 
   const disburseSchoolFee = useCallback(async (orderId: string, stafName: string, notes?: string) => {
     await updateOrderInSupabase(orderId, {
@@ -312,27 +275,67 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       fee_disbursed_by: stafName,
       fee_disbursed_notes: notes || 'Fee sekolah telah ditransfer ke rekening sekolah',
     });
-  }, [fetchOrders]);
+  }, []);
 
   const deleteOrder = async (orderId: string) => {
     // Delete order_items first due to foreign key
     await supabase.from('order_items').delete().eq('order_id', orderId);
     // Then delete order
     await supabase.from('orders').delete().eq('id', orderId);
-    await fetchOrders();
   };
 
-  const getOrdersBySchoolId = useCallback(
-    (schoolUserId: string) => {
-      return orders.filter((ord) => ord.schoolUserId === schoolUserId);
-    },
-    [orders]
-  );
+  const getOrdersBySchoolId = useCallback(async (schoolUserId: string) => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('school_user_id', schoolUserId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      return data.map((row: any) => ({
+        id: row.id,
+        schoolUserId: row.school_user_id,
+        schoolName: row.school_name,
+        schoolLevel: row.school_level,
+        orderPhase: row.order_phase,
+        status: row.status,
+        notes: row.notes,
+        totalPriceKopkar: Number(row.total_price_kopkar),
+        totalFeeSchool: Number(row.total_fee_school),
+        totalPriceStudent: Number(row.total_price_student),
+        paymentStatus: row.payment_status,
+        paidAt: row.paid_at,
+        paidNotes: row.paid_notes,
+        feeStatus: row.fee_status,
+        feeDisbursedAt: row.fee_disbursed_at,
+        feeDisbursedBy: row.fee_disbursed_by,
+        feeDisbursedNotes: row.fee_disbursed_notes,
+        processedBy: row.processed_by,
+        processedAt: row.processed_at,
+        rejectionReason: row.rejection_reason,
+        shippingInfo: row.shipping_info,
+        receiveInfo: row.receive_info,
+        cancellationInfo: row.cancellation_info,
+        createdAt: row.created_at,
+        items: (row.order_items || []).map((item: any) => ({
+          productId: item.product_id,
+          code: item.code,
+          name: item.name,
+          type: item.type,
+          quantity: item.quantity,
+          size: item.size,
+          priceKopkar: Number(item.price_kopkar),
+          feeSchool: Number(item.fee_school),
+          priceStudent: Number(item.price_student)
+        }))
+      })) as Order[];
+    }
+    return [];
+  }, []);
 
   return (
     <OrderContext.Provider
       value={{
-        orders,
         createOrder,
         approveOrder,
         rejectOrder,
@@ -346,7 +349,6 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         disburseSchoolFee,
         deleteOrder,
         getOrdersBySchoolId,
-        fetchOrders,
         cartItems,
         setCartItems,
         showCartModal,

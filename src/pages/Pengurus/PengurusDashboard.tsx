@@ -1,13 +1,36 @@
-import { useMemo } from 'react';
-import { useOrders } from '../../context/OrderContext';
+import { useState, useEffect, useMemo } from 'react';
+import { supabase } from '../../lib/supabase';
 
 const PengurusDashboard = () => {
-  const { orders } = useOrders();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('orders')
+        .select('status, school_name, school_level, total_price_student, total_price_kopkar, total_fee_school');
+        
+      if (!error && data) {
+        setOrders(data.map((r: any) => ({
+          status: r.status,
+          schoolName: r.school_name,
+          schoolLevel: r.school_level,
+          totalPriceStudent: Number(r.total_price_student) || 0,
+          totalPriceKopkar: Number(r.total_price_kopkar) || 0,
+          totalFeeSchool: Number(r.total_fee_school) || 0
+        })));
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
 
   // Hanya pesanan yang tidak batal/ditolak yang dihitung pendapatannya
   const validOrders = useMemo(() => {
     return orders.filter(
-      (o) => o.status !== 'cancelled' && o.status !== 'rejected' && o.status !== 'cancellation_requested'
+      (o: any) => o.status !== 'cancelled' && o.status !== 'rejected' && o.status !== 'cancellation_requested'
     );
   }, [orders]);
 
@@ -28,10 +51,9 @@ const PengurusDashboard = () => {
     }, 0);
   }, [validOrders]);
 
-  // Omzet Per Sekolah
   const omzetPerSchool = useMemo(() => {
     const map = new Map<string, { omzet: number; level: string; orderCount: number }>();
-    validOrders.forEach((o) => {
+    validOrders.forEach((o: any) => {
       const existing = map.get(o.schoolName) || { omzet: 0, level: o.schoolLevel || '-', orderCount: 0 };
       existing.omzet += o.totalPriceStudent || 0;
       existing.orderCount += 1;
@@ -54,6 +76,8 @@ const PengurusDashboard = () => {
     <div style={{ padding: '20px' }}>
       <h2 style={{ marginBottom: '24px', color: '#1e293b' }}>Dashboard Eksekutif (Pengurus)</h2>
 
+      {loading ? <p>Memuat dashboard...</p> : (
+      <>
       {/* Ringkasan Laba Rugi */}
       <div style={{
         display: 'grid',
@@ -123,6 +147,8 @@ const PengurusDashboard = () => {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

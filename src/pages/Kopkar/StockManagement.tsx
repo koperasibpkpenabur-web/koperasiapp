@@ -262,12 +262,9 @@ const StockManagement = () => {
   return (
     <div className="catalog-page">
       {/* Header */}
-      <div className="catalog-header">
-        <div>
-          <h2>Dashboard Stock Barang</h2>
-          <div className="catalog-subtitle">
-            Pusat monitoring inventori fisik, opname stok, dan sinkronisasi akumulasi barang koperasi per jenjang.
-          </div>
+      <div className="catalog-header" style={{ alignItems: 'flex-end' }}>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ margin: 0, color: '#1e293b' }}>Opname & Kartu Stok</h3>
         </div>
 
         <div className="catalog-header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>

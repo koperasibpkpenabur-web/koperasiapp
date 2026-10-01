@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
@@ -9,18 +10,30 @@ const SchoolDashboard = () => {
   const { getOrdersBySchoolId } = useOrders();
   const { getReturnsBySchoolId } = useReturns();
 
+  const [allSchoolOrders, setAllSchoolOrders] = useState<any[]>([]);
+  const [schoolReturns, setSchoolReturns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user?.id) {
+      setLoading(true);
+      getOrdersBySchoolId(user.id).then(data => {
+        setAllSchoolOrders(data);
+        setLoading(false);
+      });
+      setSchoolReturns(getReturnsBySchoolId(user.id) as any[]);
+    }
+  }, [user?.id, getOrdersBySchoolId, getReturnsBySchoolId]);
+
   if (!user) {
     return <div style={{ padding: '20px' }}>Silakan login sebagai sekolah...</div>;
   }
 
-  const allSchoolOrders = getOrdersBySchoolId(user.id);
-  const schoolReturns = getReturnsBySchoolId(user.id);
-  
-  const activeReturnsCount = schoolReturns.filter((r) => r.status === 'pending' || r.status === 'koperasi_confirmed' || r.status === 'sekolah_dikirim').length;
-  const pendingCount = allSchoolOrders.filter((o) => o.status === 'pending').length;
-  const approvedCount = allSchoolOrders.filter((o) => o.status === 'approved').length;
-  const shippedCount = allSchoolOrders.filter((o) => o.status === 'shipped').length;
-  const receivedCount = allSchoolOrders.filter((o) => o.status === 'received').length;
+  const activeReturnsCount = schoolReturns.filter((r: any) => r.status === 'pending' || r.status === 'koperasi_confirmed' || r.status === 'sekolah_dikirim').length;
+  const pendingCount = allSchoolOrders.filter((o: any) => o.status === 'pending').length;
+  const approvedCount = allSchoolOrders.filter((o: any) => o.status === 'approved').length;
+  const shippedCount = allSchoolOrders.filter((o: any) => o.status === 'shipped').length;
+  const receivedCount = allSchoolOrders.filter((o: any) => o.status === 'received').length;
 
   return (
     <div className="school-dashboard">
@@ -67,6 +80,7 @@ const SchoolDashboard = () => {
 
       <h3 style={{ fontSize: '1.1rem', color: '#1e293b', marginBottom: '16px' }}>Status Pesanan Terkini</h3>
       {/* Stats Cards */}
+      {loading ? <p>Memuat ringkasan...</p> : (
       <div className="order-stats">
         <div className="order-stat-card">
           <div className="stat-icon">📦</div>
@@ -94,6 +108,7 @@ const SchoolDashboard = () => {
           <div className="stat-value" style={{ color: '#059669' }}>{receivedCount}</div>
         </div>
       </div>
+      )}
     </div>
   );
 };

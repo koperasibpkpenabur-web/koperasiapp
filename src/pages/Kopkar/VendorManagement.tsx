@@ -1,276 +1,404 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useProducts } from '../../context/ProductContext';
-import type { VendorPayable } from '../../types';
+import KopkarKalkulatorKain from './KopkarKalkulatorKain';
+import './kopkar.css';
+
+interface Vendor {
+  id: string;
+  name: string;
+  contact_person: string;
+  phone: string;
+  address: string;
+  created_at: string;
+}
+
+interface Plotting {
+  id: string;
+  vendor_id: string;
+  school_user_id: string;
+  vendors?: { name: string };
+  app_users?: { school_name: string };
+}
+
+interface VendorStock {
+  id: string;
+  vendor_id: string;
+  product_id: string;
+  quantity: number;
+  last_updated: string;
+  vendors?: { name: string };
+  products?: { name: string; level: string; type: string };
+}
 
 const VendorManagement = () => {
-  const { products, setProductStock } = useProducts();
-  const [payables, setPayables] = useState<VendorPayable[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { products } = useProducts();
+  const [activeTab, setActiveTab] = useState<'vendors' | 'plotting' | 'stock' | 'calculator'>('vendors');
+  const [loading, setLoading] = useState(false);
 
-  // Modal Input Stock Vendor
-  const [showAddStockModal, setShowAddStockModal] = useState(false);
-  const [inputLevel, setInputLevel] = useState('');
-  const [inputVendor, setInputVendor] = useState('');
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [addQty, setAddQty] = useState(0);
+  // Data
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [plottings, setPlottings] = useState<Plotting[]>([]);
+  const [stocks, setStocks] = useState<VendorStock[]>([]);
+  const [schools, setSchools] = useState<any[]>([]);
+
+  // Modals
+  const [showAddVendor, setShowAddVendor] = useState(false);
+  const [showAddPlotting, setShowAddPlotting] = useState(false);
+  const [showAddStock, setShowAddStock] = useState(false);
+
+  // Form Vendor
+  const [vendorName, setVendorName] = useState('');
+  const [vendorContact, setVendorContact] = useState('');
+  const [vendorPhone, setVendorPhone] = useState('');
+  const [vendorAddress, setVendorAddress] = useState('');
+
+  // Form Plotting
+  const [plotVendorId, setPlotVendorId] = useState('');
+  const [plotSchoolId, setPlotSchoolId] = useState('');
+
+  // Form Stock
+  const [stockVendorId, setStockVendorId] = useState('');
+  const [stockProductId, setStockProductId] = useState('');
+  const [stockQty, setStockQty] = useState(0);
 
   useEffect(() => {
-    fetchPayables();
+    fetchVendors();
+    fetchSchools();
   }, []);
 
-  const fetchPayables = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('vendor_payables')
-      .select('*')
-      .order('created_at', { ascending: false });
+  useEffect(() => {
+    if (activeTab === 'plotting') fetchPlottings();
+    if (activeTab === 'stock') fetchStocks();
+  }, [activeTab]);
 
-    if (!error && data) {
-      setPayables(data.map(d => ({
-        id: d.id,
-        vendorName: d.vendor_name,
-        orderId: d.order_id,
-        schoolName: d.school_name,
-        totalAmount: d.total_amount,
-        status: d.status,
-        createdAt: d.created_at,
-        paidAt: d.paid_at
-      })));
-    }
+  const fetchVendors = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('vendors').select('*').order('created_at', { ascending: false });
+    if (data) setVendors(data);
     setLoading(false);
   };
 
-  const handleMarkAsPaid = async (id: string) => {
-    if (!window.confirm('Tandai tagihan ini sudah dibayar/ditransfer ke vendor?')) return;
-    
-    await supabase.from('vendor_payables').update({
-      status: 'paid',
-      paid_at: new Date().toISOString()
-    }).eq('id', id);
-    
-    fetchPayables();
+  const fetchSchools = async () => {
+    const { data } = await supabase.from('app_users').select('id, school_name').eq('role', 'sekolah');
+    if (data) setSchools(data);
   };
 
-  const handleAddVendorStock = async (e: React.FormEvent) => {
+  const fetchPlottings = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('vendor_school_assignments').select('*, vendors(name), app_users(school_name)');
+    if (data) setPlottings(data);
+    setLoading(false);
+  };
+
+  const fetchStocks = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('vendor_stocks').select('*, vendors(name), products(name, level, type)');
+    if (data) setStocks(data);
+    setLoading(false);
+  };
+
+  const handleAddVendor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProductId || addQty <= 0) return;
-    const p = products.find(prod => prod.id === selectedProductId);
-    if (!p) return;
-    
-    // Update vendor_name/supplierName if needed
-    if (inputVendor && p.supplierName !== inputVendor) {
-      const { error } = await supabase.from('products').update({ supplier_name: inputVendor }).eq('id', p.id);
-      if (error) console.error("Error updating supplier name:", error);
+    const { error } = await supabase.from('vendors').insert({
+      name: vendorName,
+      contact_person: vendorContact,
+      phone: vendorPhone,
+      address: vendorAddress
+    });
+    if (!error) {
+      alert('Vendor berhasil ditambahkan!');
+      setShowAddVendor(false);
+      setVendorName(''); setVendorContact(''); setVendorPhone(''); setVendorAddress('');
+      fetchVendors();
+    } else {
+      alert('Gagal menambah vendor: ' + error.message);
     }
+  };
 
-    const newStockVendor = (p.stockVendor || 0) + addQty;
-    await setProductStock(p.id, p.stock || 0, newStockVendor);
+  const handleAddPlotting = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!plotVendorId || !plotSchoolId) return;
+    const { error } = await supabase.from('vendor_school_assignments').insert({
+      vendor_id: plotVendorId,
+      school_user_id: plotSchoolId
+    });
+    if (!error) {
+      alert('Plotting berhasil disimpan!');
+      setShowAddPlotting(false);
+      setPlotSchoolId('');
+      fetchPlottings();
+    } else {
+      alert('Gagal (mungkin sekolah ini sudah diplot ke vendor tersebut): ' + error.message);
+    }
+  };
+
+  const handleAddStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stockVendorId || !stockProductId || stockQty <= 0) return;
     
-    setShowAddStockModal(false);
-    setSelectedProductId('');
-    setInputLevel('');
-    setInputVendor('');
-    setAddQty(0);
-    alert(`Berhasil menambahkan ${addQty} pcs ke Stock Vendor untuk barang ${p.name}`);
+    // Check if stock already exists for this vendor and product
+    const existing = stocks.find(s => s.vendor_id === stockVendorId && s.product_id === stockProductId);
+    
+    if (existing) {
+      const { error } = await supabase.from('vendor_stocks')
+        .update({ quantity: existing.quantity + stockQty, last_updated: new Date().toISOString() })
+        .eq('id', existing.id);
+      if (!error) {
+        alert('Stok vendor berhasil ditambahkan!');
+        setShowAddStock(false);
+        setStockQty(0);
+        fetchStocks();
+      }
+    } else {
+      const { error } = await supabase.from('vendor_stocks').insert({
+        vendor_id: stockVendorId,
+        product_id: stockProductId,
+        quantity: stockQty
+      });
+      if (!error) {
+        alert('Stok baru vendor berhasil dicatat!');
+        setShowAddStock(false);
+        setStockQty(0);
+        fetchStocks();
+      } else {
+        alert('Gagal menambah stok: ' + error.message);
+      }
+    }
   };
 
-  const pendingPayables = payables.filter(p => p.status === 'pending');
-  const paidPayables = payables.filter(p => p.status === 'paid');
-
-  const formatRupiah = (num: number) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
+  const handleDeleteVendor = async (id: string) => {
+    if(!window.confirm('Hapus vendor ini? Semua plotting dan stok terkait akan terhapus.')) return;
+    await supabase.from('vendors').delete().eq('id', id);
+    fetchVendors();
   };
 
-  const formatDate = (isoString: string) => {
-    if (!isoString) return '-';
-    const date = new Date(isoString);
-    return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+  const handleDeletePlotting = async (id: string) => {
+    if(!window.confirm('Hapus plotting ini?')) return;
+    await supabase.from('vendor_school_assignments').delete().eq('id', id);
+    fetchPlottings();
   };
 
   return (
-    <div className="kopkar-container">
-      <div className="kopkar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h2 className="kopkar-title">Manajemen Vendor</h2>
-          <p className="kopkar-subtitle">Kelola tagihan hutang ke vendor dan terima stok barang dari vendor.</p>
-        </div>
-        <div>
-          <button 
-            onClick={() => setShowAddStockModal(true)}
-            style={{ padding: '10px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-          >
-            🏭 + Input Barang Masuk (Vendor)
-          </button>
-        </div>
+    <div className="kopkar-dashboard">
+      <div className="kopkar-header" style={{ marginBottom: '24px' }}>
+        <h2 className="kopkar-title">🏭 Manajemen Vendor</h2>
+        <p className="kopkar-subtitle">Pusat kendali plotting penjahit ke sekolah, penerimaan stok, dan kalkulasi kain.</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-        <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-          <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Hutang Pending</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#e11d48', marginTop: '8px' }}>
-            {formatRupiah(pendingPayables.reduce((acc, curr) => acc + curr.totalAmount, 0))}
-          </div>
-          <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>Dari {pendingPayables.length} tagihan</div>
-        </div>
-
-        <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-          <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Sudah Dibayar</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#10b981', marginTop: '8px' }}>
-            {formatRupiah(paidPayables.reduce((acc, curr) => acc + curr.totalAmount, 0))}
-          </div>
-          <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>Dari {paidPayables.length} tagihan</div>
-        </div>
+      {/* Tabs */}
+      <div className="kopkar-tabs" style={{ marginBottom: '24px', display: 'flex', gap: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', flexWrap: 'wrap' }}>
+        <button className={`btn-tab ${activeTab === 'vendors' ? 'active' : ''}`} onClick={() => setActiveTab('vendors')} style={{ fontWeight: activeTab === 'vendors' ? 'bold' : 'normal', background: 'none', border: 'none', cursor: 'pointer', color: activeTab === 'vendors' ? '#0284c7' : '#64748b' }}>
+          🏢 Daftar Vendor
+        </button>
+        <button className={`btn-tab ${activeTab === 'plotting' ? 'active' : ''}`} onClick={() => setActiveTab('plotting')} style={{ fontWeight: activeTab === 'plotting' ? 'bold' : 'normal', background: 'none', border: 'none', cursor: 'pointer', color: activeTab === 'plotting' ? '#0284c7' : '#64748b' }}>
+          🔗 Plotting Sekolah
+        </button>
+        <button className={`btn-tab ${activeTab === 'stock' ? 'active' : ''}`} onClick={() => setActiveTab('stock')} style={{ fontWeight: activeTab === 'stock' ? 'bold' : 'normal', background: 'none', border: 'none', cursor: 'pointer', color: activeTab === 'stock' ? '#0284c7' : '#64748b' }}>
+          📦 Stok Barang Jadi
+        </button>
+        <button className={`btn-tab ${activeTab === 'calculator' ? 'active' : ''}`} onClick={() => setActiveTab('calculator')} style={{ fontWeight: activeTab === 'calculator' ? 'bold' : 'normal', background: 'none', border: 'none', cursor: 'pointer', color: activeTab === 'calculator' ? '#0284c7' : '#64748b' }}>
+          🧮 Kalkulator Kain
+        </button>
       </div>
 
-      {loading ? (
-        <p>Memuat data vendor...</p>
-      ) : (
-        <div className="catalog-table-container">
-          <table className="catalog-table">
+      {/* VENDORS TAB */}
+      {activeTab === 'vendors' && (
+        <div className="kopkar-table-container">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+            <button className="btn-primary" onClick={() => setShowAddVendor(true)}>+ Tambah Vendor Baru</button>
+          </div>
+          <table className="kopkar-table">
             <thead>
               <tr>
                 <th>Nama Vendor</th>
-                <th>No. Pesanan / Order ID</th>
-                <th>Sekolah Penerima</th>
-                <th>Tgl Diterima Sekolah</th>
-                <th>Total Hutang (HPP)</th>
-                <th>Status</th>
+                <th>Kontak / PIC</th>
+                <th>Telepon</th>
+                <th>Alamat</th>
                 <th style={{ textAlign: 'center' }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {payables.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                    Belum ada data tagihan vendor.
-                  </td>
-                </tr>
-              ) : (
-                payables.map((p) => (
-                  <tr key={p.id}>
-                    <td><strong>{p.vendorName}</strong></td>
-                    <td><span className="order-id-badge">{p.orderId}</span></td>
-                    <td>{p.schoolName}</td>
-                    <td>{formatDate(p.createdAt)}</td>
-                    <td style={{ fontWeight: 700, color: '#334155' }}>{formatRupiah(p.totalAmount)}</td>
-                    <td>
-                      {p.status === 'paid' ? (
-                        <span style={{ background: '#d1fae5', color: '#059669', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
-                          LUNAS
-                        </span>
-                      ) : (
-                        <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
-                          BELUM DIBAYAR
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {p.status === 'pending' ? (
-                        <button 
-                          style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}
-                          onClick={() => handleMarkAsPaid(p.id)}
-                        >
-                          Bayar Vendor
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                          Dibayar pd {formatDate(p.paidAt!)}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
+              {loading ? <tr><td colSpan={5} style={{textAlign:'center'}}>Memuat...</td></tr> : 
+               vendors.length === 0 ? <tr><td colSpan={5} style={{textAlign:'center'}}>Belum ada vendor terdaftar</td></tr> :
+               vendors.map(v => (
+                 <tr key={v.id}>
+                   <td><strong>{v.name}</strong></td>
+                   <td>{v.contact_person || '-'}</td>
+                   <td>{v.phone || '-'}</td>
+                   <td>{v.address || '-'}</td>
+                   <td style={{ textAlign: 'center' }}>
+                     <button className="btn-danger" onClick={() => handleDeleteVendor(v.id)} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>Hapus</button>
+                   </td>
+                 </tr>
+               ))
+              }
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Modal Tambah Stock Vendor */}
-      {showAddStockModal && (
-        <div className="modal-overlay" onClick={() => setShowAddStockModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>Input Barang Masuk dari Vendor</h3>
-            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '16px' }}>
-              Tambahkan stok barang yang dikelola/disimpan di gudang vendor.
-            </p>
-            <form onSubmit={handleAddVendorStock}>
-              
-              <div className="form-group">
-                <label>Pilih Jenjang (Opsional, untuk filter)</label>
-                <select value={inputLevel} onChange={e => { setInputLevel(e.target.value); setSelectedProductId(''); }}>
-                  <option value="">-- Semua Jenjang --</option>
-                  <option value="TK">TK</option>
-                  <option value="SD">SD</option>
-                  <option value="SMP">SMP</option>
-                  <option value="SMA">SMA</option>
-                  <option value="SPK-SD">SPK-SD (Primary)</option>
-                  <option value="SPK-SMP">SPK-SMP (Lower Sec)</option>
-                  <option value="SPK-SMA">SPK-SMA (Upper Sec)</option>
+      {/* PLOTTING TAB */}
+      {activeTab === 'plotting' && (
+        <div className="kopkar-table-container">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+            <button className="btn-primary" onClick={() => setShowAddPlotting(true)}>+ Plot Sekolah Baru</button>
+          </div>
+          <table className="kopkar-table">
+            <thead>
+              <tr>
+                <th>Nama Vendor (Penjahit)</th>
+                <th>Sekolah yang Dilayani</th>
+                <th style={{ textAlign: 'center' }}>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? <tr><td colSpan={3} style={{textAlign:'center'}}>Memuat...</td></tr> : 
+               plottings.length === 0 ? <tr><td colSpan={3} style={{textAlign:'center'}}>Belum ada plotting</td></tr> :
+               plottings.map(p => (
+                 <tr key={p.id}>
+                   <td><strong>{p.vendors?.name}</strong></td>
+                   <td><span style={{ background: '#e0f2fe', color: '#0369a1', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>{p.app_users?.school_name}</span></td>
+                   <td style={{ textAlign: 'center' }}>
+                     <button className="btn-danger" onClick={() => handleDeletePlotting(p.id)} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>Hapus</button>
+                   </td>
+                 </tr>
+               ))
+              }
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* STOCK TAB */}
+      {activeTab === 'stock' && (
+        <div className="kopkar-table-container">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <p style={{ color: '#64748b' }}>Stok fisik yang sudah selesai dijahit dan *masih berada di lokasi vendor*.</p>
+            <button className="btn-primary" onClick={() => setShowAddStock(true)}>+ Terima Barang Jadi</button>
+          </div>
+          <table className="kopkar-table">
+            <thead>
+              <tr>
+                <th>Nama Vendor</th>
+                <th>Nama Barang (Kategori)</th>
+                <th style={{ textAlign: 'center' }}>Kuantitas Tersedia</th>
+                <th>Update Terakhir</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? <tr><td colSpan={4} style={{textAlign:'center'}}>Memuat...</td></tr> : 
+               stocks.length === 0 ? <tr><td colSpan={4} style={{textAlign:'center'}}>Belum ada stok dari vendor</td></tr> :
+               stocks.map(s => (
+                 <tr key={s.id}>
+                   <td><strong>{s.vendors?.name}</strong></td>
+                   <td>{s.products?.name} <span style={{fontSize:'0.8rem', color:'#64748b', display:'block'}}>{s.products?.type} - {s.products?.level}</span></td>
+                   <td style={{ textAlign: 'center' }}>
+                     <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: s.quantity > 0 ? '#15803d' : '#dc2626' }}>{s.quantity}</span> pcs
+                   </td>
+                   <td>{new Date(s.last_updated).toLocaleString('id-ID')}</td>
+                 </tr>
+               ))
+              }
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* CALCULATOR TAB */}
+      {activeTab === 'calculator' && (
+        <div style={{ marginTop: '-24px' }}>
+          <KopkarKalkulatorKain />
+        </div>
+      )}
+
+      {/* MODALS */}
+      {showAddVendor && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <h3>Tambah Vendor Baru</h3>
+            <form onSubmit={handleAddVendor} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
+              <div>
+                <label>Nama Vendor (Wajib)</label>
+                <input required type="text" value={vendorName} onChange={e => setVendorName(e.target.value)} className="form-input" />
+              </div>
+              <div>
+                <label>Nama Kontak (PIC)</label>
+                <input type="text" value={vendorContact} onChange={e => setVendorContact(e.target.value)} className="form-input" />
+              </div>
+              <div>
+                <label>Nomor Telepon</label>
+                <input type="text" value={vendorPhone} onChange={e => setVendorPhone(e.target.value)} className="form-input" />
+              </div>
+              <div>
+                <label>Alamat Lengkap</label>
+                <textarea value={vendorAddress} onChange={e => setVendorAddress(e.target.value)} className="form-input" rows={3}></textarea>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }}>Simpan Vendor</button>
+                <button type="button" className="btn-secondary" onClick={() => setShowAddVendor(false)} style={{ flex: 1 }}>Batal</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAddPlotting && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <h3>Plotting Vendor ke Sekolah</h3>
+            <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '16px' }}>Pilih vendor mana yang akan mengerjakan seragam untuk sekolah mana.</p>
+            <form onSubmit={handleAddPlotting} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label>Pilih Vendor</label>
+                <select required value={plotVendorId} onChange={e => setPlotVendorId(e.target.value)} className="form-input">
+                  <option value="">-- Pilih Vendor --</option>
+                  {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
               </div>
-
-              <div className="form-group">
-                <label>Pilih/Ketik Nama Vendor (Penjahit)</label>
-                <input 
-                  type="text" 
-                  list="vendor-list"
-                  value={inputVendor} 
-                  onChange={e => setInputVendor(e.target.value)} 
-                  placeholder="Misal: Andryna, Berkat, Fendy..."
-                  required
-                />
-                <datalist id="vendor-list">
-                  <option value="Andryna" />
-                  <option value="Anugerah Jaya" />
-                  <option value="Berkat" />
-                  <option value="Christy" />
-                  <option value="Fendy" />
-                  <option value="Fortuna" />
-                  <option value="Harmoni" />
-                  <option value="Intan Jaya" />
-                  <option value="Jemima" />
-                  <option value="Loki" />
-                  <option value="Sugandi" />
-                  <option value="Sumber Makmur" />
-                  <option value="Supatno" />
-                  <option value="Susanto" />
-                  <option value="Vania" />
-                  <option value="Yongki Komaladi" />
-                </datalist>
+              <div>
+                <label>Pilih Sekolah</label>
+                <select required value={plotSchoolId} onChange={e => setPlotSchoolId(e.target.value)} className="form-input">
+                  <option value="">-- Pilih Sekolah --</option>
+                  {schools.map(s => <option key={s.id} value={s.id}>{s.school_name}</option>)}
+                </select>
               </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }}>Simpan Plotting</button>
+                <button type="button" className="btn-secondary" onClick={() => setShowAddPlotting(false)} style={{ flex: 1 }}>Batal</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-              <div className="form-group">
-                <label>Pilih Seragam / Barang</label>
-                <select 
-                  value={selectedProductId} 
-                  onChange={e => setSelectedProductId(e.target.value)}
-                  required
-                >
+      {showAddStock && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <h3>Terima Barang Jadi dari Vendor</h3>
+            <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '16px' }}>Catat penambahan stok fisik barang yang sudah siap di vendor.</p>
+            <form onSubmit={handleAddStock} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label>Pilih Vendor Penghasil</label>
+                <select required value={stockVendorId} onChange={e => setStockVendorId(e.target.value)} className="form-input">
+                  <option value="">-- Pilih Vendor --</option>
+                  {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label>Pilih Barang / Produk</label>
+                <select required value={stockProductId} onChange={e => setStockProductId(e.target.value)} className="form-input">
                   <option value="">-- Pilih Barang --</option>
-                  {products
-                    .filter(p => inputLevel === '' || p.level === inputLevel || p.level === 'SEMUA')
-                    .map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} {p.size ? `(${p.size})` : ''} - Stok Vendor: {p.stockVendor || 0} pcs
-                    </option>
-                  ))}
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.level})</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label>Jumlah Barang Masuk (Pcs)</label>
-                <input 
-                  type="number" 
-                  min="1" 
-                  value={addQty || ''}
-                  onChange={e => setAddQty(Number(e.target.value))}
-                  required 
-                />
+              <div>
+                <label>Jumlah Barang Selesai (pcs)</label>
+                <input required type="number" min="1" value={stockQty || ''} onChange={e => setStockQty(Number(e.target.value))} className="form-input" />
               </div>
-              <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShowAddStockModal(false)}>Batal</button>
-                <button type="submit" className="btn-primary" style={{ background: '#0f172a' }}>Simpan Stock Vendor</button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }}>Simpan Stok</button>
+                <button type="button" className="btn-secondary" onClick={() => setShowAddStock(false)} style={{ flex: 1 }}>Batal</button>
               </div>
             </form>
           </div>

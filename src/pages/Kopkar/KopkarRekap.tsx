@@ -1,16 +1,39 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { useOrders } from '../../context/OrderContext';
+import { supabase } from '../../lib/supabase';
 import './kopkar.css';
 
 const KopkarRekap = () => {
-  const { orders } = useOrders();
-
   const [statusFilter, setStatusFilter] = useState<string>('all_active');
   const [phaseFilter, setPhaseFilter] = useState<string>('all');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const { data, error } = await supabase.from('orders').select('*, order_items(*)');
+      if (!error && data) {
+        setOrders(data.map((row: any) => ({
+          schoolName: row.school_name,
+          schoolLevel: row.school_level,
+          orderPhase: row.order_phase,
+          status: row.status,
+          items: (row.order_items || []).map((it: any) => ({
+            name: it.name,
+            type: it.type,
+            quantity: it.quantity,
+            priceStudent: Number(it.price_student) || 0
+          }))
+        })));
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
 
   const recapData = useMemo(() => {
-    const filteredOrders = orders.filter((o) => {
+    const filteredOrders = orders.filter((o: any) => {
       if (statusFilter === 'all_active') {
         if (o.status === 'cancelled' || o.status === 'rejected') return false;
       } else if (statusFilter === 'pending') {
@@ -43,8 +66,8 @@ const KopkarRekap = () => {
     }
 
     const rows: RecapRow[] = [];
-    filteredOrders.forEach((o) => {
-      o.items.forEach((it) => {
+    filteredOrders.forEach((o: any) => {
+      o.items.forEach((it: any) => {
         if (it.quantity > 0) {
           rows.push({
             schoolName: o.schoolName,
@@ -166,6 +189,8 @@ const KopkarRekap = () => {
         </button>
       </div>
 
+      {loading ? <p style={{ padding: '20px', textAlign: 'center' }}>Memuat rekap data...</p> : (
+      <>
       <div className="kopkar-stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '24px' }}>
         <div className="kopkar-stat-card">
           <div className="stat-icon">📦</div>
@@ -224,6 +249,8 @@ const KopkarRekap = () => {
           </tbody>
         </table>
       </div>
+      </>
+      )}
     </div>
   );
 };
