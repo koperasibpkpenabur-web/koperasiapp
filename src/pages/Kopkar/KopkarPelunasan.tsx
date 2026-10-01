@@ -494,7 +494,7 @@ const KopkarPelunasan = () => {
 
                           {order.feeStatus === 'ready' && (
                             <div>
-                              <div className="badge-fee-ready">ΓÅ│ Siap Ditransfer</div>
+                              <div className="badge-fee-ready">⏳ Siap Ditransfer</div>
                               <button
                                 className="btn-disburse-action"
                                 style={{ marginTop: '6px' }}
@@ -557,7 +557,7 @@ const KopkarPelunasan = () => {
                         <span className="mobile-order-id">{order.id}</span>
                         <div style={{ fontWeight: 700, color: '#1e293b' }}>{order.schoolName}</div>
                       </div>
-                      <span className="status-badge received">Γ£à Diterima</span>
+                      <span className="status-badge received">✅ Diterima</span>
                     </div>
 
                     <div className="mobile-price-summary">
@@ -679,7 +679,7 @@ const KopkarPelunasan = () => {
                   Batal
                 </button>
                 <button type="submit" className="btn-ship">
-                  Γ£ô Konfirmasi Kirim Barang
+                  ✅ Konfirmasi Kirim Barang
                 </button>
               </div>
             </form>
@@ -724,7 +724,7 @@ const KopkarPelunasan = () => {
                   Batal
                 </button>
                 <button type="submit" className="btn-approve" style={{ padding: '10px 18px' }}>
-                  Γ£ô Verifikasi Lunas
+                  ✅ Verifikasi Lunas
                 </button>
               </div>
             </form>
@@ -766,7 +766,7 @@ const KopkarPelunasan = () => {
                   Batal
                 </button>
                 <button type="submit" className="btn-ship" style={{ padding: '10px 18px' }}>
-                  Γ£ô Konfirmasi Pembayaran Fee
+                  ✅ Konfirmasi Pembayaran Fee
                 </button>
               </div>
             </form>

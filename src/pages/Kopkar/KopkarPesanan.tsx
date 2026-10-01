@@ -571,7 +571,7 @@ const KopkarPesanan = () => {
                         <div style={{ fontWeight: 700, color: '#1e293b' }}>{order.schoolName}</div>
                       </div>
                       <span className={`status-badge ${order.status}`}>
-                        {order.status === 'pending' && 'ΓÅ│ Menunggu'}
+                        {order.status === 'pending' && '⏳ Menunggu'}
                         {order.status === 'approved' && '👍 Disetujui'}
                         {order.status === 'shipped' && '🚚 Dikirim'}
                       </span>
@@ -753,7 +753,7 @@ const KopkarPesanan = () => {
 
                           {order.feeStatus === 'ready' && (
                             <div>
-                              <div className="badge-fee-ready">ΓÅ│ Siap Ditransfer</div>
+                              <div className="badge-fee-ready">⏳ Siap Ditransfer</div>
                               <button
                                 className="btn-disburse-action"
                                 style={{ marginTop: '6px' }}
@@ -793,7 +793,7 @@ const KopkarPesanan = () => {
                         <span className="mobile-order-id">{getFormattedOrderId(order)}</span>
                         <div style={{ fontWeight: 700, color: '#1e293b' }}>{order.schoolName}</div>
                       </div>
-                      <span className="status-badge received">Γ£à Diterima</span>
+                      <span className="status-badge received">✅ Diterima</span>
                     </div>
 
                     <div className="mobile-price-summary">
@@ -889,7 +889,7 @@ const KopkarPesanan = () => {
                       </td>
                       <td>
                         {order.status === 'cancellation_requested' && (
-                          <span className="status-badge requested">ΓÅ│ Request Batal</span>
+                          <span className="status-badge requested">⏳ Request Batal</span>
                         )}
                         {order.status === 'cancelled' && (
                           <span className="status-badge cancelled">🚫 Dibatalkan</span>

@@ -719,7 +719,7 @@ const SchoolPemesanan = () => {
           <div className="stat-value">{totalAllCount}</div>
         </div>
         <div className="order-stat-card">
-          <div className="stat-icon">ΓÅ│</div>
+          <div className="stat-icon">⏳</div>
           <div className="stat-label">Menunggu</div>
           <div className="stat-value">{pendingCount}</div>
         </div>
@@ -734,7 +734,7 @@ const SchoolPemesanan = () => {
           <div className="stat-value" style={{ color: '#2563eb' }}>{shippedCount}</div>
         </div>
         <div className="order-stat-card">
-          <div className="stat-icon">Γ£à</div>
+          <div className="stat-icon">✅</div>
           <div className="stat-label">History Diterima</div>
           <div className="stat-value" style={{ color: '#059669' }}>{receivedCount}</div>
         </div>
@@ -752,7 +752,7 @@ const SchoolPemesanan = () => {
           className={`tab-button ${activeTab === 'received' ? 'active' : ''}`}
           onClick={() => setActiveTab('received')}
         >
-          Γ£à History Diterima ({receivedCount})
+          ✅ History Diterima ({receivedCount})
         </button>
         <button
           className={`tab-button ${activeTab === 'cancellations' ? 'active' : ''}`}
@@ -813,7 +813,7 @@ const SchoolPemesanan = () => {
                         </td>
                         <td>
                           {order.status === 'pending' && (
-                            <span className="status-badge pending">ΓÅ│ Menunggu Persetujuan</span>
+                            <span className="status-badge pending">⏳ Menunggu Persetujuan</span>
                           )}
                           {order.status === 'approved' && (
                             <span className="status-badge approved">≡ƒæì Disetujui (Siap Kirim)</span>
@@ -873,7 +873,7 @@ const SchoolPemesanan = () => {
                         <div className="mobile-card-date">{formatDate(order.createdAt)}</div>
                       </div>
                       <span className={`status-badge ${order.status}`}>
-                        {order.status === 'pending' && 'ΓÅ│ Menunggu'}
+                        {order.status === 'pending' && '⏳ Menunggu'}
                         {order.status === 'approved' && '≡ƒæì Disetujui'}
                         {order.status === 'shipped' && '≡ƒÜÜ Dikirim'}
                       </span>
@@ -1024,7 +1024,7 @@ const SchoolPemesanan = () => {
                           )}
                         </td>
                         <td>
-                          <span className="status-badge received">Γ£à Selesai Diterima</span>
+                          <span className="status-badge received">✅ Selesai Diterima</span>
                           {order.receiveInfo && (
                             <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
                               Oleh: {order.receiveInfo.receivedBy}
@@ -1057,7 +1057,7 @@ const SchoolPemesanan = () => {
                         <span className="mobile-order-id">{order.id}</span>
                         <div className="mobile-card-date">{formatDate(order.createdAt)}</div>
                       </div>
-                      <span className="status-badge received">Γ£à Selesai Diterima</span>
+                      <span className="status-badge received">✅ Selesai Diterima</span>
                     </div>
 
                     <div className="mobile-items-box">
@@ -1093,7 +1093,7 @@ const SchoolPemesanan = () => {
                       {order.feeStatus === 'disbursed' ? (
                         <div className="badge-fee-disbursed">≡ƒÆ░ Fee Sekolah: Telah Ditransfer Koperasi</div>
                       ) : order.feeStatus === 'ready' ? (
-                        <div className="badge-fee-ready">ΓÅ│ Fee Sekolah: Siap Ditransfer (Koperasi sedang proses)</div>
+                        <div className="badge-fee-ready">⏳ Fee Sekolah: Siap Ditransfer (Koperasi sedang proses)</div>
                       ) : (
                         <div className="badge-fee-locked">≡ƒöÆ Fee Sekolah: Cair Setelah Pelunasan</div>
                       )}
@@ -1183,7 +1183,7 @@ const SchoolPemesanan = () => {
                         </td>
                         <td>
                           {order.status === 'cancellation_requested' && (
-                            <span className="status-badge requested">ΓÅ│ Permintaan Batal</span>
+                            <span className="status-badge requested">⏳ Permintaan Batal</span>
                           )}
                           {order.status === 'cancelled' && (
                             <span className="status-badge cancelled">≡ƒÜ½ Dibatalkan</span>
@@ -1240,7 +1240,7 @@ const SchoolPemesanan = () => {
                     <div className="mobile-card-header">
                       <span className="mobile-order-id">{order.id}</span>
                       <span className={`status-badge ${order.status}`}>
-                        {order.status === 'cancellation_requested' && 'ΓÅ│ Request Batal'}
+                        {order.status === 'cancellation_requested' && '⏳ Request Batal'}
                         {order.status === 'cancelled' && '≡ƒÜ½ Dibatalkan'}
                         {order.status === 'rejected' && 'Γ¥î Ditolak'}
                       </span>
@@ -1723,7 +1723,7 @@ const SchoolPemesanan = () => {
                   Batal
                 </button>
                 <button type="submit" className="btn-receive">
-                  Γ£ô Konfirmasi & Selesai
+                  ✅ Konfirmasi & Selesai
                 </button>
               </div>
             </form>
@@ -1831,11 +1831,11 @@ const SchoolPemesanan = () => {
               <div>
                 <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>Status Pengiriman</div>
                 <span className={`status-badge ${detailOrder.status}`}>
-                  {detailOrder.status === 'pending' && 'ΓÅ│ Menunggu Persetujuan'}
+                  {detailOrder.status === 'pending' && '⏳ Menunggu Persetujuan'}
                   {detailOrder.status === 'approved' && '≡ƒæì Disetujui (Siap Kirim)'}
                   {detailOrder.status === 'shipped' && '≡ƒÜÜ Sedang Dikirim'}
-                  {detailOrder.status === 'received' && 'Γ£à Selesai Diterima'}
-                  {detailOrder.status === 'cancellation_requested' && 'ΓÅ│ Permintaan Batal'}
+                  {detailOrder.status === 'received' && '✅ Selesai Diterima'}
+                  {detailOrder.status === 'cancellation_requested' && '⏳ Permintaan Batal'}
                   {detailOrder.status === 'cancelled' && '≡ƒÜ½ Dibatalkan'}
                   {detailOrder.status === 'rejected' && 'Γ¥î Ditolak Koperasi'}
                 </span>
