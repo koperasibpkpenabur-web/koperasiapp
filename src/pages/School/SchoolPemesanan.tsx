@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent , useEffect} from 'react';
+import { useState, type FormEvent , useEffect} from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
@@ -62,6 +62,7 @@ const SchoolPemesanan = () => {
 
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima), 'cancellations' (Riwayat Pembatalan)
   const [activeTab, setActiveTab] = useState<'active' | 'received' | 'cancellations'>('active');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'shipped'>('all');
 
   // PAGINATION STATES
   const [paginatedOrders, setPaginatedOrders] = useState<Order[]>([]);
@@ -104,7 +105,11 @@ const SchoolPemesanan = () => {
     let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' }).eq('school_user_id', user.id);
     
     if (activeTab === 'active') {
-      query = query.in('status', ['pending', 'approved', 'shipped']);
+      if (statusFilter === 'all') {
+        query = query.in('status', ['pending', 'approved', 'shipped']);
+      } else {
+        query = query.eq('status', statusFilter);
+      }
     } else if (activeTab === 'received') {
       query = query.eq('status', 'received');
     } else if (activeTab === 'cancellations') {
@@ -166,7 +171,7 @@ const SchoolPemesanan = () => {
       // Will be updated when ReturnContext is refactored
       setSchoolReturns(getReturnsBySchoolId(user.id) as any[]);
     }
-  }, [user?.id, activeTab, currentPage]);
+  }, [user?.id, activeTab, statusFilter, currentPage]);
   
   const refetchData = () => {
     fetchCounts();
@@ -713,27 +718,27 @@ const SchoolPemesanan = () => {
 
       {/* Stats Cards */}
       <div className="order-stats">
-        <div className="order-stat-card">
+        <div className="order-stat-card" onClick={() => { setActiveTab('active'); setStatusFilter('all'); setCurrentPage(1); }} style={{ cursor: 'pointer', background: statusFilter === 'all' && activeTab === 'active' ? '#f8fafc' : '#fff', border: statusFilter === 'all' && activeTab === 'active' ? '1px solid #cbd5e1' : undefined }}>
           <div className="stat-icon">📦</div>
           <div className="stat-label">Total Pesanan</div>
           <div className="stat-value">{totalAllCount}</div>
         </div>
-        <div className="order-stat-card">
+        <div className="order-stat-card" onClick={() => { setActiveTab('active'); setStatusFilter('pending'); setCurrentPage(1); }} style={{ cursor: 'pointer', background: statusFilter === 'pending' && activeTab === 'active' ? '#f8fafc' : '#fff', border: statusFilter === 'pending' && activeTab === 'active' ? '1px solid #cbd5e1' : undefined }}>
           <div className="stat-icon">⏳</div>
           <div className="stat-label">Menunggu</div>
           <div className="stat-value">{pendingCount}</div>
         </div>
-        <div className="order-stat-card">
+        <div className="order-stat-card" onClick={() => { setActiveTab('active'); setStatusFilter('approved'); setCurrentPage(1); }} style={{ cursor: 'pointer', background: statusFilter === 'approved' && activeTab === 'active' ? '#f8fafc' : '#fff', border: statusFilter === 'approved' && activeTab === 'active' ? '1px solid #cbd5e1' : undefined }}>
           <div className="stat-icon">👍</div>
           <div className="stat-label">Disetujui</div>
           <div className="stat-value">{approvedCount}</div>
         </div>
-        <div className="order-stat-card">
+        <div className="order-stat-card" onClick={() => { setActiveTab('active'); setStatusFilter('shipped'); setCurrentPage(1); }} style={{ cursor: 'pointer', background: statusFilter === 'shipped' && activeTab === 'active' ? '#f8fafc' : '#fff', border: statusFilter === 'shipped' && activeTab === 'active' ? '1px solid #cbd5e1' : undefined }}>
           <div className="stat-icon">🚚</div>
           <div className="stat-label">Sedang Dikirim</div>
           <div className="stat-value" style={{ color: '#2563eb' }}>{shippedCount}</div>
         </div>
-        <div className="order-stat-card">
+        <div className="order-stat-card" onClick={() => { setActiveTab('received'); setCurrentPage(1); }} style={{ cursor: 'pointer', background: activeTab === 'received' ? '#f8fafc' : '#fff', border: activeTab === 'received' ? '1px solid #cbd5e1' : undefined }}>
           <div className="stat-icon">✅</div>
           <div className="stat-label">History Diterima</div>
           <div className="stat-value" style={{ color: '#059669' }}>{receivedCount}</div>

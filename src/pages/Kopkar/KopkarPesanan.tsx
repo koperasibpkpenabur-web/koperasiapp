@@ -456,7 +456,7 @@ const KopkarPesanan = () => {
                         </td>
                         <td>
                           <ul className="order-items-list" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
-                            {order.items.map((it, idx) => {
+                            {order.items.slice(0, 1).map((it, idx) => {
                               const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
                               const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
                               const unsentQty = Math.max(0, it.quantity - shippedQty);
@@ -468,6 +468,11 @@ const KopkarPesanan = () => {
                                 </div>
                               </li>
                             )})}
+                            {order.items.length > 1 && (
+                              <li style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', marginTop: '4px' }}>
+                                + {order.items.length - 1} item lainnya
+                              </li>
+                            )}
                           </ul>
                         </td>
                         <td>
@@ -510,6 +515,16 @@ const KopkarPesanan = () => {
 
                         <td>
                           <div className="kopkar-actions-col">
+                            <div style={{ marginBottom: '8px' }}>
+                              <button
+                                className="btn-detail-dots"
+                                title="Lihat Detail Pesanan"
+                                onClick={() => setDetailOrder(order)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                              >
+                                ⋮ Detail
+                              </button>
+                            </div>
                             {order.status === 'pending' && (
                               <div className="action-buttons">
                                 <button className="btn-approve" onClick={() => handleApprove(order)}>
@@ -521,7 +536,30 @@ const KopkarPesanan = () => {
                               </div>
                             )}
 
-                            {order.status === 'approved' && (
+                            {order.status === 'approved' && !order.status.includes('pending') && (
+                              <div style={{ marginBottom: '8px' }}>
+                                <button
+                                  className="btn-detail-dots"
+                                  title="Lihat Detail Pesanan"
+                                  onClick={() => setDetailOrder(order)}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                                >
+                                  ⋮ Detail
+                                </button>
+                              </div>
+                            )}
+                            {order.status === 'approved' && !order.status.includes('pending') && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <button
+                            className="btn-detail-dots full-width-touch"
+                            onClick={() => setDetailOrder(order)}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px', fontSize: '0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                          >
+                            ⋮ Detail Pesanan
+                          </button>
+                        </div>
+                      )}
+                      {order.status === 'approved' && (
                               <div className="action-buttons-wrap">
                                 <button className="btn-ship" onClick={() => handleOpenShipModal(order)}>
                                   🚚 Kirim Barang
@@ -535,7 +573,30 @@ const KopkarPesanan = () => {
                               </div>
                             )}
 
-                            {order.status === 'shipped' && (
+                            {order.status === 'shipped' && !order.status.includes('pending') && (
+                              <div style={{ marginBottom: '8px' }}>
+                                <button
+                                  className="btn-detail-dots"
+                                  title="Lihat Detail Pesanan"
+                                  onClick={() => setDetailOrder(order)}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                                >
+                                  ⋮ Detail
+                                </button>
+                              </div>
+                            )}
+                            {order.status === 'shipped' && !order.status.includes('pending') && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <button
+                            className="btn-detail-dots full-width-touch"
+                            onClick={() => setDetailOrder(order)}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px', fontSize: '0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                          >
+                            ⋮ Detail Pesanan
+                          </button>
+                        </div>
+                      )}
+                      {order.status === 'shipped' && (
                               <div style={{ fontSize: '0.8rem', color: '#2563eb' }}>
                                 Barang sedang diantar ke sekolah.
                                 {order.shippingInfo?.shippedItems && order.items.some((it) => {
@@ -580,7 +641,7 @@ const KopkarPesanan = () => {
                     <div className="mobile-items-box">
                       <div className="mobile-label">Item:</div>
                       <ul className="order-items-list">
-                        {order.items.map((it, idx) => {
+                        {order.items.slice(0, 1).map((it, idx) => {
                           const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
                           const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
                           const unsentQty = Math.max(0, it.quantity - shippedQty);
@@ -592,6 +653,11 @@ const KopkarPesanan = () => {
                             </div>
                           </li>
                         )})}
+                        {order.items.length > 1 && (
+                          <li style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', marginTop: '4px' }}>
+                            + {order.items.length - 1} item lainnya
+                          </li>
+                        )}
                       </ul>
                     </div>
 
@@ -620,6 +686,15 @@ const KopkarPesanan = () => {
                     </div>
 
                     <div className="mobile-card-actions">
+                      <div style={{ marginBottom: '12px' }}>
+                        <button
+                          className="btn-detail-dots full-width-touch"
+                          onClick={() => setDetailOrder(order)}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px', fontSize: '0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                        >
+                          ⋮ Detail Pesanan
+                        </button>
+                      </div>
                       {order.status === 'pending' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                           <button className="btn-approve full-width-touch" onClick={() => handleApprove(order)}>
@@ -631,6 +706,17 @@ const KopkarPesanan = () => {
                         </div>
                       )}
 
+                      {order.status === 'approved' && !order.status.includes('pending') && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <button
+                            className="btn-detail-dots full-width-touch"
+                            onClick={() => setDetailOrder(order)}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px', fontSize: '0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                          >
+                            ⋮ Detail Pesanan
+                          </button>
+                        </div>
+                      )}
                       {order.status === 'approved' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
                           <button className="btn-ship full-width-touch" onClick={() => handleOpenShipModal(order)}>
@@ -645,6 +731,17 @@ const KopkarPesanan = () => {
                         </div>
                       )}
 
+                      {order.status === 'shipped' && !order.status.includes('pending') && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <button
+                            className="btn-detail-dots full-width-touch"
+                            onClick={() => setDetailOrder(order)}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px', fontSize: '0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                          >
+                            ⋮ Detail Pesanan
+                          </button>
+                        </div>
+                      )}
                       {order.status === 'shipped' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
                           <button className="btn-secondary full-width-touch" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => handleCancelShipment(order)}>
