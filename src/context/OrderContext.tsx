@@ -13,6 +13,7 @@ interface OrderContextType {
   approveCancelOrder: (orderId: string, stafName: string) => Promise<void>;
   kopkarCancelOrder: (orderId: string, reason: string, stafName: string) => Promise<void>;
   markOrderAsPaid: (orderId: string, notes?: string) => Promise<void>;
+  uploadPaymentReceipt: (orderId: string, url: string) => Promise<void>;
   disburseSchoolFee: (orderId: string, stafName: string, notes?: string) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
   getOrdersBySchoolId: (schoolUserId: string) => Promise<Order[]>;
@@ -268,6 +269,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const uploadPaymentReceipt = useCallback(async (orderId: string, url: string) => {
+    await updateOrderInSupabase(orderId, {
+      paid_notes: `[BUKTI_TRANSFER] ${url}`,
+    });
+  }, []);
+
   const disburseSchoolFee = useCallback(async (orderId: string, stafName: string, notes?: string) => {
     await updateOrderInSupabase(orderId, {
       fee_status: 'disbursed',
@@ -346,6 +353,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         approveCancelOrder,
         kopkarCancelOrder,
         markOrderAsPaid,
+        uploadPaymentReceipt,
         disburseSchoolFee,
         deleteOrder,
         getOrdersBySchoolId,

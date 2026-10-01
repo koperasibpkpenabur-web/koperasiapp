@@ -112,6 +112,7 @@ export interface Order {
   paymentStatus: PaymentStatus;
   paidAt?: string;
   paidNotes?: string;
+  paymentReceiptUrl?: string;
 
   // Status Pencairan Fee Sekolah Koperasi -> Sekolah
   feeStatus: FeeStatus;

@@ -452,14 +452,30 @@ const KopkarPelunasan = () => {
                             </div>
                           ) : (
                             <div>
-                              <span className="badge-pay-unpaid">🔴 Belum Lunas</span>
-                              <button
-                                className="btn-pay-action"
-                                style={{ marginTop: '6px' }}
-                                onClick={() => handleOpenPaymentModal(order)}
-                              >
-                                💵 Konfirmasi Pelunasan
-                              </button>
+                              {order.paidNotes && order.paidNotes.includes('[BUKTI_TRANSFER]') ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  <span className="badge-pay-paid" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}>⏳ Menunggu Verifikasi</span>
+                                  <a href={order.paidNotes.replace('[BUKTI_TRANSFER] ', '')} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: '#3b82f6', textDecoration: 'underline' }}>Lihat Bukti Transfer</a>
+                                  <button
+                                    className="btn-pay-action"
+                                    style={{ marginTop: '4px' }}
+                                    onClick={() => handleOpenPaymentModal(order)}
+                                  >
+                                    ✅ Verifikasi Lunas
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="badge-pay-unpaid">🔴 Belum Lunas</span>
+                                  <button
+                                    className="btn-pay-action"
+                                    style={{ marginTop: '6px' }}
+                                    onClick={() => handleOpenPaymentModal(order)}
+                                  >
+                                    💵 Konfirmasi Pelunasan
+                                  </button>
+                                </>
+                              )}
                             </div>
                           )}
                         </td>
@@ -559,14 +575,29 @@ const KopkarPelunasan = () => {
                         <div className="badge-pay-paid">✅ Sekolah Telah Melunasi Tagihan</div>
                       ) : (
                         <div>
-                          <div className="badge-pay-unpaid">🔴 Sekolah Belum Melunasi</div>
-                          <button
-                            className="btn-pay-action full-width-touch"
-                            style={{ marginTop: '6px' }}
-                            onClick={() => handleOpenPaymentModal(order)}
-                          >
-                            💵 Konfirmasi Pelunasan Sekolah
-                          </button>
+                          {order.paidNotes && order.paidNotes.includes('[BUKTI_TRANSFER]') ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                               <div className="badge-pay-paid" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', textAlign: 'center' }}>⏳ Menunggu Verifikasi</div>
+                               <a href={order.paidNotes.replace('[BUKTI_TRANSFER] ', '')} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', color: '#3b82f6', textDecoration: 'underline', textAlign: 'center', display: 'block' }}>Lihat Foto Bukti Transfer</a>
+                               <button
+                                className="btn-pay-action full-width-touch"
+                                onClick={() => handleOpenPaymentModal(order)}
+                              >
+                                ✅ Verifikasi Lunas
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="badge-pay-unpaid">🔴 Sekolah Belum Melunasi</div>
+                              <button
+                                className="btn-pay-action full-width-touch"
+                                style={{ marginTop: '6px' }}
+                                onClick={() => handleOpenPaymentModal(order)}
+                              >
+                                💵 Konfirmasi Pelunasan Sekolah
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
 
