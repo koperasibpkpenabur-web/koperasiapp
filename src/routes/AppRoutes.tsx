@@ -16,6 +16,7 @@ import VendorManagement from '../pages/Kopkar/VendorManagement';
 import KopkarReturn from '../pages/Kopkar/KopkarReturn';
 import KopkarRekap from '../pages/Kopkar/KopkarRekap';
 import SchoolReturn from '../pages/School/SchoolReturn';
+import SchoolRekap from '../pages/School/SchoolRekap';
 import PengurusDashboard from '../pages/Pengurus/PengurusDashboard';
 import type { UserRole } from '../types';
 
@@ -131,6 +132,13 @@ const AppRoutes = () => {
         <Route path="school/retur" element={
           <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
             <SchoolReturn />
+          </ProtectedRoute>
+        } />
+
+        
+        <Route path="school/rekap" element={
+          <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
+            <SchoolRekap />
           </ProtectedRoute>
         } />
 
