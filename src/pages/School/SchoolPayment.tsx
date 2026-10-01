@@ -195,7 +195,7 @@ const SchoolPayment = () => {
                           <span style={{ fontSize: '0.8rem', color: '#047857', fontWeight: 600 }}>✅ Sedang diverifikasi Koperasi</span>
                           <a href={order.paid_notes.replace('[BUKTI_TRANSFER] ', '')} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: '#3b82f6' }}>Lihat Bukti</a>
                         </div>
-                      ) : order.status === 'received' ? (
+                      ) : (
                         <button 
                           className="btn-ship" 
                           style={{ padding: '6px 12px', fontSize: '0.85rem' }}
@@ -204,8 +204,6 @@ const SchoolPayment = () => {
                         >
                           {uploadingId === order.id ? 'Mengupload...' : 'Upload Bukti'}
                         </button>
-                      ) : (
-                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Harus Diterima</span>
                       )}
                     </td>
                   </tr>
