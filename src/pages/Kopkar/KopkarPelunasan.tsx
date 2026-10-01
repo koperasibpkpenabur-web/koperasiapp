@@ -269,11 +269,12 @@ const KopkarPelunasan = () => {
     setPayNotes('Pembayaran transfer Bank BCA: 0760256757 a.n. Koperasi Konsumen Karyawan BPK Penabur');
   };
 
-  const handleConfirmPayment = (e: FormEvent) => {
+  const handleConfirmPayment = async (e: FormEvent) => {
     e.preventDefault();
     if (!payingOrder) return;
 
-    markOrderAsPaid(payingOrder.id, payNotes.trim());
+    await markOrderAsPaid(payingOrder.id, payNotes.trim());
+    setOrders(prev => prev.map(o => o.id === payingOrder.id ? { ...o, payment_status: 'paid', paymentStatus: 'paid' } : o));
     setPayingOrder(null);
   };
 
@@ -283,12 +284,13 @@ const KopkarPelunasan = () => {
     setDisburseNotes(`Transfer Fee Sekolah ke rekening ${order.schoolName}`);
   };
 
-  const handleConfirmDisburse = (e: FormEvent) => {
+  const handleConfirmDisburse = async (e: FormEvent) => {
     e.preventDefault();
     if (!disbursingOrder) return;
 
     const stafName = user ? user.name : 'Karyawan Koperasi';
-    disburseSchoolFee(disbursingOrder.id, stafName, disburseNotes.trim());
+    await disburseSchoolFee(disbursingOrder.id, stafName, disburseNotes.trim());
+    setOrders(prev => prev.map(o => o.id === disbursingOrder.id ? { ...o, fee_status: 'disbursed', feeStatus: 'disbursed' } : o));
     setDisbursingOrder(null);
   };
 
