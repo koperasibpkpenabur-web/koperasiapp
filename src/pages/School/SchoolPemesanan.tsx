@@ -181,13 +181,10 @@ const SchoolPemesanan = () => {
   );
   const [orderPhase, setOrderPhase] = useState<'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan'>('Tahap 1');
 
-  // Available products for current school level
-  const availableCatalog = getProductsByLevel(orderLevelFilter);
 
-  // Group products by name for smarter forms, sorted by kode barang (same as Karyawan stock list)
-  const groupedCatalogArray = groupByCatalog(availableCatalog);
-  // Lookup map by name for fast access
-  const groupedCatalog = Object.fromEntries(groupedCatalogArray.map(g => [g.name, g]));
+
+
+
 
 
   // Selected items in order form
@@ -383,6 +380,10 @@ const SchoolPemesanan = () => {
   const hasPhase1Order = paginatedOrders.some(o => o.orderPhase === 'Tahap 1' && o.status !== 'cancelled' && o.status !== 'rejected');
   const hasPhase2Order = paginatedOrders.some(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected');
 
+  
+
+  
+
   const handleUpdateCartQty = (index: number, newQty: number) => {
     if (newQty < 1) return;
     const updated = [...cartItems];
@@ -396,23 +397,9 @@ const SchoolPemesanan = () => {
     setCartItems(updated);
   };
 
-  }
-        return item;
-      })
-    );
-  };
+  
 
-  const handleQuantityChange = (index: number, qty: number) => {
-    const validQty = Math.max(1, qty);
-    setSelectedItems((prev) =>
-      prev.map((item, i) => {
-        if (i === index) {
-          return { ...item, quantity: validQty };
-        }
-        return item;
-      })
-    );
-  };
+  
 
   const resetCreateForm = (phase: 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan') => {
     const defaultLevel = user?.schoolLevel || 'SMP';
