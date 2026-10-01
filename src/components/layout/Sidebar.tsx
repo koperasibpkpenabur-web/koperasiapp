@@ -205,16 +205,14 @@ const Sidebar = () => {
               </li>
               <li>
                 <NavLink
-                  to="/school/pelunasan"
+                  to="/school/retur"
                   className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
                   onClick={closeMobileNav}
                 >
-                  <span className="nav-icon">💳</span>
-                  <span className="nav-text">Pelunasan</span>
+                  <span className="nav-icon">↩️</span>
+                  <span className="nav-text">Retur Barang</span>
                 </NavLink>
               </li>
-              <li>
-                </li>
               <li>
                 <NavLink
                   to="/school/rekap"
@@ -224,12 +222,15 @@ const Sidebar = () => {
                   <span className="nav-icon">📊</span>
                   <span className="nav-text">Rekap Pesanan</span>
                 </NavLink>
-        <NavLink to="/school/retur"
+              </li>
+              <li>
+                <NavLink
+                  to="/school/pelunasan"
                   className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
                   onClick={closeMobileNav}
                 >
-                  <span className="nav-icon">↩️</span>
-                  <span className="nav-text">Retur Barang</span>
+                  <span className="nav-icon">💳</span>
+                  <span className="nav-text">Pelunasan Tagihan</span>
                 </NavLink>
               </li>
             </>
