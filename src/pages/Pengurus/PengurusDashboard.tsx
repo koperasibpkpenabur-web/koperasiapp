@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -20,8 +20,6 @@ import {
 } from 'recharts';
 
 import './PengurusDashboard.css';
-
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 const PengurusDashboard = () => {
   const [orders, setOrders] = useState<any[]>([]);
@@ -147,7 +145,7 @@ const PengurusDashboard = () => {
   // Export functions
   const handleDownloadExcel = () => {
     const worksheetData = omzetPerSchool.map((school, i) => ({
-      'No': i + 1,
+      'No': String(i + 1),
       'Nama Sekolah': school.name,
       'Jenjang': school.level,
       'Jumlah Pesanan': school.orderCount,
@@ -296,7 +294,7 @@ const PengurusDashboard = () => {
                   <Cell fill="#10b981" />
                   <Cell fill="#f59e0b" />
                 </Pie>
-                <Tooltip formatter={(val: number) => formatRupiah(val)} />
+                <Tooltip formatter={(val: any) => formatRupiah(Number(val))} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -311,7 +309,7 @@ const PengurusDashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="name" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={formatRupiahShort} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(val: number) => formatRupiah(val)} cursor={{ fill: '#f1f5f9' }} />
+                <Tooltip formatter={(val: any) => formatRupiah(Number(val))} cursor={{ fill: '#f1f5f9' }} />
                 <Bar dataKey="omzet" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -326,7 +324,7 @@ const PengurusDashboard = () => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="name" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={formatRupiahShort} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(val: number) => formatRupiah(val)} />
+                <Tooltip formatter={(val: any) => formatRupiah(Number(val))} />
                 <Line type="monotone" dataKey="omzet" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
