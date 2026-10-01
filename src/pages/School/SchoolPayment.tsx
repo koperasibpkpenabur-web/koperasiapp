@@ -19,7 +19,7 @@ const SchoolPayment = () => {
   const [itemsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
 
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzhByEZzU-c5LWpJJK74Kcy0xcwQal-kmwHuIwAPnaCUJxYMbp9b_cWs5_-SNCsIJE/exec';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbxaKhmlXfZ19f_z6C57wKv0HZRI1NzdCoGpVC2WLudaQKfVtKLOW3T8ccMTpvg1NeU/exec';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingIds, setUploadingIds] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
