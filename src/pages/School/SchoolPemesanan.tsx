@@ -596,7 +596,7 @@ const SchoolPemesanan = () => {
     setReceiveError('');
   };
 
-  const handleConfirmReceive = (e: FormEvent) => {
+  const handleConfirmReceive = async (e: FormEvent) => {
     e.preventDefault();
     if (!receivingOrder) return;
 
@@ -609,7 +609,7 @@ const SchoolPemesanan = () => {
       return;
     }
 
-    receiveOrder(receivingOrder.id, {
+    await receiveOrder(receivingOrder.id, {
       receivedBy: receiverName.trim(),
       isChecked: true,
       notes: receiveNotes.trim() || undefined,
@@ -626,7 +626,7 @@ const SchoolPemesanan = () => {
     setCancelError('');
   };
 
-  const handleConfirmCancel = (e: FormEvent) => {
+  const handleConfirmCancel = async (e: FormEvent) => {
     e.preventDefault();
     if (!cancellingOrder || !user) return;
 
@@ -635,7 +635,7 @@ const SchoolPemesanan = () => {
       return;
     }
 
-    requestCancelOrder(cancellingOrder.id, cancelReason.trim(), user.name);
+    await requestCancelOrder(cancellingOrder.id, cancelReason.trim(), user.name);
     setCancellingOrder(null);
     setCancelReason('');
     refetchData();
