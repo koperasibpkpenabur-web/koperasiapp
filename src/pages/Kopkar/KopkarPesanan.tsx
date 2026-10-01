@@ -187,10 +187,11 @@ const KopkarPesanan = () => {
   });
 
   // Approve Pending Order
-  const handleApprove = (order: Order) => {
+  const handleApprove = async (order: Order) => {
     const processorName = user ? user.name : 'Karyawan Koperasi';
     if (window.confirm(`Setujui pesanan ${order.id} dari "${order.schoolName}"?`)) {
-      approveOrder(order.id, processorName);
+      await approveOrder(order.id, processorName);
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'approved' } : o));
     }
   };
 
@@ -200,14 +201,15 @@ const KopkarPesanan = () => {
     setRejectionReason('');
   };
 
-  const handleConfirmReject = () => {
+  const handleConfirmReject = async () => {
     if (!rejectingOrder) return;
     const processorName = user ? user.name : 'Karyawan Koperasi';
-    rejectOrder(
+    await rejectOrder(
       rejectingOrder.id,
       processorName,
       rejectionReason.trim() || 'Stok tidak mencukupi atau pesanan tidak sesuai'
     );
+    setOrders(prev => prev.map(o => o.id === rejectingOrder.id ? { ...o, status: 'rejected' } : o));
     setRejectingOrder(null);
     setRejectionReason('');
   };
