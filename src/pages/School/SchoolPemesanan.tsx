@@ -383,29 +383,6 @@ const SchoolPemesanan = () => {
   const hasPhase1Order = paginatedOrders.some(o => o.orderPhase === 'Tahap 1' && o.status !== 'cancelled' && o.status !== 'rejected');
   const hasPhase2Order = paginatedOrders.some(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected');
 
-  const handleAddItem = () => {
-    const firstGroup = groupedCatalogArray[0];
-    setSelectedItems((prev) => [
-      ...prev,
-      {
-        name: firstGroup ? firstGroup.name : '',
-        type: firstGroup ? (firstGroup.type as import('../../types').OrderItemType) : 'seragam',
-        quantity: 1,
-        size: '',
-        priceKopkar: firstGroup ? firstGroup.priceKopkar : 0,
-        feeSchool: firstGroup ? firstGroup.feeSchool : 0,
-        priceStudent: firstGroup ? firstGroup.priceStudent : 0,
-        productId: '',
-        code: '',
-      },
-    ]);
-  };
-
-  const handleRemoveItem = (index: number) => {
-    if (selectedItems.length <= 1) return;
-    setSelectedItems((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleUpdateCartQty = (index: number, newQty: number) => {
     if (newQty < 1) return;
     const updated = [...cartItems];
@@ -419,25 +396,7 @@ const SchoolPemesanan = () => {
     setCartItems(updated);
   };
 
-  const handleProductSelect = (index: number, productName: string) => {
-    const group = groupedCatalog[productName];
-    if (!group) return;
-
-    setSelectedItems((prev) =>
-      prev.map((item, i) => {
-        if (i === index) {
-          return {
-            ...item,
-            name: group.name,
-            type: group.type as import('../../types').OrderItemType,
-            priceKopkar: group.priceKopkar,
-            feeSchool: group.feeSchool,
-            priceStudent: group.priceStudent,
-            productId: '', // reset until size is picked
-            code: '',
-            size: '',
-          };
-        }
+  }
         return item;
       })
     );
