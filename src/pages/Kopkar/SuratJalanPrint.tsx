@@ -20,12 +20,13 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
   const pageStyle = `
     @media print {
       @page {
-        size: 8.5in 5.5in;
-        margin: 0;
+        size: 9.5in 11in portrait;
+        margin: 0; /* Penting: menonaktifkan Header/Footer bawaan Chrome */
       }
       body {
         margin: 0;
         -webkit-print-color-adjust: exact;
+        padding-left: 0.5in; /* Jarak aman untuk lubang perforasi (tractor feed) kiri */
       }
       .print-surat-jalan {
         font-family: Arial, Helvetica, sans-serif !important;
