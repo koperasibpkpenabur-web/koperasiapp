@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 ﻿import { useState, useEffect, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -18,6 +18,12 @@ const KopkarPelunasan = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Filters (moved up to avoid TDZ ReferenceError in useEffect)
+  const [activeTab, setActiveTab] = useState<'received'>('received');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [paymentFilter, setPaymentFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Aggregates
   const [totalOmzetStudent, setTotalOmzetStudent] = useState(0);
@@ -130,12 +136,6 @@ const KopkarPelunasan = () => {
     markOrderAsPaid,
     disburseSchoolFee,
   } = useOrders();
-
-  // Only show received orders for Pelunasan
-  const [activeTab, setActiveTab] = useState<'received'>('received');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [paymentFilter, setPaymentFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Rejection modal (initial reject for pending order)
   const [rejectingOrder, setRejectingOrder] = useState<Order | null>(null);
