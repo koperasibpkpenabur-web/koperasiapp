@@ -32,10 +32,17 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
         color: #000 !important;
         font-size: 11px !important;
       }
+      .print-surat-jalan table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+      }
       .print-surat-jalan table th, .print-surat-jalan table td {
         border: 1px solid #000 !important;
         font-size: 11px !important;
         padding: 2px 4px !important; 
+        word-wrap: break-word;
+        overflow-wrap: break-word;
       }
       .page-break {
         page-break-after: always;
