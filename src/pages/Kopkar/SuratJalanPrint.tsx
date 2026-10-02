@@ -1,6 +1,35 @@
 import React from 'react';
 import type { Order } from '../../types';
 
+const formatRupiah = (angka: number) => {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+};
+
+const terbilang = (angka: number): string => {
+  const huruf = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
+  let hasil = "";
+  if (angka < 12) {
+    hasil = huruf[angka];
+  } else if (angka < 20) {
+    hasil = terbilang(angka - 10) + " Belas";
+  } else if (angka < 100) {
+    hasil = terbilang(Math.floor(angka / 10)) + " Puluh " + terbilang(angka % 10);
+  } else if (angka < 200) {
+    hasil = "Seratus " + terbilang(angka - 100);
+  } else if (angka < 1000) {
+    hasil = terbilang(Math.floor(angka / 100)) + " Ratus " + terbilang(angka % 100);
+  } else if (angka < 2000) {
+    hasil = "Seribu " + terbilang(angka - 1000);
+  } else if (angka < 1000000) {
+    hasil = terbilang(Math.floor(angka / 1000)) + " Ribu " + terbilang(angka % 1000);
+  } else if (angka < 1000000000) {
+    hasil = terbilang(Math.floor(angka / 1000000)) + " Juta " + terbilang(angka % 1000000);
+  } else if (angka < 1000000000000) {
+    hasil = terbilang(Math.floor(angka / 1000000000)) + " Milyar " + terbilang(angka % 1000000000);
+  }
+  return hasil.trim();
+};
+
 interface Props {
   order: Order | null;
 }
@@ -100,20 +129,24 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
             <div style={{ fontSize: '11px', marginTop: '2px' }}>No. Pesanan: {order.id}</div>
           </div>
 
-          {/* Tabel Barang (Tanpa Harga) */}
-          <div style={{ marginBottom: '6px' }}>
+          {/* Tabel Barang */}
+          <div style={{ marginBottom: '4px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
               <thead>
                 <tr>
                   <th style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>No</th>
                   <th style={{ border: '1px solid #000', padding: '2px', textAlign: 'left' }}>Nama Barang</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '15%', textAlign: 'center' }}>Size</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '10%', textAlign: 'center' }}>Qty</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '10%', textAlign: 'center' }}>Size</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '5%', textAlign: 'center' }}>Qty</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '15%', textAlign: 'right' }}>Harga</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '18%', textAlign: 'right' }}>Jumlah</th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((item, idx) => {
                   const absoluteIndex = pageIndex * itemsPerPage + idx + 1;
+                  const harga = item.price || 0;
+                  const jumlah = harga * item.quantity;
                   return (
                     <tr key={idx}>
                       <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{absoluteIndex}</td>
@@ -122,20 +155,32 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
                       </td>
                       <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.size || '-'}</td>
                       <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.quantity}</td>
+                      <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(harga)}</td>
+                      <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(jumlah)}</td>
                     </tr>
                   );
                 })}
+                {pageIndex === pages.length - 1 && (
+                  <tr>
+                    <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Total Keseluruhan</td>
+                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(order.totalAmount || 0)}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+
+          {pageIndex === pages.length - 1 && (
+            <div style={{ fontSize: '11px', fontStyle: 'italic', marginBottom: '6px', fontWeight: 'bold' }}>
+              Terbilang: {terbilang(order.totalAmount || 0)} Rupiah
+            </div>
+          )}
 
           {/* Catatan */}
           <div style={{ fontSize: '11px', marginBottom: '8px' }}>
             <strong>Catatan:</strong>
             <ol style={{ margin: '2px 0 0 0', paddingLeft: '16px', lineHeight: '1.2' }}>
               <li>Mohon lembar 1(Putih) dikembalikan ke Koperasi</li>
-              <li>Barang yang telah diterima tolong dicek kembali.</li>
-              <li>Pembayaran langsung di Koperasi</li>
               <li>Rek BCA 0760256757 a/n Koperasi Konsumen Karyawan BPK Penabur</li>
             </ol>
           </div>
