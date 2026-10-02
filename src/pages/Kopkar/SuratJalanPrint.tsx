@@ -145,7 +145,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
               <tbody>
                 {pageItems.map((item, idx) => {
                   const absoluteIndex = pageIndex * itemsPerPage + idx + 1;
-                  const harga = item.price || 0;
+                  const harga = item.priceStudent || 0;
                   const jumlah = harga * item.quantity;
                   return (
                     <tr key={idx}>
@@ -163,7 +163,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
                 {pageIndex === pages.length - 1 && (
                   <tr>
                     <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Total Keseluruhan</td>
-                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(order.totalAmount || 0)}</td>
+                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(order.totalPriceStudent || 0)}</td>
                   </tr>
                 )}
               </tbody>
@@ -172,7 +172,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
 
           {pageIndex === pages.length - 1 && (
             <div style={{ fontSize: '11px', fontStyle: 'italic', marginBottom: '6px', fontWeight: 'bold' }}>
-              Terbilang: {terbilang(order.totalAmount || 0)} Rupiah
+              Terbilang: {terbilang(order.totalPriceStudent || 0)} Rupiah
             </div>
           )}
 
