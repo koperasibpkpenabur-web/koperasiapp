@@ -64,10 +64,14 @@ const KopkarReturn = () => {
   });
 
   const handleConfirmReturnClick = async (ret: ReturnRequest) => {
-    if (window.confirm('Yakin ingin menyetujui pengajuan retur ini? (Sekolah akan diminta mengirimkan barang)')) {
-      await confirmReturn(ret.id, { confirmedByName: user?.name || 'Kopkar' });
-      setActionSuccess(`Retur ${ret.id} telah disetujui.`);
-      setTimeout(() => setActionSuccess(''), 3000);
+    if (window.confirm('Yakin ingin menyetujui pengajuan retur ini?')) {
+      const res = await confirmReturn(ret.id, { confirmedByName: user?.name || 'Kopkar' });
+      if (res.success) {
+        setActionSuccess(`Retur ${ret.id} telah disetujui.`);
+        setTimeout(() => setActionSuccess(''), 3000);
+      } else {
+        alert(`Gagal menyetujui retur: ${res.error}\n\nPastikan kolom "confirmed_at" dan "confirmed_by_name" sudah ada di Supabase.`);
+      }
     }
   };
 
@@ -459,7 +463,7 @@ const KopkarReturn = () => {
                         className="btn-accept-action"
                         onClick={() => handleConfirmReturnClick(ret)}
                       >
-                        ✓ Setujui Retur (Minta Kirim)
+                        ✓ Setujui Retur
                       </button>
                     </>
                   )}

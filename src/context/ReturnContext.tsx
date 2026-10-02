@@ -27,7 +27,7 @@ interface RejectReturnInput {
 interface ReturnContextType {
   returns: ReturnRequest[];
   createReturn: (data: CreateReturnInput) => Promise<{ success: boolean; id?: string; error?: string }>;
-  confirmReturn: (returnId: string, data: { confirmedByName: string }) => Promise<void>;
+  confirmReturn: (returnId: string, data: { confirmedByName: string }) => Promise<{ success: boolean, error?: string }>;
   shipReturn: (returnId: string, data: { departureDate: string; departureTime: string; shippingNote: string }) => Promise<void>;
   receiveReturn: (returnId: string, data: AcceptReturnInput) => Promise<void>;
   rejectReturn: (returnId: string, data: RejectReturnInput) => Promise<void>;
@@ -139,8 +139,10 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
     if (!error) {
       await fetchReturns();
+      return { success: true };
     } else {
       console.error('Error confirming return:', error);
+      return { success: false, error: error.message };
     }
   }, [fetchReturns]);
 
