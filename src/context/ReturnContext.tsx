@@ -28,9 +28,9 @@ interface ReturnContextType {
   returns: ReturnRequest[];
   createReturn: (data: CreateReturnInput) => Promise<{ success: boolean; id?: string; error?: string }>;
   confirmReturn: (returnId: string, data: { confirmedByName: string }) => Promise<{ success: boolean, error?: string }>;
-  shipReturn: (returnId: string, data: { departureDate: string; departureTime: string; shippingNote: string }) => Promise<void>;
-  receiveReturn: (returnId: string, data: AcceptReturnInput) => Promise<void>;
-  rejectReturn: (returnId: string, data: RejectReturnInput) => Promise<void>;
+  shipReturn: (returnId: string, data: { departureDate: string; departureTime: string; shippingNote: string }) => Promise<{ success: boolean; error?: string }>;
+  receiveReturn: (returnId: string, data: AcceptReturnInput) => Promise<{ success: boolean; error?: string }>;
+  rejectReturn: (returnId: string, data: RejectReturnInput) => Promise<{ success: boolean; error?: string }>;
   getReturnsBySchoolId: (schoolUserId: string) => ReturnRequest[];
   pendingCount: number;
 }
@@ -158,8 +158,10 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
     if (!error) {
       await fetchReturns();
+      return { success: true };
     } else {
       console.error('Error shipping return:', error);
+      return { success: false, error: error.message };
     }
   }, [fetchReturns]);
 
@@ -174,13 +176,10 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
     
     const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
     if (!error) {
-      // NOTE: We should update the inventory here if Kelebihan Stok or Rusak.
-      // Since we don't have direct access to ProductContext, we do it directly to supabase.
-      // But we need the items first.
       const currentReturn = returns.find(r => r.id === returnId);
       if (currentReturn) {
-        if (currentReturn.reasonCategory === 'Kelebihan Stok') {
-          // Tambah ke stok gudang utama
+        if (data.isRestocked) {
+          // Tambah ke stok gudang utama (kondisi bagus dan bisa dijual kembali)
           for (const item of currentReturn.items) {
             if (item.productId) {
               const { data: pData } = await supabase.from('products').select('stock').eq('id', item.productId).single();
@@ -190,11 +189,11 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
             }
           }
         } else if (currentReturn.reasonCategory === 'Rusak') {
-          // Tambah ke stok_rusak
+          // Tambah ke stok_rusak khusus untuk pendataan
           for (const item of currentReturn.items) {
             if (item.productId) {
-              const { data: pData } = await supabase.from('products').select('stock_rusak').eq('id', item.productId).single();
-              if (pData) {
+              const { data: pData, error: pErr } = await supabase.from('products').select('stock_rusak').eq('id', item.productId).single();
+              if (!pErr && pData) {
                 await supabase.from('products').update({ stock_rusak: (pData.stock_rusak || 0) + item.quantity }).eq('id', item.productId);
               }
             }
@@ -203,8 +202,10 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
       }
 
       await fetchReturns();
+      return { success: true };
     } else {
       console.error('Error receiving return:', error);
+      return { success: false, error: error.message };
     }
   }, [fetchReturns, returns]);
 
@@ -218,8 +219,10 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
     if (!error) {
       await fetchReturns();
+      return { success: true };
     } else {
       console.error('Error rejecting return:', error);
+      return { success: false, error: error.message };
     }
   }, [fetchReturns]);
 

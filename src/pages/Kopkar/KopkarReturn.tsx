@@ -97,16 +97,21 @@ const KopkarReturn = () => {
       return;
     }
 
-    await receiveReturn(acceptingReturn.id, {
+    const res = await receiveReturn(acceptingReturn.id, {
       acceptedByName: acceptedByName.trim(),
       acceptedAtDate,
       acceptedAtTime,
       acceptedNotes: acceptedNotes.trim(),
+      isRestocked: isRestockChecked,
     });
 
-    setActionSuccess(`Barang retur ${acceptingReturn.id} telah dicatat sebagai diterima.`);
-    setTimeout(() => setActionSuccess(''), 3000);
-    setAcceptingReturn(null);
+    if (res.success) {
+      setActionSuccess(`Barang retur ${acceptingReturn.id} telah dicatat sebagai diterima.`);
+      setTimeout(() => setActionSuccess(''), 3000);
+      setAcceptingReturn(null);
+    } else {
+      setAcceptError(res.error || 'Terjadi kesalahan saat menerima retur.');
+    }
   };
 
   const handleOpenRejectModal = (ret: ReturnRequest) => {
@@ -124,15 +129,19 @@ const KopkarReturn = () => {
       return;
     }
 
-    rejectReturn(rejectingReturn.id, {
+    const res = await rejectReturn(rejectingReturn.id, {
       rejectedByName: user?.name ? `${user.name} (Kopkar)` : 'Staf Koperasi',
       rejectionReason: rejectionReason.trim(),
     });
 
-    const returnId = rejectingReturn.id;
-    setRejectingReturn(null);
-    setActionSuccess(`Retur ${returnId} telah ditandai ditolak.`);
-    setTimeout(() => setActionSuccess(''), 5000);
+    if (res.success) {
+      const returnId = rejectingReturn.id;
+      setRejectingReturn(null);
+      setActionSuccess(`Retur ${returnId} telah ditandai ditolak.`);
+      setTimeout(() => setActionSuccess(''), 5000);
+    } else {
+      setRejectError(res.error || 'Terjadi kesalahan saat menolak retur.');
+    }
   };
 
   const formatDateId = (dateStr?: string) => {

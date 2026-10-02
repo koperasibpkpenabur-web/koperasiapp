@@ -102,8 +102,12 @@ const SchoolReturn = () => {
       return;
     }
 
-    await shipReturn(shippingReturn.id, { departureDate, departureTime, shippingNote });
-    setShippingReturn(null);
+    const res = await shipReturn(shippingReturn.id, { departureDate, departureTime, shippingNote });
+    if (res.success) {
+      setShippingReturn(null);
+    } else {
+      setFormError(res.error || 'Terjadi kesalahan sistem.');
+    }
   };
 
   // Handlers for Items Builder
