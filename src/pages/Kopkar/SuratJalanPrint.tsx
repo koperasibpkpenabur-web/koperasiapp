@@ -20,13 +20,13 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
   const pageStyle = `
     @media print {
       @page {
-        size: 9.5in 11in portrait;
-        margin: 0; /* Penting: menonaktifkan Header/Footer bawaan Chrome */
+        margin: 0; /* Hindari header/footer */
       }
       body {
         margin: 0;
         -webkit-print-color-adjust: exact;
-        padding-left: 0.5in; /* Jarak aman untuk lubang perforasi (tractor feed) kiri */
+        padding-top: 5mm;
+        padding-left: 5mm;
       }
       .print-surat-jalan {
         font-family: Arial, Helvetica, sans-serif !important;
@@ -59,7 +59,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
   }
 
   return (
-    <div className="print-only print-surat-jalan" style={{ fontSize: '11px', margin: '0 auto', padding: '0', maxWidth: '210mm' }}>
+    <div className="print-only print-surat-jalan" style={{ margin: '0', padding: '0', width: '100%' }}>
       <style>{pageStyle}</style>
       
       {pages.map((pageItems, pageIndex) => (
@@ -67,9 +67,9 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
           key={pageIndex} 
           className={pageIndex < pages.length - 1 ? 'page-break' : ''} 
           style={{ 
-            padding: '4mm', // Margin aman sekeliling
-            width: '100%',
-            maxWidth: '205mm',
+            width: '190mm', // Aman dari margin dan lubang kertas (maksimal kertas 215mm)
+            height: '130mm', // Maksimal setengah kertas (A5) 139mm
+            overflow: 'hidden', // Potong paksa jika ada lebih agar tidak lari ke halaman ke-2
             boxSizing: 'border-box' 
           }}
         >
