@@ -517,9 +517,9 @@ const SchoolPemesanan = () => {
                 code: variant.code,
                 name: row.name,
                 type: row.type,
-                priceKopkar: row.priceKopkar,
-                feeSchool: row.feeSchool,
-                priceStudent: row.priceStudent,
+                priceKopkar: variant.priceKopkar,
+                feeSchool: variant.feeSchool,
+                priceStudent: variant.priceStudent,
                 size: variant.size,
                 quantity: qty as number
               });
@@ -534,9 +534,9 @@ const SchoolPemesanan = () => {
               code: variant.code,
               name: row.name,
               type: row.type,
-              priceKopkar: row.priceKopkar,
-              feeSchool: row.feeSchool,
-              priceStudent: row.priceStudent,
+              priceKopkar: variant.priceKopkar,
+              feeSchool: variant.feeSchool,
+              priceStudent: variant.priceStudent,
               size: variant.size,
               quantity: row.customQty
             });
@@ -1453,7 +1453,15 @@ const SchoolPemesanan = () => {
                               onChange={(e) => {
                                 const prodId = e.target.value;
                                 const variant = selectedGroup?.variants.find(v => v.id === prodId);
-                                setSelectedItems((prev) => prev.map((it, i) => i === index ? { ...it, productId: prodId, code: variant?.code, size: variant?.size || '' } : it));
+                                setSelectedItems((prev) => prev.map((it, i) => i === index ? { 
+                                  ...it, 
+                                  productId: prodId, 
+                                  code: variant?.code, 
+                                  size: variant?.size || '',
+                                  priceKopkar: variant ? variant.priceKopkar : it.priceKopkar,
+                                  feeSchool: variant ? variant.feeSchool : it.feeSchool,
+                                  priceStudent: variant ? variant.priceStudent : it.priceStudent
+                                } : it));
                               }}
                               style={{ width: '100%', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#fff' }}
                               required={item.quantity > 0}
