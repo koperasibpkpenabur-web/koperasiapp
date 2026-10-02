@@ -163,10 +163,15 @@ button, a, input, select, textarea {
   }
   
   /* Reset some body styles for better printing */
-  body, #root {
-    background: white;
-    height: auto;
-    overflow: visible;
+  html, body, #root, .kopkar-dashboard {
+    background: white !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 }
 
