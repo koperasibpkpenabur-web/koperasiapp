@@ -357,19 +357,30 @@ const KopkarReturn = () => {
                       </span>
                     </div>
 
-                    <div className="logistics-row">
-                      <span className="logistics-label">Jadwal Keberangkatan dari Sekolah</span>
-                      <span className="logistics-val">
-                        📅 {ret.departureDate} • ⏰ {ret.departureTime} WIB
-                      </span>
-                    </div>
+                    {ret.departureDate ? (
+                      <>
+                        <div className="logistics-row">
+                          <span className="logistics-label">Jadwal Keberangkatan dari Sekolah</span>
+                          <span className="logistics-val">
+                            📅 {ret.departureDate} • ⏰ {ret.departureTime} WIB
+                          </span>
+                        </div>
 
-                    <div className="logistics-row">
-                      <span className="logistics-label">Armada / Kurir Pengantar</span>
-                      <span className="logistics-val">
-                        🚚 {ret.shippingNote || 'Diantar langsung oleh perwakilan sekolah'}
-                      </span>
-                    </div>
+                        <div className="logistics-row">
+                          <span className="logistics-label">Armada / Kurir Pengantar</span>
+                          <span className="logistics-val">
+                            🚚 {ret.shippingNote || 'Diantar langsung oleh perwakilan sekolah'}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="logistics-row">
+                        <span className="logistics-label">Jadwal Keberangkatan</span>
+                        <span className="logistics-val" style={{ color: '#94a3b8' }}>
+                          Belum dikirim (Menunggu Sekolah)
+                        </span>
+                      </div>
+                    )}
 
                     <div className="logistics-row" style={{ marginTop: '4px' }}>
                       <span className="logistics-label">Penjelasan Sekolah</span>
@@ -746,11 +757,11 @@ const KopkarReturn = () => {
                 </div>
                 <div className="logistics-row">
                   <span className="logistics-label">Jadwal Keberangkatan</span>
-                  <span>{viewingReturn.departureDate} pukul {viewingReturn.departureTime} WIB</span>
+                  <span>{viewingReturn.departureDate ? `${viewingReturn.departureDate} pukul ${viewingReturn.departureTime} WIB` : 'Belum dikirim'}</span>
                 </div>
                 <div className="logistics-row">
                   <span className="logistics-label">Armada / Sopir</span>
-                  <span>{viewingReturn.shippingNote || 'Tidak ada catatan armada'}</span>
+                  <span>{viewingReturn.departureDate ? (viewingReturn.shippingNote || 'Tidak ada catatan armada') : 'Belum dikirim'}</span>
                 </div>
               </div>
             </div>

@@ -84,10 +84,26 @@ const SchoolReturn = () => {
     return matchTab && matchSearch;
   });
 
-  const handleShipReturn = async (ret: ReturnRequest) => {
-    if (window.confirm('Apakah Anda yakin sudah menyerahkan barang ini ke kurir/ekspedisi?')) {
-      await shipReturn(ret.id, { shippingNotes: ret.shippingNote || 'Dikirim oleh sekolah' });
+  const [shippingReturn, setShippingReturn] = useState<ReturnRequest | null>(null);
+  
+  const handleOpenShipModal = (ret: ReturnRequest) => {
+    setShippingReturn(ret);
+    setDepartureDate(todayStr);
+    setDepartureTime(currentTimeStr);
+    setShippingNote('');
+    setFormError('');
+  };
+
+  const handleConfirmShipReturn = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!shippingReturn) return;
+    if (!departureDate || !departureTime) {
+      setFormError('Tanggal dan jam keberangkatan barang wajib diisi.');
+      return;
     }
+
+    await shipReturn(shippingReturn.id, { departureDate, departureTime, shippingNote });
+    setShippingReturn(null);
   };
 
   // Handlers for Items Builder
@@ -199,11 +215,6 @@ const SchoolReturn = () => {
       return;
     }
 
-    if (!departureDate || !departureTime) {
-      setFormError('Tanggal dan jam keberangkatan barang wajib diisi.');
-      return;
-    }
-
     const res = await createReturn({
       schoolUserId: user.id,
       schoolName: user.schoolName || user.name,
@@ -211,9 +222,6 @@ const SchoolReturn = () => {
       items: returnItems,
       reasonCategory,
       reason: reasonDetail,
-      departureDate,
-      departureTime,
-      shippingNote,
     });
 
     if (res.success) {
@@ -462,19 +470,7 @@ const SchoolReturn = () => {
                       </span>
                     </div>
 
-                    <div className="logistics-row">
-                      <span className="logistics-label">Jadwal Keberangkatan</span>
-                      <span className="logistics-val">
-                        📅 {ret.departureDate} • ⏰ {ret.departureTime} WIB
-                      </span>
-                    </div>
 
-                    {ret.shippingNote && (
-                      <div className="logistics-row">
-                        <span className="logistics-label">Armada / Pengantar</span>
-                        <span className="logistics-val">🚚 {ret.shippingNote}</span>
-                      </div>
-                    )}
 
                     <div className="logistics-row" style={{ marginTop: '4px' }}>
                       <span className="logistics-label">Penjelasan Sekolah</span>
@@ -490,7 +486,7 @@ const SchoolReturn = () => {
                   <div className="return-card-actions" style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
                     <button 
                       className="btn-primary" 
-                      onClick={() => handleShipReturn(ret)}
+                      onClick={() => handleOpenShipModal(ret)}
                       style={{ padding: '8px 16px', borderRadius: '8px' }}
                     >
                       Kirim Barang Sekarang
@@ -717,46 +713,7 @@ const SchoolReturn = () => {
                   />
                 </div>
 
-                {/* Section 4: Departure Date & Time */}
-                <div className="form-grid-2">
-                  <div className="form-group">
-                    <label>
-                      📅 Tanggal Keberangkatan Barang <span className="required">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      className="form-input"
-                      value={departureDate}
-                      onChange={(e) => setDepartureDate(e.target.value)}
-                      required
-                    />
-                  </div>
 
-                  <div className="form-group">
-                    <label>
-                      ⏰ Jam Keberangkatan Barang <span className="required">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      className="form-input"
-                      value={departureTime}
-                      onChange={(e) => setDepartureTime(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Section 5: Driver / Courier note */}
-                <div className="form-group">
-                  <label>🚚 Info Armada / Kurir / Pengantar</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Contoh: Diantar mobil dinas sekolah B 1234 CD - Sopir Pak Joko"
-                    value={shippingNote}
-                    onChange={(e) => setShippingNote(e.target.value)}
-                  />
-                </div>
               </div>
 
               <div className="return-modal-footer">
@@ -932,6 +889,82 @@ const SchoolReturn = () => {
                 Tutup
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* POP-UP MODAL 3: Kirim Barang Retur */}
+      {shippingReturn && (
+        <div className="return-modal-overlay">
+          <div className="return-modal-card">
+            <div className="return-modal-header">
+              <h3>🚚 Kirim Barang Retur ke Koperasi</h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setShippingReturn(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmShipReturn}>
+              <div className="return-modal-body">
+                {formError && (
+                  <div className="return-info-callout" style={{ borderLeftColor: '#e11d48', background: '#fff1f2', color: '#be123c' }}>
+                    {formError}
+                  </div>
+                )}
+
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label>📅 Tanggal Keberangkatan <span className="required">*</span></label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={departureDate}
+                      onChange={(e) => setDepartureDate(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>⏰ Jam Keberangkatan <span className="required">*</span></label>
+                    <input
+                      type="time"
+                      className="form-input"
+                      value={departureTime}
+                      onChange={(e) => setDepartureTime(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>🚚 Info Armada / Kurir / Pengantar</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Contoh: Diantar mobil dinas sekolah B 1234 CD - Sopir Pak Joko"
+                    value={shippingNote}
+                    onChange={(e) => setShippingNote(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="return-modal-footer">
+                <button
+                  type="button"
+                  className="btn-view-detail"
+                  onClick={() => setShippingReturn(null)}
+                >
+                  Batal
+                </button>
+                <button type="submit" className="btn-new-return">
+                  🚀 Konfirmasi Pengiriman
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

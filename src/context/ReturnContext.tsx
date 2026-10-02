@@ -9,9 +9,6 @@ interface CreateReturnInput {
   items: ReturnItem[];
   reasonCategory?: string;
   reason: string;
-  departureDate: string;
-  departureTime: string;
-  shippingNote?: string;
 }
 
 interface AcceptReturnInput {
@@ -31,7 +28,7 @@ interface ReturnContextType {
   returns: ReturnRequest[];
   createReturn: (data: CreateReturnInput) => Promise<{ success: boolean; id?: string; error?: string }>;
   confirmReturn: (returnId: string, data: { confirmedByName: string }) => Promise<void>;
-  shipReturn: (returnId: string, data: { shippingNotes: string }) => Promise<void>;
+  shipReturn: (returnId: string, data: { departureDate: string; departureTime: string; shippingNote: string }) => Promise<void>;
   receiveReturn: (returnId: string, data: AcceptReturnInput) => Promise<void>;
   rejectReturn: (returnId: string, data: RejectReturnInput) => Promise<void>;
   getReturnsBySchoolId: (schoolUserId: string) => ReturnRequest[];
@@ -102,9 +99,6 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
       if (!data.reason.trim()) {
         return { success: false, error: 'Alasan retur wajib diisi.' };
       }
-      if (!data.departureDate || !data.departureTime) {
-        return { success: false, error: 'Tanggal dan jam keberangkatan barang wajib diisi.' };
-      }
 
       const newId = generateReturnId();
       
@@ -116,9 +110,6 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
         items: data.items,
         reason_category: data.reasonCategory || 'Lainnya',
         reason: data.reason.trim(),
-        departure_date: data.departureDate,
-        departure_time: data.departureTime,
-        shipping_note: data.shippingNote?.trim() || null,
         status: 'pending',
         created_at: new Date().toISOString(),
       };
@@ -150,11 +141,13 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchReturns]);
 
-  const shipReturn = useCallback(async (returnId: string, data: { shippingNotes: string }) => {
+  const shipReturn = useCallback(async (returnId: string, data: { departureDate: string; departureTime: string; shippingNote: string }) => {
     const updates = {
       status: 'sekolah_dikirim',
       sekolah_dikirim_at: new Date().toISOString(),
-      sekolah_dikirim_notes: data.shippingNotes,
+      departure_date: data.departureDate,
+      departure_time: data.departureTime,
+      shipping_note: data.shippingNote,
     };
     
     const { error } = await supabase.from('returns').update(updates).eq('id', returnId);
