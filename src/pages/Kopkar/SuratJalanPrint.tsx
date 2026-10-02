@@ -58,7 +58,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
         font-family: 'Courier New', Courier, monospace !important;
         -webkit-font-smoothing: none;
         color: #000 !important;
-        font-size: 12.5px !important;
+        font-size: 14px !important;
       }
       .print-surat-jalan table {
         width: 100%;
@@ -67,7 +67,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       }
       .print-surat-jalan table th, .print-surat-jalan table td {
         border: 1px solid #000 !important;
-        font-size: 12.5px !important;
+        font-size: 14px !important;
         padding: 2px 4px !important; 
         word-wrap: break-word;
         overflow-wrap: break-word;
@@ -85,28 +85,28 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       {/* Header / Kop Surat (Hanya muncul sekali di paling atas) */}
       <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
         <div>
-          <h2 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'normal' }}>
+          <h2 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 'bold' }}>
             KOPERASI KONSUMEN KARYAWAN BPK PENABUR JAKARTA
           </h2>
-          <div style={{ fontSize: '12.5px', lineHeight: '1.2' }}>
+          <div style={{ fontSize: '14px', lineHeight: '1.2' }}>
             Kepada Yth,<br />
             Bapak/Ibu <strong>{order.schoolName}</strong><br />
             di Tempat
           </div>
         </div>
-        <div style={{ fontSize: '12.5px', textAlign: 'right' }}>
+        <div style={{ fontSize: '14px', textAlign: 'right' }}>
           <div>Tanggal: {today}</div>
         </div>
       </div>
 
       <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-        <h3 style={{ margin: '0', fontSize: '14px', textDecoration: 'underline', fontWeight: 'normal' }}>Surat Jalan</h3>
-        <div style={{ fontSize: '12.5px', marginTop: '2px' }}>No. Pesanan: {order.id}</div>
+        <h3 style={{ margin: '0', fontSize: '15px', textDecoration: 'underline', fontWeight: 'bold' }}>Surat Jalan</h3>
+        <div style={{ fontSize: '14px', marginTop: '2px' }}>No. Pesanan: {order.id}</div>
       </div>
 
       {/* Tabel Barang (Bisa mengalir otomatis ke halaman 2, 3, dst.) */}
       <div style={{ marginBottom: '4px' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
           <thead>
             <tr>
               <th style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>No</th>
@@ -142,12 +142,12 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
         </table>
       </div>
 
-      <div style={{ fontSize: '12.5px', fontStyle: 'italic', marginBottom: '6px', fontWeight: 'bold' }}>
+      <div style={{ fontSize: '14px', fontStyle: 'italic', marginBottom: '6px', fontWeight: 'bold' }}>
         Terbilang: {terbilang(order.totalPriceStudent || 0)} Rupiah
       </div>
 
       {/* Catatan */}
-      <div style={{ fontSize: '12.5px', marginBottom: '8px', pageBreakInside: 'avoid' }}>
+      <div style={{ fontSize: '14px', marginBottom: '8px', pageBreakInside: 'avoid' }}>
         <strong>Catatan:</strong>
         <ol style={{ margin: '2px 0 0 0', paddingLeft: '16px', lineHeight: '1.2' }}>
           <li>Mohon lembar 1(Putih) dikembalikan ke Koperasi</li>
@@ -156,7 +156,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       </div>
 
       {/* Tanda Tangan */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginTop: '16px', pageBreakInside: 'avoid' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginTop: '16px', pageBreakInside: 'avoid' }}>
         <div style={{ textAlign: 'center', width: '140px' }}>
           <div>Diterima oleh,</div>
           <div style={{ marginTop: '30px', borderBottom: '1px solid #000' }}></div>
