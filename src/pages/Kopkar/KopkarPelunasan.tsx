@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useReturns } from '../../context/ReturnContext';
 import { supabase } from '../../lib/supabase';
-import type { Order, ShippingInfo } from '../../types';
+import type { Order } from '../../types';
 import SuratJalanPrint from './SuratJalanPrint';
 import './kopkar.css';
 
@@ -123,28 +123,9 @@ const KopkarPelunasan = () => {
 
 
   const {
-    rejectOrder,
-    shipOrder,
-    kopkarCancelOrder,
     markOrderAsPaid,
     disburseSchoolFee,
   } = useOrders();
-
-  // Rejection modal (initial reject for pending order)
-  const [rejectingOrder, setRejectingOrder] = useState<Order | null>(null);
-  const [rejectionReason, setRejectionReason] = useState<string>('');
-
-  // Shipping modal
-  const [shippingOrder, setShippingOrder] = useState<Order | null>(null);
-  const [shipDate, setShipDate] = useState<string>('');
-  const [shipTime, setShipTime] = useState<string>('');
-  const [courierNotes, setCourierNotes] = useState<string>('');
-  const [shipError, setShipError] = useState<string>('');
-
-  // Kopkar cancellation modal (cancelling an approved order)
-  const [cancellingApprovedOrder, setCancellingApprovedOrder] = useState<Order | null>(null);
-  const [kopkarCancelReason, setKopkarCancelReason] = useState<string>('');
-  const [cancelError, setCancelError] = useState<string>('');
 
   // Pelunasan modal
   const [payingOrder, setPayingOrder] = useState<Order | null>(null);
@@ -170,45 +151,14 @@ const KopkarPelunasan = () => {
 
 
 
-  const handleConfirmReject = () => {
-    if (!rejectingOrder) return;
-    const processorName = user ? user.name : 'Karyawan Koperasi';
-    rejectOrder(
-      rejectingOrder.id,
-      processorName,
-      rejectionReason.trim() || 'Stok tidak mencukupi atau pesanan tidak sesuai'
-    );
-    setRejectingOrder(null);
-    setRejectionReason('');
-  };
-
-
-
-  const handleConfirmShip = (e: FormEvent) => {
-    e.preventDefault();
-    if (!shippingOrder) return;
-
-    if (!shipDate || !shipTime) {
-      setShipError('Tanggal dan jam kirim wajib diisi');
-      return;
-    }
-
-    const stafName = user ? user.name : 'Karyawan Koperasi';
-    const shippingData: ShippingInfo = {
-      shippedAtDate: shipDate,
-      shippedAtTime: shipTime,
-      courierNotes: courierNotes.trim() || undefined,
-      shippedBy: stafName,
-    };
-
-    shipOrder(shippingOrder.id, shippingData);
-    setShippingOrder(null);
-  };
-
   // Open Pelunasan Modal
   const handleOpenPaymentModal = (order: Order) => {
     setPayingOrder(order);
-    setPayNotes('Pembayaran transfer Bank BCA: 0760256757 a.n. Koperasi Konsumen Karyawan BPK Penabur');
+    if (order.paidNotes && order.paidNotes.includes('[BUKTI_TRANSFER]')) {
+      setPayNotes(order.paidNotes + '\n\n' + 'Telah diverifikasi lunas oleh Koperasi pada ' + new Date().toLocaleString('id-ID'));
+    } else {
+      setPayNotes('Pembayaran transfer Bank BCA: 0760256757 a.n. Koperasi Konsumen Karyawan BPK Penabur');
+    }
   };
 
   const handleConfirmPayment = async (e: FormEvent) => {
@@ -234,22 +184,6 @@ const KopkarPelunasan = () => {
     await disburseSchoolFee(disbursingOrder.id, stafName, disburseNotes.trim());
     setOrders(prev => prev.map(o => o.id === disbursingOrder.id ? { ...o, fee_status: 'disbursed', feeStatus: 'disbursed' } : o));
     setDisbursingOrder(null);
-  };
-
-
-
-  const handleConfirmKopkarCancel = (e: FormEvent) => {
-    e.preventDefault();
-    if (!cancellingApprovedOrder) return;
-
-    if (!kopkarCancelReason.trim()) {
-      setCancelError('Alasan pembatalan wajib diisi agar sekolah menerima pemberitahuan yang jelas');
-      return;
-    }
-
-    const stafName = user ? user.name : 'Karyawan Koperasi';
-    kopkarCancelOrder(cancellingApprovedOrder.id, kopkarCancelReason.trim(), stafName);
-    setCancellingApprovedOrder(null);
   };
 
 
@@ -559,65 +493,6 @@ const KopkarPelunasan = () => {
         </div>
       
 
-      {/* Modal Input Pengiriman Barang */}
-      {shippingOrder && (
-        <div className="modal-overlay" onClick={() => setShippingOrder(null)}>
-          <div className="modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>🚚 Input Pengiriman Barang</h3>
-            <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '14px' }}>
-              Pesanan No: <strong>{shippingOrder.id}</strong> ({shippingOrder.schoolName})
-            </p>
-
-            <form className="modal-form" onSubmit={handleConfirmShip}>
-              {shipError && <div className="modal-error">{shipError}</div>}
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div className="form-group">
-                  <label htmlFor="shipDate">Tanggal Kirim *</label>
-                  <input
-                    id="shipDate"
-                    type="date"
-                    value={shipDate}
-                    onChange={(e) => setShipDate(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="shipTime">Jam Kirim *</label>
-                  <input
-                    id="shipTime"
-                    type="time"
-                    value={shipTime}
-                    onChange={(e) => setShipTime(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="courierNotes">Armada Pengiriman / Nama Kurir</label>
-                <input
-                  id="courierNotes"
-                  type="text"
-                  placeholder="Contoh: Mobil Box Koperasi (B 1234 CD) - Sopir Pak Joko"
-                  value={courierNotes}
-                  onChange={(e) => setCourierNotes(e.target.value)}
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShippingOrder(null)}>
-                  Batal
-                </button>
-                <button type="submit" className="btn-ship">
-                  ✅ Konfirmasi Kirim Barang
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Modal Pelunasan Pembayaran Sekolah ke Koperasi */}
       {payingOrder && (
         <div className="modal-overlay" onClick={() => setPayingOrder(null)}>
@@ -705,69 +580,6 @@ const KopkarPelunasan = () => {
         </div>
       )}
 
-      {/* Modal Batalkan Pesanan Approved */}
-      {cancellingApprovedOrder && (
-        <div className="modal-overlay" onClick={() => setCancellingApprovedOrder(null)}>
-          <div className="modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ color: '#dc2626' }}>⚠️ Batalkan Pesanan</h3>
-            <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '14px' }}>
-              Pesanan: <strong>{cancellingApprovedOrder.id}</strong> — {cancellingApprovedOrder.schoolName}
-            </p>
-
-            <form className="modal-form" onSubmit={handleConfirmKopkarCancel}>
-              {cancelError && <div className="modal-error">{cancelError}</div>}
-
-              <div className="form-group">
-                <label>Alasan Pembatalan Koperasi *</label>
-                <textarea
-                  value={kopkarCancelReason}
-                  onChange={(e) => setKopkarCancelReason(e.target.value)}
-                  rows={4}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setCancellingApprovedOrder(null)}>
-                  Kembali
-                </button>
-                <button type="submit" className="btn-reject">
-                  Konfirmasi Batalkan
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Initial Reject Modal */}
-      {rejectingOrder && (
-        <div className="modal-overlay" onClick={() => setRejectingOrder(null)}>
-          <div className="modal reject-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Tolak Pesanan {rejectingOrder.id}</h3>
-            <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '14px' }}>
-              Pesanan dari: <strong>{rejectingOrder.schoolName}</strong>
-            </p>
-            <div className="form-group">
-              <label>Alasan Penolakan:</label>
-              <textarea
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="btn-secondary" onClick={() => setRejectingOrder(null)}>
-                Batal
-              </button>
-              <button type="button" className="btn-reject" onClick={handleConfirmReject}>
-                Konfirmasi Tolak
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Print Only Surat Jalan */}
       <SuratJalanPrint order={printingOrder} />
