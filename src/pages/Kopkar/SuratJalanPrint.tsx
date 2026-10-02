@@ -96,6 +96,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
                 <tr>
                   <th style={{ border: '1px solid #000', padding: '4px', width: '8%' }}>No</th>
                   <th style={{ border: '1px solid #000', padding: '4px', textAlign: 'left' }}>Nama Barang</th>
+                  <th style={{ border: '1px solid #000', padding: '4px', width: '15%', textAlign: 'center' }}>Size</th>
                   <th style={{ border: '1px solid #000', padding: '4px', width: '15%' }}>Qty</th>
                 </tr>
               </thead>
@@ -108,6 +109,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
                       <td style={{ border: '1px solid #000', padding: '4px' }}>
                         [{item.type}] {item.name}
                       </td>
+                      <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>{item.size || '-'}</td>
                       <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>{item.quantity}</td>
                     </tr>
                   );
