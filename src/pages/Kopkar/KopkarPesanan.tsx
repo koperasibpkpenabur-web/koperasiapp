@@ -264,9 +264,10 @@ const KopkarPesanan = () => {
   };
 
   // Cancel Shipment
-  const handleCancelShipment = (order: Order) => {
+  const handleCancelShipment = async (order: Order) => {
     if (window.confirm(`Batalkan pengiriman untuk pesanan ${order.id}? Status akan kembali menjadi Disetujui.`)) {
-      cancelShipment(order.id);
+      await cancelShipment(order.id);
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'approved' } : o));
     }
   };
 
@@ -308,7 +309,7 @@ const KopkarPesanan = () => {
     setCancelError('');
   };
 
-  const handleConfirmKopkarCancel = (e: FormEvent) => {
+  const handleConfirmKopkarCancel = async (e: FormEvent) => {
     e.preventDefault();
     if (!cancellingApprovedOrder) return;
 
@@ -318,15 +319,17 @@ const KopkarPesanan = () => {
     }
 
     const stafName = user ? user.name : 'Karyawan Koperasi';
-    kopkarCancelOrder(cancellingApprovedOrder.id, kopkarCancelReason.trim(), stafName);
+    await kopkarCancelOrder(cancellingApprovedOrder.id, kopkarCancelReason.trim(), stafName);
+    setOrders(prev => prev.map(o => o.id === cancellingApprovedOrder.id ? { ...o, status: 'cancelled' } : o));
     setCancellingApprovedOrder(null);
   };
 
   // Approve Cancellation Request from School
-  const handleApproveSchoolCancel = (order: Order) => {
+  const handleApproveSchoolCancel = async (order: Order) => {
     const stafName = user ? user.name : 'Karyawan Koperasi';
     if (window.confirm(`Setujui permintaan pembatalan pesanan ${order.id} dari "${order.schoolName}"?`)) {
-      approveCancelOrder(order.id, stafName);
+      await approveCancelOrder(order.id, stafName);
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o));
     }
   };
 
