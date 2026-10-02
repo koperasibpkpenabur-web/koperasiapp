@@ -120,7 +120,7 @@ const KopkarReturn = () => {
     setRejectError('');
   };
 
-  const handleConfirmReject = (e: FormEvent) => {
+  const handleConfirmReject = async (e: FormEvent) => {
     e.preventDefault();
     if (!rejectingReturn) return;
 
