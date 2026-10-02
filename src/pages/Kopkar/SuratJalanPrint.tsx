@@ -20,7 +20,8 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
   const pageStyle = `
     @media print {
       @page {
-        margin: 0; /* Let printer settings handle margins */
+        size: 8.5in 5.5in;
+        margin: 0;
       }
       body {
         margin: 0;
@@ -34,7 +35,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       .print-surat-jalan table th, .print-surat-jalan table td {
         border: 1px solid #000 !important;
         font-size: 11px !important;
-        padding: 2px !important; /* Sangat rapat */
+        padding: 2px 4px !important; 
       }
       .page-break {
         page-break-after: always;
@@ -50,7 +51,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
   }
 
   return (
-    <div className="print-only print-surat-jalan" style={{ fontSize: '11px', padding: '0', margin: '0' }}>
+    <div className="print-only print-surat-jalan" style={{ fontSize: '11px', margin: '0 auto', padding: '0', maxWidth: '210mm' }}>
       <style>{pageStyle}</style>
       
       {pages.map((pageItems, pageIndex) => (
@@ -58,7 +59,9 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
           key={pageIndex} 
           className={pageIndex < pages.length - 1 ? 'page-break' : ''} 
           style={{ 
-            padding: '2mm 5mm 2mm 0', // Hilangkan margin kiri sebisa mungkin
+            padding: '4mm', // Margin aman sekeliling
+            width: '100%',
+            maxWidth: '205mm',
             boxSizing: 'border-box' 
           }}
         >
