@@ -62,7 +62,6 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       }
       .print-surat-jalan table {
         width: 100%;
-        table-layout: fixed;
         border-collapse: collapse;
       }
       .print-surat-jalan table th, .print-surat-jalan table td {
