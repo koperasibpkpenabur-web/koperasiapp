@@ -357,7 +357,7 @@ const KopkarReturn = () => {
                       </span>
                     </div>
 
-                    {ret.departureDate ? (
+                    {ret.departureDate && ret.departureDate !== '-' ? (
                       <>
                         <div className="logistics-row">
                           <span className="logistics-label">Jadwal Keberangkatan dari Sekolah</span>
@@ -757,11 +757,11 @@ const KopkarReturn = () => {
                 </div>
                 <div className="logistics-row">
                   <span className="logistics-label">Jadwal Keberangkatan</span>
-                  <span>{viewingReturn.departureDate ? `${viewingReturn.departureDate} pukul ${viewingReturn.departureTime} WIB` : 'Belum dikirim'}</span>
+                  <span>{viewingReturn.departureDate && viewingReturn.departureDate !== '-' ? `${viewingReturn.departureDate} pukul ${viewingReturn.departureTime} WIB` : 'Belum dikirim'}</span>
                 </div>
                 <div className="logistics-row">
                   <span className="logistics-label">Armada / Sopir</span>
-                  <span>{viewingReturn.departureDate ? (viewingReturn.shippingNote || 'Tidak ada catatan armada') : 'Belum dikirim'}</span>
+                  <span>{viewingReturn.departureDate && viewingReturn.departureDate !== '-' ? (viewingReturn.shippingNote || 'Tidak ada catatan armada') : 'Belum dikirim'}</span>
                 </div>
               </div>
             </div>

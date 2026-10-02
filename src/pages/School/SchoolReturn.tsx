@@ -470,9 +470,22 @@ const SchoolReturn = () => {
                       </span>
                     </div>
 
-
-
-                    <div className="logistics-row" style={{ marginTop: '4px' }}>
+                    {ret.departureDate && ret.departureDate !== '-' && (
+                      <>
+                        <div className="logistics-row">
+                          <span className="logistics-label">Jadwal Keberangkatan</span>
+                          <span className="logistics-val">
+                            📅 {ret.departureDate} • ⏰ {ret.departureTime} WIB
+                          </span>
+                        </div>
+                        {ret.shippingNote && (
+                          <div className="logistics-row">
+                            <span className="logistics-label">Armada / Pengantar</span>
+                            <span className="logistics-val">🚚 {ret.shippingNote}</span>
+                          </div>
+                        )}
+                      </>
+                    )}                    <div className="logistics-row" style={{ marginTop: '4px' }}>
                       <span className="logistics-label">Penjelasan Sekolah</span>
                       <span style={{ color: '#374151', fontSize: '0.86rem', lineHeight: 1.4 }}>
                         "{ret.reason}"
@@ -873,10 +886,23 @@ const SchoolReturn = () => {
                   <span className="logistics-label">Alasan Lengkap</span>
                   <span>{viewingReturn.reason}</span>
                 </div>
-                <div className="logistics-row">
-                  <span className="logistics-label">Armada / Pengantar Sekolah</span>
-                  <span>{viewingReturn.shippingNote || 'Tidak ada catatan armada'}</span>
-                </div>
+                {viewingReturn.departureDate && viewingReturn.departureDate !== '-' ? (
+                  <>
+                    <div className="logistics-row">
+                      <span className="logistics-label">Jadwal Keberangkatan</span>
+                      <span>{viewingReturn.departureDate} pukul {viewingReturn.departureTime} WIB</span>
+                    </div>
+                    <div className="logistics-row">
+                      <span className="logistics-label">Armada / Pengantar Sekolah</span>
+                      <span>{viewingReturn.shippingNote || 'Tidak ada catatan armada'}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="logistics-row">
+                    <span className="logistics-label">Jadwal Keberangkatan</span>
+                    <span style={{ color: '#94a3b8' }}>Belum dikirim (Menunggu Sekolah)</span>
+                  </div>
+                )}
               </div>
             </div>
 

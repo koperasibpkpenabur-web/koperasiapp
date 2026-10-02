@@ -110,6 +110,9 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
         items: data.items,
         reason_category: data.reasonCategory || 'Lainnya',
         reason: data.reason.trim(),
+        departure_date: '-',
+        departure_time: '-',
+        shipping_note: '-',
         status: 'pending',
         created_at: new Date().toISOString(),
       };
