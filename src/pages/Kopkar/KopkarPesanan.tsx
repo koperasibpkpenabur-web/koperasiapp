@@ -7,7 +7,6 @@ import { useReturns } from '../../context/ReturnContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, ShippingInfo } from '../../types';
 import SuratJalanPrint from './SuratJalanPrint';
-import { exportSuratJalanToText } from '../../utils/exportUtils';
 import './kopkar.css';
 
 const KopkarPesanan = () => {
@@ -511,8 +510,8 @@ const KopkarPesanan = () => {
                                 <button className="btn-ship" onClick={() => handleOpenShipModal(order)}>
                                   🚚 Kirim Barang
                                 </button>
-                                <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => exportSuratJalanToText(order)}>
-                                  📄 Cetak Teks (Epson)
+                                <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => setPrintingOrder(order)}>
+                                  🖨️ Cetak Surat Jalan
                                 </button>
                                 <button className="btn-cancel-approved" onClick={() => handleOpenKopkarCancelModal(order)}>
                                   ⚠️ Batalkan
@@ -613,8 +612,8 @@ const KopkarPesanan = () => {
                           <button className="btn-ship full-width-touch" onClick={() => handleOpenShipModal(order)}>
                             🚚 Kirim Barang
                           </button>
-                          <button className="btn-secondary full-width-touch" style={{ fontSize: '0.85rem' }} onClick={() => exportSuratJalanToText(order)}>
-                            📄 Cetak Teks (Epson)
+                          <button className="btn-secondary full-width-touch" onClick={() => setPrintingOrder(order)}>
+                            🖨️ Cetak Surat Jalan
                           </button>
                           <button className="btn-cancel-approved full-width-touch" onClick={() => handleOpenKopkarCancelModal(order)}>
                             ⚠️ Batalkan
