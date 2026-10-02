@@ -7,6 +7,7 @@ import { useReturns } from '../../context/ReturnContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, ShippingInfo } from '../../types';
 import SuratJalanPrint from './SuratJalanPrint';
+import { exportSuratJalanToExcel, exportSuratJalanToPDF } from '../../utils/exportUtils';
 import './kopkar.css';
 
 const KopkarPesanan = () => {
@@ -510,9 +511,14 @@ const KopkarPesanan = () => {
                                 <button className="btn-ship" onClick={() => handleOpenShipModal(order)}>
                                   🚚 Kirim Barang
                                 </button>
-                                <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => setPrintingOrder(order)}>
-                                  🖨️ Cetak Surat Jalan
-                                </button>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                  <button className="btn-secondary" style={{ padding: '6px 10px', fontSize: '0.8rem', flex: 1 }} onClick={() => exportSuratJalanToPDF(order)}>
+                                    🖨️ PDF
+                                  </button>
+                                  <button className="btn-secondary" style={{ padding: '6px 10px', fontSize: '0.8rem', flex: 1 }} onClick={() => exportSuratJalanToExcel(order)}>
+                                    📊 Excel
+                                  </button>
+                                </div>
                                 <button className="btn-cancel-approved" onClick={() => handleOpenKopkarCancelModal(order)}>
                                   ⚠️ Batalkan
                                 </button>
@@ -612,9 +618,14 @@ const KopkarPesanan = () => {
                           <button className="btn-ship full-width-touch" onClick={() => handleOpenShipModal(order)}>
                             🚚 Kirim Barang
                           </button>
-                          <button className="btn-secondary full-width-touch" onClick={() => setPrintingOrder(order)}>
-                            🖨️ Cetak Surat Jalan
-                          </button>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <button className="btn-secondary full-width-touch" style={{ fontSize: '0.85rem' }} onClick={() => exportSuratJalanToPDF(order)}>
+                              🖨️ PDF
+                            </button>
+                            <button className="btn-secondary full-width-touch" style={{ fontSize: '0.85rem' }} onClick={() => exportSuratJalanToExcel(order)}>
+                              📊 Excel
+                            </button>
+                          </div>
                           <button className="btn-cancel-approved full-width-touch" onClick={() => handleOpenKopkarCancelModal(order)}>
                             ⚠️ Batalkan
                           </button>
