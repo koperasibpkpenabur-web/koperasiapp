@@ -7,6 +7,7 @@ import { useReturns } from '../../context/ReturnContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, ShippingInfo } from '../../types';
 import SuratJalanPrint from './SuratJalanPrint';
+import { generateSuratJalanExcel } from '../../utils/excelGenerator';
 import './kopkar.css';
 
 const KopkarPesanan = () => {
@@ -516,6 +517,9 @@ const KopkarPesanan = () => {
                                 <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => setPrintingOrder(order)}>
                                   🖨️ Cetak Surat Jalan
                                 </button>
+                                <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem', borderColor: '#10b981', color: '#059669', backgroundColor: '#ecfdf5' }} onClick={() => generateSuratJalanExcel(order)}>
+                                  📊 Download Excel
+                                </button>
                                 <button className="btn-cancel-approved" onClick={() => handleOpenKopkarCancelModal(order)}>
                                   ⚠️ Batalkan
                                 </button>
@@ -617,6 +621,9 @@ const KopkarPesanan = () => {
                           </button>
                           <button className="btn-secondary full-width-touch" onClick={() => setPrintingOrder(order)}>
                             🖨️ Cetak Surat Jalan
+                          </button>
+                          <button className="btn-secondary full-width-touch" style={{ borderColor: '#10b981', color: '#059669', backgroundColor: '#ecfdf5' }} onClick={() => generateSuratJalanExcel(order)}>
+                            📊 Download Excel
                           </button>
                           <button className="btn-cancel-approved full-width-touch" onClick={() => handleOpenKopkarCancelModal(order)}>
                             ⚠️ Batalkan
