@@ -55,7 +55,7 @@ const KopkarPelunasan = () => {
   };
 
   const fetchOrders = async () => {
-    let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' }).eq('status', 'received');
+    let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' }).neq('status', 'cancelled').neq('status', 'rejected');
     
     if (paymentFilter !== 'all') {
       query = query.eq('payment_status', paymentFilter);

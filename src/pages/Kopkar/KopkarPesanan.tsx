@@ -431,7 +431,6 @@ const KopkarPesanan = () => {
                       <th>ID Order</th>
                       <th>Sekolah</th>
                       <th>Daftar Item</th>
-                      <th>Rincian Harga</th>
                       <th>Aksi</th>
                     </tr>
                   </thead>
@@ -475,43 +474,6 @@ const KopkarPesanan = () => {
                             )}
                           </ul>
                         </td>
-                        <td>
-                          <div style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                            <div>
-                              <span style={{ color: '#64748b' }}>Harga Siswa (Masuk):</span>{' '}
-                              <strong>{formatRupiah(order.totalPriceStudent)}</strong>
-                            </div>
-                            <div>
-                              <span style={{ color: '#64748b' }}>Hak Koperasi:</span>{' '}
-                              <span style={{ color: '#1e40af', fontWeight: 600 }}>{formatRupiah(order.totalPriceKopkar)}</span>
-                            </div>
-                            <div>
-                              <span style={{ color: '#64748b' }}>Fee Sekolah:</span>{' '}
-                              <span style={{ color: '#059669', fontWeight: 600 }}>+{formatRupiah(order.totalFeeSchool)}</span>
-                            </div>
-                          </div>
-                          {order.paymentStatus === 'paid' ? (
-                            <div>
-                              <span className="badge-pay-paid">✅ Lunas Diterima</span>
-                              {order.paidAt && (
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
-                                  {formatDate(order.paidAt)}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div>
-                              <span className="badge-pay-unpaid">🔴 Belum Lunas</span>
-                              <button
-                                className="btn-pay-action"
-                                style={{ marginTop: '6px' }}
-                                onClick={() => handleOpenPaymentModal(order)}
-                              >
-                                💵 Konfirmasi Pelunasan
-                              </button>
-                            </div>
-                          )}
-                        </td>
 
                         <td>
                           <div className="kopkar-actions-col">
@@ -527,10 +489,10 @@ const KopkarPesanan = () => {
                             </div>
                             {order.status === 'pending' && (
                               <div className="action-buttons">
-                                <button className="btn-approve" onClick={() => handleApprove(order)}>
+                                <button className="btn-approve" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => handleApprove(order)}>
                                   ✓ Setujui
                                 </button>
-                                <button className="btn-reject" onClick={() => handleOpenRejectModal(order)}>
+                                <button className="btn-reject" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => handleOpenRejectModal(order)}>
                                   ✕ Tolak
                                 </button>
                               </div>
@@ -613,29 +575,6 @@ const KopkarPesanan = () => {
                       </ul>
                     </div>
 
-                    <div className="mobile-price-summary">
-                      <div>
-                        <span className="price-sub-label">Harga Siswa:</span>
-                        <strong>{formatRupiah(order.totalPriceStudent)}</strong>
-                      </div>
-                      <div>
-                        <span className="price-sub-label">Fee Sekolah:</span>
-                        <strong style={{ color: '#059669' }}>+{formatRupiah(order.totalFeeSchool)}</strong>
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: '6px' }}>
-                      {order.paymentStatus === 'paid' ? (
-                        <span className="badge-pay-paid">✅ Lunas</span>
-                      ) : (
-                        <button
-                          className="btn-pay-action full-width-touch"
-                          onClick={() => handleOpenPaymentModal(order)}
-                        >
-                          💵 Konfirmasi Pelunasan Sekolah
-                        </button>
-                      )}
-                    </div>
 
                     <div className="mobile-card-actions">
                       <div style={{ marginBottom: '12px' }}>
@@ -649,10 +588,10 @@ const KopkarPesanan = () => {
                       </div>
                       {order.status === 'pending' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                          <button className="btn-approve full-width-touch" onClick={() => handleApprove(order)}>
+                          <button className="btn-approve full-width-touch" style={{ padding: '6px', fontSize: '0.85rem' }} onClick={() => handleApprove(order)}>
                             ✓ Setujui
                           </button>
-                          <button className="btn-reject full-width-touch" onClick={() => handleOpenRejectModal(order)}>
+                          <button className="btn-reject full-width-touch" style={{ padding: '6px', fontSize: '0.85rem' }} onClick={() => handleOpenRejectModal(order)}>
                             ✕ Tolak
                           </button>
                         </div>
@@ -718,10 +657,7 @@ const KopkarPesanan = () => {
                   <thead>
                     <tr>
                       <th>ID & Sekolah</th>
-                      <th>Total Tagihan Siswa</th>
-                      <th>Hak Fee Sekolah</th>
                       <th>Status Pelunasan Sekolah</th>
-                      <th>Pencairan Fee ke Sekolah</th>
                       <th>Penerima di Sekolah</th>
                     </tr>
                   </thead>
@@ -733,15 +669,7 @@ const KopkarPesanan = () => {
                           <div style={{ fontWeight: 600, color: '#1e293b' }}>{order.schoolName}</div>
                           <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{formatDate(order.createdAt)}</div>
                         </td>
-                        <td>
-                          <strong>{formatRupiah(order.totalPriceStudent)}</strong>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                            Modal Kopkar: {formatRupiah(order.totalPriceKopkar)}
-                          </div>
-                        </td>
-                        <td>
-                          <strong style={{ color: '#059669' }}>+{formatRupiah(order.totalFeeSchool)}</strong>
-                        </td>
+
                         <td>
                           {order.paymentStatus === 'paid' ? (
                             <div>
@@ -765,36 +693,7 @@ const KopkarPesanan = () => {
                             </div>
                           )}
                         </td>
-                        <td>
-                          {/* Logika Pencairan Fee Sekolah */}
-                          {order.feeStatus === 'disbursed' && (
-                            <div>
-                              <span className="badge-fee-disbursed">💰 Fee Telah Ditransfer</span>
-                              <div style={{ fontSize: '0.72rem', color: '#047857', marginTop: '2px' }}>
-                                Oleh: {order.feeDisbursedBy}
-                              </div>
-                            </div>
-                          )}
 
-                          {order.feeStatus === 'ready' && (
-                            <div>
-                              <div className="badge-fee-ready">⏳ Siap Ditransfer</div>
-                              <button
-                                className="btn-disburse-action"
-                                style={{ marginTop: '6px' }}
-                                onClick={() => handleOpenDisburseModal(order)}
-                              >
-                                💸 Bayarkan Fee ({formatRupiah(order.totalFeeSchool)})
-                              </button>
-                            </div>
-                          )}
-
-                          {order.feeStatus === 'locked' && (
-                            <div className="badge-fee-locked">
-                              🔒 Kunci (Tunggu Sekolah Lunas)
-                            </div>
-                          )}
-                        </td>
                         <td>
                           {order.receiveInfo ? (
                             <div className="receive-info-box">
@@ -821,16 +720,6 @@ const KopkarPesanan = () => {
                       <span className="status-badge received">✅ Diterima</span>
                     </div>
 
-                    <div className="mobile-price-summary">
-                      <div>
-                        <span className="price-sub-label">Harga Siswa:</span>
-                        <strong>{formatRupiah(order.totalPriceStudent)}</strong>
-                      </div>
-                      <div>
-                        <span className="price-sub-label">Fee Sekolah:</span>
-                        <strong style={{ color: '#059669' }}>+{formatRupiah(order.totalFeeSchool)}</strong>
-                      </div>
-                    </div>
 
                     {/* Financial Status Mobile */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>

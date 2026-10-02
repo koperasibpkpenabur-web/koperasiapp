@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
 import { supabase } from '../../lib/supabase';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
 import './kopkar.css';
 
 const KopkarDashboard = () => {
@@ -25,26 +25,7 @@ const KopkarDashboard = () => {
         setPendingOrders(data.filter((o: any) => o.status === 'pending').length);
         setCancelRequestsCount(data.filter((o: any) => o.status === 'cancellation_requested').length);
 
-        const sales = data
-          .filter((o: any) => o.status !== 'cancelled' && o.status !== 'rejected')
-          .reduce((acc: any[], order: any) => {
-            const existing = acc.find(item => item.name === order.school_name);
-            if (existing) {
-              existing.Omzet += (Number(order.total_price_student) || 0);
-              existing.Laba += (Number(order.total_price_kopkar) || 0);
-            } else {
-              acc.push({
-                name: order.school_name || 'Unknown',
-                Omzet: Number(order.total_price_student) || 0,
-                Laba: Number(order.total_price_kopkar) || 0
-              });
-            }
-            return acc;
-          }, [])
-          .sort((a: any, b: any) => b.Omzet - a.Omzet)
-          .slice(0, 5);
-        
-        setSalesBySchool(sales);
+
       }
       setLoading(false);
     };
@@ -73,11 +54,16 @@ const KopkarDashboard = () => {
         <>
           {/* Operational Highlights */}
           <div className="kopkar-stats operational-stats" style={{ marginBottom: '24px' }}>
-            <div className="kopkar-stat-card summary-card">
+            <Link 
+              to="/kopkar/pesanan" 
+              className="kopkar-stat-card summary-card" 
+              style={{ textDecoration: 'none', cursor: 'pointer' }}
+              title="Klik untuk membuka Daftar Pesanan Berjalan"
+            >
               <div className="stat-icon">📋</div>
               <div className="stat-label">Menunggu Persetujuan</div>
               <div className="stat-value warning">{pendingOrders}</div>
-            </div>
+            </Link>
         {cancelRequestsCount > 0 && (
           <div className="kopkar-stat-card alert-card">
             <div className="stat-icon">⚠️</div>
@@ -99,34 +85,7 @@ const KopkarDashboard = () => {
         )}
       </div>
 
-      {/* Chart Section */}
-      {salesBySchool.length > 0 && (
-        <div className="kopkar-stat-card" style={{ marginBottom: '16px', padding: '16px' }}>
-          <h3 style={{ marginBottom: '16px', color: '#1e293b', fontSize: '1.2rem', fontWeight: 700 }}>
-            📊 Top 5 Sekolah Berdasarkan Omzet
-          </h3>
-          <div style={{ width: '100%', height: '220px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={salesBySchool}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                <YAxis axisLine={false} tickLine={false} tickFormatter={formatRupiah} tick={{ fontSize: 12, fill: '#64748b' }} />
-                <Tooltip 
-                  formatter={(value: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)}
-                  cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                <Bar dataKey="Omzet" name="Total Omzet (Tagihan Siswa)" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
-                <Bar dataKey="Laba" name="Laba Koperasi (HPP)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
+
 
       {/* Menu Utama Action Cards */}
       <div className="kopkar-main-menu" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
