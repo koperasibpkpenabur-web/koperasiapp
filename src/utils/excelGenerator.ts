@@ -2,10 +2,6 @@ import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { Order } from '../types';
 
-const formatRupiah = (angka: number) => {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
-};
-
 const terbilang = (angka: number): string => {
   const huruf = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
   let hasil = "";
@@ -98,7 +94,7 @@ export const generateSuratJalanExcel = async (order: Order) => {
 
   // Table Headers
   const headerRow = worksheet.addRow(['No', 'Nama Barang', 'Size', 'Qty', 'Harga', 'Jumlah']);
-  headerRow.eachCell((cell, colNumber) => {
+  headerRow.eachCell((cell) => {
     cell.font = boldFontStyle;
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
     cell.border = {
