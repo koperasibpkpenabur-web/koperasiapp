@@ -14,6 +14,11 @@ const KopkarPesanan = () => {
   const { pendingCount: pendingReturnsCount } = useReturns();
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (orderId: string) => {
+    setExpandedItems(prev => ({ ...prev, [orderId]: !prev[orderId] }));
+  };
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -455,7 +460,7 @@ const KopkarPesanan = () => {
                         </td>
                         <td>
                           <ul className="order-items-list" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
-                            {order.items.slice(0, 1).map((it, idx) => {
+                            {(expandedItems[order.id] ? order.items : order.items.slice(0, 1)).map((it, idx) => {
                               const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
                               const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
                               const unsentQty = Math.max(0, it.quantity - shippedQty);
@@ -468,8 +473,11 @@ const KopkarPesanan = () => {
                               </li>
                             )})}
                             {order.items.length > 1 && (
-                              <li style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', marginTop: '4px' }}>
-                                + {order.items.length - 1} item lainnya
+                              <li 
+                                style={{ fontSize: '0.8rem', color: '#2563eb', fontStyle: 'italic', marginTop: '4px', cursor: 'pointer' }}
+                                onClick={() => toggleExpand(order.id)}
+                              >
+                                {expandedItems[order.id] ? 'Sembunyikan' : `+ ${order.items.length - 1} item lainnya (Klik)`}
                               </li>
                             )}
                           </ul>
@@ -555,7 +563,7 @@ const KopkarPesanan = () => {
                     <div className="mobile-items-box">
                       <div className="mobile-label">Item:</div>
                       <ul className="order-items-list">
-                        {order.items.slice(0, 1).map((it, idx) => {
+                        {(expandedItems[order.id] ? order.items : order.items.slice(0, 1)).map((it, idx) => {
                           const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
                           const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
                           const unsentQty = Math.max(0, it.quantity - shippedQty);
@@ -568,8 +576,11 @@ const KopkarPesanan = () => {
                           </li>
                         )})}
                         {order.items.length > 1 && (
-                          <li style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', marginTop: '4px' }}>
-                            + {order.items.length - 1} item lainnya
+                          <li 
+                            style={{ fontSize: '0.8rem', color: '#2563eb', fontStyle: 'italic', marginTop: '4px', cursor: 'pointer' }}
+                            onClick={() => toggleExpand(order.id)}
+                          >
+                            {expandedItems[order.id] ? 'Sembunyikan' : `+ ${order.items.length - 1} item lainnya (Klik)`}
                           </li>
                         )}
                       </ul>
