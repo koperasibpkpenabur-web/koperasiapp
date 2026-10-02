@@ -163,7 +163,7 @@ button, a, input, select, textarea {
   }
   
   /* Reset some body styles for better printing */
-  html, body, #root, .kopkar-dashboard {
+  html, body, #root, .layout-container, .layout-main, .layout-content, .kopkar-dashboard {
     background: white !important;
     height: auto !important;
     min-height: auto !important;
