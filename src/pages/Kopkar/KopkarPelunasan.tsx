@@ -13,15 +13,12 @@ const KopkarPelunasan = () => {
   const { user } = useAuth();
   const { pendingCount: pendingReturnsCount } = useReturns();
   const [orders, setOrders] = useState<any[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
   // Paginasi Server-Side
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
 
   // Filters (moved up to avoid TDZ ReferenceError in useEffect)
-  const [activeTab, setActiveTab] = useState<'received'>('received');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -58,7 +55,6 @@ const KopkarPelunasan = () => {
   };
 
   const fetchOrders = async () => {
-    setLoadingOrders(true);
     let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' }).eq('status', 'received');
     
     if (paymentFilter !== 'all') {
@@ -115,7 +111,6 @@ const KopkarPelunasan = () => {
       })));
       if (count !== null) setTotalCount(count);
     }
-    setLoadingOrders(false);
   };
 
   useEffect(() => {
@@ -128,10 +123,8 @@ const KopkarPelunasan = () => {
 
 
   const {
-    approveOrder,
     rejectOrder,
     shipOrder,
-    approveCancelOrder,
     kopkarCancelOrder,
     markOrderAsPaid,
     disburseSchoolFee,
@@ -175,19 +168,7 @@ const KopkarPelunasan = () => {
   }, [printingOrder]);
 
 
-  // Approve Pending Order
-  const handleApprove = (order: Order) => {
-    const processorName = user ? user.name : 'Karyawan Koperasi';
-    if (window.confirm(`Setujui pesanan ${order.id} dari "${order.schoolName}"?`)) {
-      approveOrder(order.id, processorName);
-    }
-  };
 
-  // Open initial reject modal
-  const handleOpenRejectModal = (order: Order) => {
-    setRejectingOrder(order);
-    setRejectionReason('');
-  };
 
   const handleConfirmReject = () => {
     if (!rejectingOrder) return;
@@ -201,19 +182,7 @@ const KopkarPelunasan = () => {
     setRejectionReason('');
   };
 
-  // Open Shipping Modal
-  const handleOpenShipModal = (order: Order) => {
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
 
-    setShippingOrder(order);
-    setShipDate(todayStr);
-    setShipTime(`${hours}:${minutes}`);
-    setCourierNotes('Mobil Box Koperasi - Bpk. Supardi');
-    setShipError('');
-  };
 
   const handleConfirmShip = (e: FormEvent) => {
     e.preventDefault();
@@ -267,12 +236,7 @@ const KopkarPelunasan = () => {
     setDisbursingOrder(null);
   };
 
-  // Open Kopkar Cancellation Modal
-  const handleOpenKopkarCancelModal = (order: Order) => {
-    setCancellingApprovedOrder(order);
-    setKopkarCancelReason('');
-    setCancelError('');
-  };
+
 
   const handleConfirmKopkarCancel = (e: FormEvent) => {
     e.preventDefault();
@@ -288,13 +252,7 @@ const KopkarPelunasan = () => {
     setCancellingApprovedOrder(null);
   };
 
-  // Approve Cancellation Request from School
-  const handleApproveSchoolCancel = (order: Order) => {
-    const stafName = user ? user.name : 'Karyawan Koperasi';
-    if (window.confirm(`Setujui permintaan pembatalan pesanan ${order.id} dari "${order.schoolName}"?`)) {
-      approveCancelOrder(order.id, stafName);
-    }
-  };
+
 
   const formatRupiah = (num?: number) => {
     if (num === undefined || isNaN(num)) return 'Rp 0';
