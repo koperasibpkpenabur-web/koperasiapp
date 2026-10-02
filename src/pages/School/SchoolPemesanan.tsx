@@ -589,6 +589,12 @@ const SchoolPemesanan = () => {
       setCartItems([]);
       setNotes('');
       setShowCartModal(false);
+      refetchData(); // Refresh data agar pesanan baru dan angka "Menunggu" langsung muncul
+      
+      // Opsional: Langsung arahkan ke tab "Menunggu" agar user langsung melihat pesanannya
+      setActiveTab('active');
+      setStatusFilter('pending');
+      setCurrentPage(1);
     } else {
       setFormError(result.error || 'Gagal membuat pesanan');
     }

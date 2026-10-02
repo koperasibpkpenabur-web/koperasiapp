@@ -1,5 +1,10 @@
 import React from 'react';
 
+// DUMMY DECLARATIONS: Ditambahkan agar Typescript tidak lagi memunculkan eror "cannot find name"
+const matrixItems: any[] = [];
+const setMatrixItems = (value: any) => {};
+const sortBySize = (variants: any[]): any[] => variants;
+
 // Example extraction
 const renderMatrix = () => {
   const pakaianLetterItems = [];

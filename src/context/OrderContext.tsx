@@ -90,7 +90,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   );
 
   const updateOrderInSupabase = async (orderId: string, updates: any) => {
-    await supabase.from('orders').update(updates).eq('id', orderId);
+    const { error } = await supabase.from('orders').update(updates).eq('id', orderId);
+    if (error) {
+      console.error('Failed to update order in Supabase:', error);
+      throw new Error(error.message);
+    }
   };
 
   const approveOrder = useCallback(async (orderId: string, processorName: string) => {
