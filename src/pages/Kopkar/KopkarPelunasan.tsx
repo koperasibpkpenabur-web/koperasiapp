@@ -174,33 +174,6 @@ const KopkarPelunasan = () => {
     }
   }, [printingOrder]);
 
-  
-  const filteredActiveOrders = activeOrders.filter((ord) => {
-    const matchesStatus = statusFilter === 'all' || ord.status === statusFilter;
-    const matchesPayment = paymentFilter === 'all' || ord.paymentStatus === paymentFilter;
-    const matchesSearch =
-      ord.schoolName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.items.some((it) => it.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesStatus && matchesPayment && matchesSearch;
-  });
-
-  const filteredReceivedOrders = receivedOrders.filter((ord) => {
-    const matchesPayment = paymentFilter === 'all' || ord.paymentStatus === paymentFilter;
-    const matchesSearch =
-      ord.schoolName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.items.some((it) => it.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesPayment && matchesSearch;
-  });
-
-  const filteredCancellationOrders = cancellationOrders.filter((ord) => {
-    return (
-      ord.schoolName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.items.some((it) => it.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  });
 
   // Approve Pending Order
   const handleApprove = (order: Order) => {
