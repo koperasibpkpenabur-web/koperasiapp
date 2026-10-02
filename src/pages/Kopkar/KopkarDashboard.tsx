@@ -11,7 +11,6 @@ const KopkarDashboard = () => {
   const { pendingCount: pendingReturnsCount } = useReturns();
   const [pendingOrders, setPendingOrders] = useState(0);
   const [cancelRequestsCount, setCancelRequestsCount] = useState(0);
-  const [salesBySchool, setSalesBySchool] = useState<{name: string; Omzet: number; Laba: number}[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,12 +31,6 @@ const KopkarDashboard = () => {
     fetchData();
   }, []);
 
-  const formatRupiah = (value: number) => {
-    if (value >= 1000000) {
-      return `Rp ${(value / 1000000).toFixed(1)}Jt`;
-    }
-    return `Rp ${(value / 1000).toFixed(0)}K`;
-  };
 
   return (
     <div className="kopkar-dashboard">
