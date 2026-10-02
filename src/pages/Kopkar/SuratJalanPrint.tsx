@@ -80,8 +80,8 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
     }
   `;
 
-  // Chunking 5 items per physical page
-  const itemsPerPage = 5;
+  // Chunking 3 items per physical page agar tabel tidak kepanjangan dan menabrak tinggi kertas
+  const itemsPerPage = 3;
   const pages = [];
   for (let i = 0; i < Math.max(1, order.items.length); i += itemsPerPage) {
     pages.push(order.items.slice(i, i + itemsPerPage));
