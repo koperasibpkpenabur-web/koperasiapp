@@ -21,7 +21,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
     @media print {
       @page {
         size: 215.9mm 139.7mm;
-        margin: 5mm;
+        margin: 0mm;
       }
       body {
         margin: 0;
@@ -30,9 +30,11 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       .print-surat-jalan {
         font-family: Arial, Helvetica, sans-serif !important;
         color: #000 !important;
+        font-size: 11px !important;
       }
       .print-surat-jalan table th, .print-surat-jalan table td {
         border: 1px solid #000 !important;
+        font-size: 11px !important;
       }
       .page-break {
         page-break-after: always;
@@ -48,7 +50,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
   }
 
   return (
-    <div className="print-only print-surat-jalan">
+    <div className="print-only print-surat-jalan" style={{ fontSize: '11px' }}>
       <style>{pageStyle}</style>
       
       {pages.map((pageItems, pageIndex) => (
@@ -56,48 +58,45 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
           key={pageIndex} 
           className={pageIndex < pages.length - 1 ? 'page-break' : ''} 
           style={{ 
-            height: '100%', 
-            padding: '5mm',
-            boxSizing: 'border-box', 
-            display: 'flex', 
-            flexDirection: 'column' 
+            padding: '5mm 5mm 5mm 2mm', // Tighter left margin
+            boxSizing: 'border-box' 
           }}
         >
           {/* Header / Kop Surat */}
-          <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+          <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
             <div>
-              <h2 style={{ margin: '0 0 8px 0', fontSize: '15px', fontWeight: 'bold' }}>
+              <h2 style={{ margin: '0 0 6px 0', fontSize: '13px', fontWeight: 'bold' }}>
                 KOPERASI KONSUMEN KARYAWAN BPK PENABUR JAKARTA
               </h2>
-              <div style={{ fontSize: '12px', lineHeight: '1.4' }}>
+              <div style={{ fontSize: '11px', lineHeight: '1.3' }}>
                 Kepada Yth,<br />
                 Bapak/Ibu <strong>{order.schoolName}</strong><br />
                 di Tempat
               </div>
             </div>
-            <div style={{ fontSize: '12px', textAlign: 'right' }}>
+            <div style={{ fontSize: '11px', textAlign: 'right' }}>
               <div>Tanggal: {today}</div>
               {pages.length > 1 && (
-                <div style={{ marginTop: '4px', fontWeight: 'bold' }}>
+                <div style={{ marginTop: '2px', fontWeight: 'bold' }}>
                   Hal. {pageIndex + 1} dari {pages.length}
                 </div>
               )}
             </div>
           </div>
 
-          <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-            <h3 style={{ margin: '0', fontSize: '16px', textDecoration: 'underline' }}>Surat Jalan</h3>
+          <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+            <h3 style={{ margin: '0', fontSize: '14px', textDecoration: 'underline' }}>Surat Jalan</h3>
             <div style={{ fontSize: '11px', marginTop: '2px' }}>No. Pesanan: {order.id}</div>
           </div>
 
           {/* Tabel Barang (Tanpa Harga) */}
-          <div style={{ flexGrow: 1 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px', fontSize: '12px' }}>
+          <div style={{ marginBottom: '8px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
               <thead>
                 <tr>
-                  <th style={{ border: '1px solid #000', padding: '6px', width: '8%' }}>No</th>
-                  <th style={{ border: '1px solid #000', padding: '6px', textAlign: 'left' }}>Nama Barang</th>
-                  <th style={{ border: '1px solid #000', padding: '6px', width: '15%' }}>Qty</th>
+                  <th style={{ border: '1px solid #000', padding: '4px', width: '8%' }}>No</th>
+                  <th style={{ border: '1px solid #000', padding: '4px', textAlign: 'left' }}>Nama Barang</th>
+                  <th style={{ border: '1px solid #000', padding: '4px', width: '15%' }}>Qty</th>
                 </tr>
               </thead>
               <tbody>
@@ -105,11 +104,11 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
                   const absoluteIndex = pageIndex * itemsPerPage + idx + 1;
                   return (
                     <tr key={idx}>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{absoluteIndex}</td>
-                      <td style={{ border: '1px solid #000', padding: '6px' }}>
+                      <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>{absoluteIndex}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px' }}>
                         [{item.type}] {item.name}
                       </td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{item.quantity}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>{item.quantity}</td>
                     </tr>
                   );
                 })}
@@ -118,9 +117,9 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
           </div>
 
           {/* Catatan */}
-          <div style={{ fontSize: '11px', marginBottom: '15px' }}>
+          <div style={{ fontSize: '11px', marginBottom: '10px' }}>
             <strong>Catatan:</strong>
-            <ol style={{ margin: '2px 0 0 0', paddingLeft: '16px', lineHeight: '1.4' }}>
+            <ol style={{ margin: '2px 0 0 0', paddingLeft: '16px', lineHeight: '1.3' }}>
               <li>Mohon lembar 1(Putih) dikembalikan ke Koperasi</li>
               <li>Barang yang telah diterima tolong dicek kembali.</li>
               <li>Pembayaran langsung di Koperasi</li>
@@ -129,15 +128,15 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
           </div>
 
           {/* Tanda Tangan */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-            <div style={{ textAlign: 'center', width: '180px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+            <div style={{ textAlign: 'center', width: '150px' }}>
               <div>Diterima oleh,</div>
-              <div style={{ marginTop: '50px', borderBottom: '1px solid #000' }}></div>
+              <div style={{ marginTop: '40px', borderBottom: '1px solid #000' }}></div>
             </div>
-            <div style={{ textAlign: 'center', width: '180px' }}>
+            <div style={{ textAlign: 'center', width: '150px' }}>
               <div>Pengirim,</div>
-              <div style={{ marginTop: '50px', borderBottom: '1px solid #000' }}></div>
-              <div style={{ marginTop: '4px' }}>Sri Mulyani</div>
+              <div style={{ marginTop: '40px', borderBottom: '1px solid #000' }}></div>
+              <div style={{ marginTop: '2px' }}>Sri Mulyani</div>
             </div>
           </div>
         </div>
