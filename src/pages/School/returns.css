@@ -17,9 +17,8 @@
 
 .returns-header h2 {
   font-size: 1.5rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--primary-blue, #395886);
-  letter-spacing: -0.02em;
   margin-bottom: 6px;
 }
 
@@ -98,9 +97,8 @@
 
 .return-stat-val {
   font-size: 1.6rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary, #1e2d42);
-  letter-spacing: -0.02em;
 }
 
 /* Actions Toolbar */
@@ -244,7 +242,7 @@
 
 .return-id-badge {
   font-family: monospace;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.92rem;
   color: var(--primary-blue, #395886);
   background: var(--bluish-white, #F0F3FA);
@@ -255,7 +253,7 @@
 
 .return-school-title {
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary, #1e2d42);
 }
 
@@ -365,7 +363,7 @@
 
 .return-item-qty {
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--primary-blue, #395886);
   background: #ffffff;
   padding: 4px 12px;
@@ -433,7 +431,7 @@
 }
 
 .accepted-alert-title {
-  font-weight: 700;
+  font-weight: 600;
   color: #15803d;
 }
 
@@ -477,7 +475,7 @@
 }
 
 .rejected-alert-title {
-  font-weight: 700;
+  font-weight: 600;
   color: #be123c;
 }
 
@@ -601,7 +599,7 @@
 
 .return-modal-header h3 {
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--primary-blue, #395886);
   margin: 0;
 }
@@ -709,7 +707,7 @@
 
 .builder-header h4 {
   font-size: 0.92rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--primary-blue, #395886);
   margin: 0;
 }
@@ -867,7 +865,7 @@
 
 .timeline-title {
   font-size: 0.92rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary, #1e2d42);
 }
 
@@ -896,7 +894,7 @@
 
 .returns-empty h4 {
   font-size: 1.15rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary, #1e2d42);
   margin: 0;
 }

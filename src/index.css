@@ -103,8 +103,7 @@ button, a, input, select, textarea {
 
 .dashboard-page h2 {
   font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 600;
   margin-bottom: 20px;
   color: var(--primary-blue);
   display: inline-block;

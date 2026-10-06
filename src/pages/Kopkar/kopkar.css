@@ -5,10 +5,9 @@
 
 .kopkar-dashboard h2 {
   font-size: 1.5rem;
-  font-weight: 700;
+  font-weight: 600;
   margin-bottom: 20px;
   color: var(--primary-blue, #395886);
-  letter-spacing: -0.02em;
   display: inline-block;
 }
 
@@ -60,9 +59,8 @@
 .kopkar-stat-card .stat-value {
   font-size: clamp(1rem, 12cqi, 1.6rem);
   word-break: break-word;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary, #1e2d42);
-  letter-spacing: -0.02em;
 }
 
 /* Toolbar */
@@ -77,7 +75,7 @@
 
 .kopkar-toolbar h3 {
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary, #1e2d42);
 }
 
@@ -135,7 +133,7 @@
   text-align: left;
   padding: 12px 16px;
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--primary-blue, #395886);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -208,7 +206,7 @@
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -272,7 +270,7 @@
   padding: 1px 6px;
   border-radius: 4px;
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 600;
   margin-right: 4px;
   text-transform: uppercase;
 }
@@ -353,7 +351,7 @@
 
 .modal h3 {
   font-size: 1.2rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--primary-blue, #395886);
   margin-bottom: 18px;
 }
@@ -416,7 +414,7 @@
   color: var(--primary-blue, #395886);
   border-bottom-color: var(--primary-blue, #395886);
   background: #ffffff;
-  font-weight: 700;
+  font-weight: 600;
   box-shadow: 0 2px 6px rgba(57, 88, 134, 0.08);
 }
 
@@ -426,7 +424,7 @@
   font-size: 0.7rem;
   padding: 2px 7px;
   border-radius: 10px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .alert-card {
@@ -529,7 +527,7 @@
   padding: 3px 8px;
   border-radius: 8px;
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .badge-role-sekolah {
@@ -539,7 +537,7 @@
   padding: 3px 8px;
   border-radius: 8px;
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .reason-text-box {
@@ -603,7 +601,7 @@
 }
 
 .mobile-order-id {
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.92rem;
   color: var(--primary-blue, #395886);
 }
@@ -621,7 +619,7 @@
 
 .mobile-label {
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--primary-blue, #395886);
   text-transform: uppercase;
   margin-bottom: 4px;
@@ -651,7 +649,7 @@
   border: 1px solid var(--border-success, #99f6e4);
   border-radius: 8px;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
@@ -668,7 +666,7 @@
   border: 1px solid var(--border-subtle, #d5deef);
   border-radius: 8px;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
@@ -687,7 +685,7 @@
   border: 1px solid var(--border-success, #99f6e4);
   border-radius: 6px;
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .badge-pay-unpaid {
@@ -698,7 +696,7 @@
   border: 1px solid var(--border-danger, #fecdd3);
   border-radius: 6px;
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .badge-fee-locked {
@@ -720,7 +718,7 @@
   border: 1px solid var(--border-warning, #fde68a);
   border-radius: 6px;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .badge-fee-disbursed {
@@ -731,7 +729,7 @@
   border: 1px solid var(--border-success, #99f6e4);
   border-radius: 6px;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .mobile-price-summary {
