@@ -31,6 +31,29 @@ interface VendorStock {
   products?: { name: string; level: string; type: string };
 }
 
+const ActionMenu = ({ onEdit, onDetail, onDelete }: { onEdit?: ()=>void, onDetail?: ()=>void, onDelete?: ()=>void }) => {
+  const [open, setOpen] = useState(false);
+  
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button 
+        onClick={() => setOpen(!open)}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '4px 8px', color: '#64748b' }}
+      >
+        ⋮
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', right: 0, top: '100%', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: '120px', overflow: 'hidden' }}>
+          {onDetail && <button onClick={onDetail} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }} onMouseOver={e => e.currentTarget.style.background='#f8fafc'} onMouseOut={e => e.currentTarget.style.background='none'}>Detail</button>}
+          {onEdit && <button onClick={onEdit} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }} onMouseOver={e => e.currentTarget.style.background='#f8fafc'} onMouseOut={e => e.currentTarget.style.background='none'}>Edit</button>}
+          {onDelete && <button onClick={onDelete} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#ef4444' }} onMouseOver={e => e.currentTarget.style.background='#fef2f2'} onMouseOut={e => e.currentTarget.style.background='none'}>Hapus</button>}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const VendorManagement = () => {
   const { products } = useProducts();
   const [activeTab, setActiveTab] = useState<'vendors' | 'plotting' | 'stock' | 'calculator'>('vendors');
@@ -228,7 +251,11 @@ const VendorManagement = () => {
                    <td>{v.phone || '-'}</td>
                    <td>{v.address || '-'}</td>
                    <td style={{ textAlign: 'center' }}>
-                     <button className="btn-danger" onClick={() => handleDeleteVendor(v.id)} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>Hapus</button>
+                     <ActionMenu 
+                       onEdit={() => alert('Fitur edit vendor segera hadir')} 
+                       onDetail={() => alert('Fitur detail vendor segera hadir')} 
+                       onDelete={() => handleDeleteVendor(v.id)} 
+                     />
                    </td>
                  </tr>
                ))
@@ -260,7 +287,11 @@ const VendorManagement = () => {
                    <td><strong>{p.vendors?.name}</strong></td>
                    <td><span style={{ background: '#e0f2fe', color: '#0369a1', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>{p.app_users?.school_name}</span></td>
                    <td style={{ textAlign: 'center' }}>
-                     <button className="btn-danger" onClick={() => handleDeletePlotting(p.id)} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>Hapus</button>
+                     <ActionMenu 
+                       onEdit={() => alert('Fitur edit plotting segera hadir')} 
+                       onDetail={() => alert('Fitur detail plotting segera hadir')} 
+                       onDelete={() => handleDeletePlotting(p.id)} 
+                     />
                    </td>
                  </tr>
                ))
@@ -284,11 +315,12 @@ const VendorManagement = () => {
                 <th>Nama Barang (Kategori)</th>
                 <th style={{ textAlign: 'center' }}>Kuantitas Tersedia</th>
                 <th>Update Terakhir</th>
+                <th style={{ textAlign: 'center' }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan={4} style={{textAlign:'center'}}>Memuat...</td></tr> : 
-               stocks.length === 0 ? <tr><td colSpan={4} style={{textAlign:'center'}}>Belum ada stok dari vendor</td></tr> :
+              {loading ? <tr><td colSpan={5} style={{textAlign:'center'}}>Memuat...</td></tr> : 
+               stocks.length === 0 ? <tr><td colSpan={5} style={{textAlign:'center'}}>Belum ada stok dari vendor</td></tr> :
                stocks.map(s => (
                  <tr key={s.id}>
                    <td><strong>{s.vendors?.name}</strong></td>
@@ -297,6 +329,17 @@ const VendorManagement = () => {
                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: s.quantity > 0 ? '#15803d' : '#dc2626' }}>{s.quantity}</span> pcs
                    </td>
                    <td>{new Date(s.last_updated).toLocaleString('id-ID')}</td>
+                   <td style={{ textAlign: 'center' }}>
+                     <ActionMenu 
+                       onEdit={() => alert('Fitur edit stok segera hadir')} 
+                       onDetail={() => alert('Fitur detail stok segera hadir')} 
+                       onDelete={() => {
+                         if(window.confirm('Hapus stok ini?')) {
+                           supabase.from('vendor_stocks').delete().eq('id', s.id).then(() => fetchStocks());
+                         }
+                       }} 
+                     />
+                   </td>
                  </tr>
                ))
               }
@@ -315,7 +358,7 @@ const VendorManagement = () => {
       {/* MODALS */}
       {showAddVendor && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
+          <div className="modal" style={{ maxWidth: '500px' }}>
             <h3>Tambah Vendor Baru</h3>
             <form onSubmit={handleAddVendor} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
               <div>
@@ -345,7 +388,7 @@ const VendorManagement = () => {
 
       {showAddPlotting && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
+          <div className="modal" style={{ maxWidth: '500px' }}>
             <h3>Plotting Vendor ke Sekolah</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '16px' }}>Pilih vendor mana yang akan mengerjakan seragam untuk sekolah mana.</p>
             <form onSubmit={handleAddPlotting} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -374,7 +417,7 @@ const VendorManagement = () => {
 
       {showAddStock && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
+          <div className="modal" style={{ maxWidth: '500px' }}>
             <h3>Terima Barang Jadi dari Vendor</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '16px' }}>Catat penambahan stok fisik barang yang sudah siap di vendor.</p>
             <form onSubmit={handleAddStock} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
