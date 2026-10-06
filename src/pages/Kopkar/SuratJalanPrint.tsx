@@ -60,6 +60,14 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
         color: #000 !important;
         font-size: 13px !important;
       }
+      .print-surat-jalan h1,
+      .print-surat-jalan h2,
+      .print-surat-jalan h3,
+      .print-surat-jalan h4,
+      .print-surat-jalan h5,
+      .print-surat-jalan h6 {
+        font-family: inherit !important;
+      }
       .print-surat-jalan table {
         width: 100%;
         border-collapse: collapse;

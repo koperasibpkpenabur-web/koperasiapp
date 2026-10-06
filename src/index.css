@@ -55,6 +55,7 @@
 
 body {
   font-family: var(--font-body);
+  font-size: 13px;
   background-color: var(--bg-app);
   color: var(--text-primary);
   line-height: 1.55;
@@ -66,6 +67,10 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
 }
+
+h1 { font-size: 18px; }
+h2 { font-size: 16px; }
+h3 { font-size: 15px; }
 
 button, a, input, select, textarea {
   touch-action: manipulation;
