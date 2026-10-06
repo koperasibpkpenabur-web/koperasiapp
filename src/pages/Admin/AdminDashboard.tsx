@@ -54,8 +54,25 @@ const AdminDashboard = () => {
     
     try {
       if (isAll) {
-        const { error } = await supabase.rpc('reset_testing_history');
-        if (error) throw error;
+        // Ambil semua order_id terlebih dahulu
+        const { data: allOrders } = await supabase.from('orders').select('id');
+        if (allOrders && allOrders.length > 0) {
+          const orderIds = allOrders.map(o => o.id);
+          // Hapus order items berdasarkan order_id
+          const { error: err0 } = await supabase.from('order_items').delete().in('order_id', orderIds);
+          if (err0) console.warn('Info order_items:', err0.message);
+          // Hapus orders
+          const { error: err1 } = await supabase.from('orders').delete().in('id', orderIds);
+          if (err1) throw err1;
+        }
+
+        // Ambil semua returns dan hapus
+        const { data: allReturns } = await supabase.from('returns').select('id');
+        if (allReturns && allReturns.length > 0) {
+          const returnIds = allReturns.map(r => r.id);
+          const { error: err2 } = await supabase.from('returns').delete().in('id', returnIds);
+          if (err2) throw err2;
+        }
       } else {
         const { error: err1 } = await supabase.from('orders').delete().eq('school_user_id', selectedSchoolReset);
         const { error: err2 } = await supabase.from('returns').delete().eq('school_user_id', selectedSchoolReset);

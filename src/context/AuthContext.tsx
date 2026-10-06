@@ -9,6 +9,7 @@ interface AuthContextType {
   setMaintenanceMode: (enabled: boolean) => void;
   toggleMaintenanceMode: () => void;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogleData: (email: string, id: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   addUser: (userData: Omit<User, 'id' | 'createdAt'>) => Promise<{ success: boolean; error?: string }>;
   updateUser: (id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>) => Promise<{ success: boolean; error?: string }>;
@@ -105,6 +106,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [isMaintenanceMode]
   );
 
+  const loginWithGoogleData = useCallback(
+    async (email: string, id: string) => {
+      const { data, error } = await supabase
+        .from('school_whitelist')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (error || !data) {
+        await supabase.auth.signOut();
+        return { success: false, error: 'Email Anda tidak terdaftar sebagai akun Sekolah.' };
+      }
+
+      if (isMaintenanceMode) {
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          error: 'Sistem sedang dalam Mode Pemeliharaan. Akses ditutup sementara.',
+        };
+      }
+
+      const loggedInUser: User = {
+        id: id,
+        username: email,
+        password: '', // OAuth tidak pakai password
+        name: data.nama_sekolah || email.split('@')[0],
+        role: 'sekolah',
+        schoolName: data.nama_sekolah || '-', 
+        schoolLevel: data.jenjang,
+        createdAt: new Date().toISOString(),
+      };
+
+      setUser(loggedInUser);
+      return { success: true };
+    },
+    [isMaintenanceMode]
+  );
+
   const logout = useCallback(() => {
     setUser(null);
   }, []);
@@ -183,6 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setMaintenanceMode,
         toggleMaintenanceMode,
         login,
+        loginWithGoogleData,
         logout,
         addUser,
         updateUser,

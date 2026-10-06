@@ -2,7 +2,7 @@ import React from 'react';
 
 // DUMMY DECLARATIONS: Ditambahkan agar Typescript tidak lagi memunculkan eror "cannot find name"
 const matrixItems: any[] = [];
-const setMatrixItems = (value: any) => {};
+const setMatrixItems = (value: any) => { };
 const sortBySize = (variants: any[]): any[] => variants;
 
 // Example extraction
@@ -42,7 +42,7 @@ const renderMatrix = () => {
         });
       });
       allSizes = Array.from(sizeSet);
-      allSizes = sortBySize([{ size: allSizes[0] }]) ? sortBySize(allSizes.map(s => ({size: s}))).map((v: any) => v.size) : allSizes; // We'll just rely on our sortBySize
+      allSizes = sortBySize([{ size: allSizes[0] }]) ? sortBySize(allSizes.map(s => ({ size: s }))).map((v: any) => v.size) : allSizes; // We'll just rely on our sortBySize
     }
 
     return (
@@ -72,15 +72,15 @@ const renderMatrix = () => {
                       <strong>{row.name}</strong>
                       <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>Rp {new Intl.NumberFormat('id-ID').format(row.priceStudent)}</div>
                     </td>
-                    
+
                     {!isAllSize && allSizes.map(sz => {
                       const variant = standardVariants.find((v: any) => v.size?.trim().toUpperCase() === sz);
                       return (
                         <td key={sz} style={{ padding: '6px', textAlign: 'center' }}>
                           {variant ? (
-                            <input 
-                              type="number" 
-                              min="0" 
+                            <input
+                              type="number"
+                              min="0"
                               value={row.sizesInput[variant.id] || ''}
                               onChange={(e) => {
                                 const val = parseInt(e.target.value) || 0;
@@ -102,9 +102,9 @@ const renderMatrix = () => {
                             {nonStandardVariants.map((variant: any) => (
                               <div key={variant.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                                 <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>{variant.size || 'No Size'}</span>
-                                <input 
-                                  type="number" 
-                                  min="0" 
+                                <input
+                                  type="number"
+                                  min="0"
                                   value={row.sizesInput[variant.id] || ''}
                                   onChange={(e) => {
                                     const val = parseInt(e.target.value) || 0;
@@ -124,9 +124,9 @@ const renderMatrix = () => {
                     {isAllSize && (
                       <td style={{ padding: '6px', textAlign: 'center' }}>
                         {row.variants.length > 0 ? (
-                          <input 
-                            type="number" 
-                            min="0" 
+                          <input
+                            type="number"
+                            min="0"
                             value={row.sizesInput[row.variants[0].id] || ''}
                             onChange={(e) => {
                               const val = parseInt(e.target.value) || 0;
@@ -135,7 +135,7 @@ const renderMatrix = () => {
                             style={{ width: '100%', maxWidth: '80px', textAlign: 'center', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
                           />
                         ) : (
-                           <div style={{ color: '#ef4444', fontSize: '0.8rem' }}>Stok kosong</div>
+                          <div style={{ color: '#ef4444', fontSize: '0.8rem' }}>Stok kosong</div>
                         )}
                       </td>
                     )}
