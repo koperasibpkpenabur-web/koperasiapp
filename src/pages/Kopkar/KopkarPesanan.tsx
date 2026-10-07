@@ -78,6 +78,7 @@ const KopkarPesanan = () => {
     kopkarCancelOrder,
     markOrderAsPaid,
     disburseSchoolFee,
+    saveShippingInfo,
   } = useOrders();
 
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima/Selesai), 'cancellations' (Riwayat Pembatalan)
@@ -95,8 +96,6 @@ const KopkarPesanan = () => {
   const [shipDate, setShipDate] = useState<string>('');
   const [shipTime, setShipTime] = useState<string>('');
   const [courierNotes, setCourierNotes] = useState<string>('');
-  const [sourceKopkarNotes, setSourceKopkarNotes] = useState<string>('');
-  const [sourceVendorNotes, setSourceVendorNotes] = useState<string>('');
   const [shipError, setShipError] = useState<string>('');
   const [shippedKopkarQuantities, setShippedKopkarQuantities] = useState<number[]>([]);
   const [shippedVendorQuantities, setShippedVendorQuantities] = useState<number[]>([]);
@@ -233,8 +232,6 @@ const KopkarPesanan = () => {
     setShipDate(todayStr);
     setShipTime(`${hours}:${minutes}`);
     setCourierNotes('Mobil Box Koperasi - Bpk. Supardi');
-    setSourceKopkarNotes('');
-    setSourceVendorNotes('');
     setShipError('');
     setShippedKopkarQuantities(order.items.map(it => it.quantity));
     setShippedVendorQuantities(order.items.map(() => 0));
@@ -255,9 +252,6 @@ const KopkarPesanan = () => {
       shippedAtTime: shipTime,
       courierNotes: courierNotes.trim() || undefined,
       shippedBy: stafName,
-      source: sourceVendorNotes && !sourceKopkarNotes ? 'vendor' : 'gudang',
-      sourceKopkarNotes: sourceKopkarNotes.trim() || undefined,
-      sourceVendorNotes: sourceVendorNotes.trim() || undefined,
       shippedItems: shippingOrder.items.map((it, idx) => ({
         name: it.name,
         type: it.type,
@@ -268,14 +262,19 @@ const KopkarPesanan = () => {
       })),
     };
 
-    await saveShippingInfo(shippingOrder.id, shippingData);
-    
-    // Update local state without changing status
-    setOrders(prev => prev.map(o => o.id === shippingOrder.id ? { ...o, shippingInfo: shippingData } : o));
-    
-    // Langsung buka print
-    setPrintingOrder({ ...shippingOrder, shippingInfo: shippingData });
-    setShippingOrder(null);
+    try {
+      await saveShippingInfo(shippingOrder.id, shippingData);
+      
+      // Update local state without changing status
+      setOrders(prev => prev.map(o => o.id === shippingOrder.id ? { ...o, shippingInfo: shippingData } : o));
+      
+      // Langsung buka print
+      setPrintingOrder({ ...shippingOrder, shippingInfo: shippingData });
+      setShippingOrder(null);
+    } catch (err: any) {
+      console.error(err);
+      setShipError(err.message || 'Gagal menyimpan Surat Jalan');
+    }
   };
 
   // Cancel Shipment
@@ -975,27 +974,6 @@ const KopkarPesanan = () => {
                     required
                   />
                 </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label>Sumber Stok Dikirim Dari:</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <input
-                    type="text"
-                    placeholder="Gudang Koperasi (Cth: 10 koli/pcs)"
-                    value={sourceKopkarNotes}
-                    onChange={(e) => setSourceKopkarNotes(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Gudang Penjahit (Cth: 5 kardus)"
-                    value={sourceVendorNotes}
-                    onChange={(e) => setSourceVendorNotes(e.target.value)}
-                  />
-                </div>
-                <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>
-                  Isi salah satu atau keduanya sebagai catatan di Surat Jalan.
-                </p>
               </div>
 
               <div className="form-group">
