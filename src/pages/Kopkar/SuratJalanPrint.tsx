@@ -184,13 +184,10 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
         <ol style={{ margin: '2px 0 0 0', paddingLeft: '16px', lineHeight: '1.2' }}>
           <li>Mohon lembar 1(Putih) dikembalikan ke Koperasi</li>
           <li>Rek BCA 0760256757 a/n Koperasi Konsumen Karyawan BPK Penabur</li>
-          {order.shippingInfo?.sourceVendorNotes && (
-            <li><strong>Dikirim dari Vendor Penjahit:</strong> {order.shippingInfo.sourceVendorNotes}</li>
+          {order.shippingInfo?.shippedItems?.some(si => (si.vendorQty || 0) > 0) && (
+            <li><strong>Catatan:</strong> Terdapat barang pesanan yang dikirim langsung dari Gudang Vendor Penjahit/Penerbit.</li>
           )}
-          {order.shippingInfo?.sourceKopkarNotes && (
-            <li><strong>Dikirim dari Gudang Koperasi:</strong> {order.shippingInfo.sourceKopkarNotes}</li>
-          )}
-          {!order.shippingInfo?.sourceVendorNotes && order.shippingInfo?.source === 'vendor' && (
+          {order.shippingInfo?.source === 'vendor' && !order.shippingInfo?.shippedItems && (
             <li><strong>Catatan:</strong> Pesanan ini dikirim langsung dari Gudang Vendor Penjahit/Penerbit.</li>
           )}
         </ol>
