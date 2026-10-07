@@ -43,6 +43,64 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
     year: 'numeric'
   });
 
+  const shippedItems = order.shippingInfo?.shippedItems || [];
+  
+  const kopkarItems: any[] = [];
+  const vendorItems: any[] = [];
+  let totalKopkar = 0;
+  let totalVendor = 0;
+
+  if (shippedItems.length > 0) {
+    order.items.forEach(it => {
+      const si = shippedItems.find(s => s.name === it.name && s.type === it.type);
+      if (!si) return;
+      if (si.kopkarQty && si.kopkarQty > 0) {
+        kopkarItems.push({ ...it, renderQty: si.kopkarQty });
+        totalKopkar += (it.priceStudent || 0) * si.kopkarQty;
+      }
+      if (si.vendorQty && si.vendorQty > 0) {
+        vendorItems.push({ ...it, renderQty: si.vendorQty });
+        totalVendor += (it.priceStudent || 0) * si.vendorQty;
+      }
+    });
+  } else {
+    // Legacy orders without split breakdown
+    const isVendor = order.shippingInfo?.source === 'vendor';
+    order.items.forEach(it => {
+      if (it.quantity > 0) {
+        if (isVendor) {
+          vendorItems.push({ ...it, renderQty: it.quantity });
+          totalVendor += (it.priceStudent || 0) * it.quantity;
+        } else {
+          kopkarItems.push({ ...it, renderQty: it.quantity });
+          totalKopkar += (it.priceStudent || 0) * it.quantity;
+        }
+      }
+    });
+  }
+
+  const isMixed = kopkarItems.length > 0 && vendorItems.length > 0;
+  const grandTotal = totalKopkar + totalVendor;
+
+  const renderTableRows = (items: any[]) => {
+    return items.map((item, idx) => {
+      const harga = item.priceStudent || 0;
+      const jumlah = harga * item.renderQty;
+      return (
+        <tr key={idx}>
+          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{idx + 1}</td>
+          <td style={{ border: '1px solid #000', padding: '2px' }}>
+            [{item.type}] {item.name}
+          </td>
+          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.size || '-'}</td>
+          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.renderQty}</td>
+          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(harga)}</td>
+          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(jumlah)}</td>
+        </tr>
+      );
+    });
+  };
+
   const pageStyle = `
     @media print {
       @page {
@@ -91,14 +149,17 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       
       {/* Header / Kop Surat (Hanya muncul sekali di paling atas) */}
       <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-        <div>
-          <h2 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'bold' }}>
-            KOPERASI KONSUMEN KARYAWAN BPK PENABUR JAKARTA
-          </h2>
-          <div style={{ fontSize: '13px', lineHeight: '1.2' }}>
-            Kepada Yth,<br />
-            Bapak/Ibu <strong>{order.schoolName}</strong><br />
-            di Tempat
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+          <img src="/logo_koperasi2.png" alt="Logo" style={{ width: '38px', height: 'auto', filter: 'grayscale(100%) brightness(0)', marginTop: '2px' }} />
+          <div>
+            <h2 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'bold' }}>
+              KOPERASI KONSUMEN KARYAWAN BPK PENABUR JAKARTA
+            </h2>
+            <div style={{ fontSize: '13px', lineHeight: '1.2' }}>
+              Kepada Yth,<br />
+              Bapak/Ibu <strong>{order.schoolName}</strong><br />
+              di Tempat
+            </div>
           </div>
         </div>
         <div style={{ fontSize: '13px', textAlign: 'right' }}>
@@ -111,71 +172,85 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
         <div style={{ fontSize: '13px', marginTop: '2px' }}>No. Pesanan: {order.id}</div>
       </div>
 
-      {/* Tabel Barang (Bisa mengalir otomatis ke halaman 2, 3, dst.) */}
-      <div style={{ marginBottom: '4px' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-          <thead>
-            <tr>
-              <th style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>No</th>
-              <th style={{ border: '1px solid #000', padding: '2px', textAlign: 'left' }}>Nama Barang</th>
-              <th style={{ border: '1px solid #000', padding: '2px', width: '10%', textAlign: 'center' }}>Size</th>
-              <th style={{ border: '1px solid #000', padding: '2px', width: '5%', textAlign: 'center' }}>Qty</th>
-              <th style={{ border: '1px solid #000', padding: '2px', width: '15%', textAlign: 'right' }}>Harga</th>
-              <th style={{ border: '1px solid #000', padding: '2px', width: '18%', textAlign: 'right' }}>Jumlah</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(() => {
-              let totalCetak = 0;
-              let rowNum = 1;
-              const rows = order.items.map((item, idx) => {
-                const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === item.name && si.type === item.type);
-                const renderQty = shippedIt !== undefined ? shippedIt.shippedQty : item.quantity;
-                
-                if (renderQty <= 0) return null;
-                
-                const harga = item.priceStudent || 0;
-                const jumlah = harga * renderQty;
-                totalCetak += jumlah;
+      {/* Tabel Barang */}
+      {!isMixed ? (
+        <div style={{ marginBottom: '4px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr>
+                <th style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>No</th>
+                <th style={{ border: '1px solid #000', padding: '2px', textAlign: 'left' }}>Nama Barang</th>
+                <th style={{ border: '1px solid #000', padding: '2px', width: '10%', textAlign: 'center' }}>Size</th>
+                <th style={{ border: '1px solid #000', padding: '2px', width: '5%', textAlign: 'center' }}>Qty</th>
+                <th style={{ border: '1px solid #000', padding: '2px', width: '15%', textAlign: 'right' }}>Harga</th>
+                <th style={{ border: '1px solid #000', padding: '2px', width: '18%', textAlign: 'right' }}>Jumlah</th>
+              </tr>
+            </thead>
+            <tbody>
+              {renderTableRows(kopkarItems.length > 0 ? kopkarItems : vendorItems)}
+              <tr>
+                <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Total Keseluruhan</td>
+                <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(grandTotal)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <>
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '2px' }}>A. DIKIRIM DARI GUDANG KOPERASI</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>No</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', textAlign: 'left' }}>Nama Barang</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '10%', textAlign: 'center' }}>Size</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '5%', textAlign: 'center' }}>Qty</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '15%', textAlign: 'right' }}>Harga</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '18%', textAlign: 'right' }}>Jumlah</th>
+                </tr>
+              </thead>
+              <tbody>
+                {renderTableRows(kopkarItems)}
+                <tr>
+                  <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Sub-Total Koperasi</td>
+                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(totalKopkar)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-                return (
-                  <tr key={idx}>
-                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{rowNum++}</td>
-                    <td style={{ border: '1px solid #000', padding: '2px' }}>
-                      [{item.type}] {item.name}
-                    </td>
-                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.size || '-'}</td>
-                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{renderQty}</td>
-                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(harga)}</td>
-                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(jumlah)}</td>
-                  </tr>
-                );
-              });
-              
-              return (
-                <>
-                  {rows}
-                  <tr>
-                    <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Total Keseluruhan</td>
-                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(totalCetak)}</td>
-                  </tr>
-                </>
-              );
-            })()}
-          </tbody>
-        </table>
-      </div>
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '2px' }}>B. DIKIRIM LANGSUNG DARI VENDOR PENJAHIT/PENERBIT</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>No</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', textAlign: 'left' }}>Nama Barang</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '10%', textAlign: 'center' }}>Size</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '5%', textAlign: 'center' }}>Qty</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '15%', textAlign: 'right' }}>Harga</th>
+                  <th style={{ border: '1px solid #000', padding: '2px', width: '18%', textAlign: 'right' }}>Jumlah</th>
+                </tr>
+              </thead>
+              <tbody>
+                {renderTableRows(vendorItems)}
+                <tr>
+                  <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Sub-Total Vendor</td>
+                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(totalVendor)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div style={{ fontSize: '13px', fontWeight: 'bold', textAlign: 'right', marginBottom: '8px', padding: '4px', border: '1px solid #000' }}>
+            TOTAL KESELURUHAN (A + B): {formatRupiah(grandTotal)}
+          </div>
+        </>
+      )}
 
       <div style={{ fontSize: '13px', fontStyle: 'italic', marginBottom: '6px', fontWeight: 'bold' }}>
-        Terbilang: {(() => {
-          let total = 0;
-          order.items.forEach(it => {
-            const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
-            const renderQty = shippedIt !== undefined ? shippedIt.shippedQty : it.quantity;
-            total += (it.priceStudent || 0) * renderQty;
-          });
-          return terbilang(total);
-        })()} Rupiah
+        Terbilang: {terbilang(grandTotal)} Rupiah
       </div>
 
       {/* Catatan */}
