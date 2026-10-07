@@ -198,6 +198,51 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const cancelShipment = useCallback(async (orderId: string) => {
+    // Fetch the order and shipping info first
+    const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
+    if (orderRow && orderRow.shipping_info) {
+      const shippingData = orderRow.shipping_info;
+      const assignedVendorId = orderRow.vendor_id;
+
+      for (const item of (orderRow.order_items || [])) {
+        if (!item.product_id) continue;
+
+        const shippedItem = shippingData.shippedItems?.find((si: any) => si.name === item.name && si.type === item.type);
+        const kopkarQty = shippedItem?.kopkarQty || 0;
+        const vendorQty = shippedItem?.vendorQty || 0;
+
+        if (vendorQty > 0 && assignedVendorId) {
+          const { data: vStock } = await supabase.from('vendor_stocks').select('id, quantity').eq('vendor_id', assignedVendorId).eq('product_id', item.product_id).single();
+          if (vStock) {
+            await supabase.from('vendor_stocks').update({ quantity: (vStock.quantity || 0) + vendorQty }).eq('id', vStock.id);
+          }
+        }
+        
+        if (kopkarQty > 0) {
+          const { data: pData } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+          if (pData) {
+            await supabase.from('products').update({ stock: (pData.stock || 0) + kopkarQty }).eq('id', item.product_id);
+          }
+        }
+
+        // Fallback for older orders
+        if (kopkarQty === 0 && vendorQty === 0 && shippingData.source) {
+          const qty = item.quantity;
+          if (shippingData.source === 'vendor' && assignedVendorId) {
+            const { data: vStock } = await supabase.from('vendor_stocks').select('id, quantity').eq('vendor_id', assignedVendorId).eq('product_id', item.product_id).single();
+            if (vStock) {
+              await supabase.from('vendor_stocks').update({ quantity: (vStock.quantity || 0) + qty }).eq('id', vStock.id);
+            }
+          } else {
+            const { data: pData } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+            if (pData) {
+              await supabase.from('products').update({ stock: (pData.stock || 0) + qty }).eq('id', item.product_id);
+            }
+          }
+        }
+      }
+    }
+
     await updateOrderInSupabase(orderId, {
       status: 'approved',
       shipping_info: null,
@@ -220,28 +265,34 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
       // 3-Way Matching: Create Vendor Payables IF shipped from vendor
       const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
-      if (orderRow && orderRow.shipping_info && orderRow.shipping_info.source === 'vendor') {
-        // Find total HPP (Kopkar price) for this order
-        let totalHpp = 0;
+      if (orderRow && orderRow.shipping_info) {
+        const shippingData = orderRow.shipping_info;
+        let totalVendorHpp = 0;
         let vendorName = 'Unknown Vendor';
         
         for (const item of (orderRow.order_items || [])) {
-          totalHpp += item.price_kopkar * item.quantity;
           if (!item.product_id) continue;
           
-          // Get vendor name from product
-          const { data: pData } = await supabase.from('products').select('supplier_name').eq('id', item.product_id).single();
-          if (pData && pData.supplier_name) {
-            vendorName = pData.supplier_name;
+          const shippedItem = shippingData.shippedItems?.find((si: any) => si.name === item.name && si.type === item.type);
+          const vendorQty = shippedItem ? (shippedItem.vendorQty || 0) : (shippingData.source === 'vendor' ? item.quantity : 0);
+
+          if (vendorQty > 0) {
+            totalVendorHpp += item.price_kopkar * vendorQty;
+            
+            // Get vendor name from product
+            const { data: pData } = await supabase.from('products').select('supplier_name').eq('id', item.product_id).single();
+            if (pData && pData.supplier_name) {
+              vendorName = pData.supplier_name;
+            }
           }
         }
 
-        if (totalHpp > 0) {
+        if (totalVendorHpp > 0) {
           await supabase.from('vendor_payables').insert([{
             vendor_name: vendorName,
             order_id: orderId,
             school_name: orderRow.school_name,
-            total_amount: totalHpp,
+            total_amount: totalVendorHpp,
             status: 'pending'
           }]);
         }
