@@ -73,8 +73,10 @@ export interface ShippingInfo {
   shippedAtTime: string;  // Contoh: '10:30'
   courierNotes?: string;  // Contoh: 'Mobil Box Koperasi Plat B 1234 CD - Sopir Pak Joko'
   shippedBy: string;      // Nama staf Koperasi yang menginput kirim
-  shippedItems?: { name: string; type: string; shippedQty: number }[]; // Track partial shipments
+  shippedItems?: { name: string; type: string; shippedQty: number; kopkarQty?: number; vendorQty?: number; size?: string; }[]; // Track partial shipments
   source?: 'gudang' | 'vendor'; // Menandakan apakah ini kirim dari gudang atau drop-ship
+  sourceKopkarNotes?: string; // Catatan Gudang Koperasi
+  sourceVendorNotes?: string; // Catatan Gudang Penjahit
 }
 
 export interface ReceiveInfo {

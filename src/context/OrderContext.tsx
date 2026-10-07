@@ -6,6 +6,7 @@ interface OrderContextType {
   createOrder: (orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>) => Promise<{ success: boolean; error?: string }>;
   approveOrder: (orderId: string, processorName: string) => Promise<void>;
   rejectOrder: (orderId: string, processorName: string, reason: string) => Promise<void>;
+  saveShippingInfo: (orderId: string, shippingData: ShippingInfo) => Promise<void>;
   shipOrder: (orderId: string, shippingData: Omit<ShippingInfo, never>) => Promise<void>;
   cancelShipment: (orderId: string) => Promise<void>;
   receiveOrder: (orderId: string, receiveData: { receivedBy: string; isChecked: boolean; notes?: string }) => Promise<void>;
@@ -45,9 +46,18 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         totalPriceStudent += (it.priceStudent || (it.priceKopkar + it.feeSchool)) * it.quantity;
       }
 
-      const randomNum = Math.floor(100 + Math.random() * 900);
-      const newOrderId = `ORD-${new Date().getFullYear()}-${randomNum}`;
       const now = new Date().toISOString();
+      const dateStr = now.split('T')[0];
+      const dateForId = dateStr.replace(/-/g, '');
+      
+      const { count } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', `${dateStr}T00:00:00.000Z`)
+        .lte('created_at', `${dateStr}T23:59:59.999Z`);
+        
+      const seq = String((count || 0) + 1).padStart(3, '0');
+      const newOrderId = `ORD-${dateForId}-${seq}`;
 
       const { error: orderError } = await supabase.from('orders').insert([{
         id: newOrderId,
@@ -115,6 +125,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const saveShippingInfo = useCallback(async (orderId: string, shippingData: ShippingInfo) => {
+    await updateOrderInSupabase(orderId, {
+      shipping_info: shippingData,
+    });
+  }, []);
+
   const shipOrder = useCallback(async (orderId: string, shippingData: ShippingInfo) => {
     // 1. Update order status
     await updateOrderInSupabase(orderId, {
@@ -122,25 +138,24 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       shipping_info: shippingData,
     });
 
-    // 2. Deduct stock based on source
+    // 2. Deduct stock based on source or split qtys
     const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
     if (orderRow && orderRow.order_items && orderRow.order_items.length > 0) {
       // Find assigned vendor for this school
-      let assignedVendorId = null;
-      if (shippingData.source === 'vendor') {
-        const { data: assignment } = await supabase.from('vendor_school_assignments')
-          .select('vendor_id')
-          .eq('school_user_id', orderRow.school_user_id)
-          .single();
-        if (assignment) assignedVendorId = assignment.vendor_id;
-      }
+      const { data: assignment } = await supabase.from('vendor_school_assignments')
+        .select('vendor_id')
+        .eq('school_user_id', orderRow.school_user_id)
+        .single();
+      const assignedVendorId = assignment?.vendor_id || null;
 
       for (const item of orderRow.order_items) {
         if (!item.product_id) continue;
-        const qty = item.quantity;
         
-        if (shippingData.source === 'vendor' && assignedVendorId) {
-          // Deduct from vendor_stocks
+        const shippedItem = shippingData.shippedItems?.find(si => si.name === item.name && si.type === item.type);
+        const kopkarQty = shippedItem?.kopkarQty || 0;
+        const vendorQty = shippedItem?.vendorQty || 0;
+
+        if (vendorQty > 0 && assignedVendorId) {
           const { data: vStock } = await supabase.from('vendor_stocks')
             .select('id, quantity')
             .eq('vendor_id', assignedVendorId)
@@ -148,15 +163,34 @@ export function OrderProvider({ children }: { children: ReactNode }) {
             .single();
             
           if (vStock) {
-            const newQty = Math.max(0, (vStock.quantity || 0) - qty);
+            const newQty = Math.max(0, (vStock.quantity || 0) - vendorQty);
             await supabase.from('vendor_stocks').update({ quantity: newQty }).eq('id', vStock.id);
           }
-        } else {
-          // Deduct from Kopkar Gudang
+        }
+        
+        if (kopkarQty > 0) {
           const { data: pData } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
           if (pData) {
-            const newStock = Math.max(0, (pData.stock || 0) - qty);
+            const newStock = Math.max(0, (pData.stock || 0) - kopkarQty);
             await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
+          }
+        }
+
+        // Fallback for older orders without split logic
+        if (kopkarQty === 0 && vendorQty === 0) {
+          const qty = item.quantity;
+          if (shippingData.source === 'vendor' && assignedVendorId) {
+            const { data: vStock } = await supabase.from('vendor_stocks').select('id, quantity').eq('vendor_id', assignedVendorId).eq('product_id', item.product_id).single();
+            if (vStock) {
+              const newQty = Math.max(0, (vStock.quantity || 0) - qty);
+              await supabase.from('vendor_stocks').update({ quantity: newQty }).eq('id', vStock.id);
+            }
+          } else {
+            const { data: pData } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+            if (pData) {
+              const newStock = Math.max(0, (pData.stock || 0) - qty);
+              await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
+            }
           }
         }
       }
@@ -350,6 +384,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         createOrder,
         approveOrder,
         rejectOrder,
+        saveShippingInfo,
         shipOrder,
         cancelShipment,
         receiveOrder,

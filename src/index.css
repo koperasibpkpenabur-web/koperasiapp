@@ -96,6 +96,19 @@ button, a, input, select, textarea {
   background: var(--primary-light);
 }
 
+/* Sembunyikan scrollbar untuk popup modal */
+.modal-form::-webkit-scrollbar,
+.modal-overlay::-webkit-scrollbar,
+.modal::-webkit-scrollbar,
+.modal-form > div::-webkit-scrollbar,
+.catalog-table-container::-webkit-scrollbar {
+  display: none;
+}
+.modal, .modal-form, .modal-overlay {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
 /* Base Dashboard Page Styles */
 .dashboard-page {
   animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);

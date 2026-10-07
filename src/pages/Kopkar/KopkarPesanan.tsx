@@ -95,9 +95,11 @@ const KopkarPesanan = () => {
   const [shipDate, setShipDate] = useState<string>('');
   const [shipTime, setShipTime] = useState<string>('');
   const [courierNotes, setCourierNotes] = useState<string>('');
-  const [shipSource, setShipSource] = useState<'gudang' | 'vendor'>('gudang');
+  const [sourceKopkarNotes, setSourceKopkarNotes] = useState<string>('');
+  const [sourceVendorNotes, setSourceVendorNotes] = useState<string>('');
   const [shipError, setShipError] = useState<string>('');
-  const [shippedQuantities, setShippedQuantities] = useState<number[]>([]);
+  const [shippedKopkarQuantities, setShippedKopkarQuantities] = useState<number[]>([]);
+  const [shippedVendorQuantities, setShippedVendorQuantities] = useState<number[]>([]);
 
   // Kopkar cancellation modal (cancelling an approved order)
   const [cancellingApprovedOrder, setCancellingApprovedOrder] = useState<Order | null>(null);
@@ -231,9 +233,11 @@ const KopkarPesanan = () => {
     setShipDate(todayStr);
     setShipTime(`${hours}:${minutes}`);
     setCourierNotes('Mobil Box Koperasi - Bpk. Supardi');
-    setShipSource('gudang');
+    setSourceKopkarNotes('');
+    setSourceVendorNotes('');
     setShipError('');
-    setShippedQuantities(order.items.map(it => it.quantity));
+    setShippedKopkarQuantities(order.items.map(it => it.quantity));
+    setShippedVendorQuantities(order.items.map(() => 0));
   };
 
   const handleConfirmShip = async (e: FormEvent) => {
@@ -251,16 +255,26 @@ const KopkarPesanan = () => {
       shippedAtTime: shipTime,
       courierNotes: courierNotes.trim() || undefined,
       shippedBy: stafName,
-      source: shipSource,
+      source: sourceVendorNotes && !sourceKopkarNotes ? 'vendor' : 'gudang',
+      sourceKopkarNotes: sourceKopkarNotes.trim() || undefined,
+      sourceVendorNotes: sourceVendorNotes.trim() || undefined,
       shippedItems: shippingOrder.items.map((it, idx) => ({
         name: it.name,
         type: it.type,
-        shippedQty: shippedQuantities[idx]
+        shippedQty: (shippedKopkarQuantities[idx] || 0) + (shippedVendorQuantities[idx] || 0),
+        kopkarQty: shippedKopkarQuantities[idx] || 0,
+        vendorQty: shippedVendorQuantities[idx] || 0,
+        size: it.size
       })),
     };
 
-    await shipOrder(shippingOrder.id, shippingData);
-    setOrders(prev => prev.map(o => o.id === shippingOrder.id ? { ...o, status: 'shipped' } : o));
+    await saveShippingInfo(shippingOrder.id, shippingData);
+    
+    // Update local state without changing status
+    setOrders(prev => prev.map(o => o.id === shippingOrder.id ? { ...o, shippingInfo: shippingData } : o));
+    
+    // Langsung buka print
+    setPrintingOrder({ ...shippingOrder, shippingInfo: shippingData });
     setShippingOrder(null);
   };
 
@@ -509,19 +523,31 @@ const KopkarPesanan = () => {
                                 </button>
                               </div>
                             )}
-                      {order.status === 'approved' && (
+                      {order.status === 'approved' && !order.shippingInfo && (
                               <div className="action-buttons-wrap">
-                                <button className="btn-ship" onClick={() => handleOpenShipModal(order)}>
-                                  🚚 Kirim Barang
-                                </button>
-                                <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => setPrintingOrder(order)}>
-                                  🖨️ Cetak Surat Jalan
+                                <button className="btn-ship" onClick={() => handleOpenShipModal(order)} style={{ backgroundColor: '#2563eb' }}>
+                                  📄 Buat Surat Jalan
                                 </button>
                                 <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem', borderColor: '#10b981', color: '#059669', backgroundColor: '#ecfdf5' }} onClick={() => generateSuratJalanExcel(order)}>
                                   📊 Download Excel
                                 </button>
                                 <button className="btn-cancel-approved" onClick={() => handleOpenKopkarCancelModal(order)}>
                                   ⚠️ Batalkan
+                                </button>
+                              </div>
+                            )}
+                      {order.status === 'approved' && order.shippingInfo && (
+                              <div className="action-buttons-wrap">
+                                <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => setPrintingOrder(order)}>
+                                  🖨️ Cetak Ulang Surat Jalan
+                                </button>
+                                <button className="btn-ship" onClick={async () => {
+                                  if(window.confirm('Kurir sudah berangkat? Konfirmasi kirim barang dan potong stok?')) {
+                                    await shipOrder(order.id, order.shippingInfo!);
+                                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'shipped' } : o));
+                                  }
+                                }} style={{ backgroundColor: '#10b981' }}>
+                                  🚚 Konfirmasi Kirim (Barang Berangkat)
                                 </button>
                               </div>
                             )}
@@ -614,19 +640,31 @@ const KopkarPesanan = () => {
                           </button>
                         </div>
                       )}
-                      {order.status === 'approved' && (
+                      {order.status === 'approved' && !order.shippingInfo && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
-                          <button className="btn-ship full-width-touch" onClick={() => handleOpenShipModal(order)}>
-                            🚚 Kirim Barang
-                          </button>
-                          <button className="btn-secondary full-width-touch" onClick={() => setPrintingOrder(order)}>
-                            🖨️ Cetak Surat Jalan
+                          <button className="btn-ship full-width-touch" onClick={() => handleOpenShipModal(order)} style={{ backgroundColor: '#2563eb' }}>
+                            📄 Buat Surat Jalan
                           </button>
                           <button className="btn-secondary full-width-touch" style={{ borderColor: '#10b981', color: '#059669', backgroundColor: '#ecfdf5' }} onClick={() => generateSuratJalanExcel(order)}>
                             📊 Download Excel
                           </button>
                           <button className="btn-cancel-approved full-width-touch" onClick={() => handleOpenKopkarCancelModal(order)}>
                             ⚠️ Batalkan
+                          </button>
+                        </div>
+                      )}
+                      {order.status === 'approved' && order.shippingInfo && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                          <button className="btn-secondary full-width-touch" onClick={() => setPrintingOrder(order)}>
+                            🖨️ Cetak Ulang Surat Jalan
+                          </button>
+                          <button className="btn-ship full-width-touch" onClick={async () => {
+                            if(window.confirm('Kurir sudah berangkat? Konfirmasi kirim barang dan potong stok?')) {
+                              await shipOrder(order.id, order.shippingInfo!);
+                              setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'shipped' } : o));
+                            }
+                          }} style={{ backgroundColor: '#10b981' }}>
+                            🚚 Konfirmasi Kirim
                           </button>
                         </div>
                       )}
@@ -907,8 +945,8 @@ const KopkarPesanan = () => {
       {/* Modal Input Pengiriman Barang */}
       {shippingOrder && (
         <div className="modal-overlay" onClick={() => setShippingOrder(null)}>
-          <div className="modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>🚚 Input Pengiriman Barang</h3>
+          <div className="modal" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+            <h3>📄 Buat Surat Jalan</h3>
             <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '14px' }}>
               Pesanan No: <strong>{shippingOrder.id}</strong> ({shippingOrder.schoolName})
             </p>
@@ -941,13 +979,23 @@ const KopkarPesanan = () => {
 
               <div className="form-group" style={{ marginBottom: '14px' }}>
                 <label>Sumber Stok Dikirim Dari:</label>
-                <select
-                  value={shipSource}
-                  onChange={(e) => setShipSource(e.target.value as 'gudang' | 'vendor')}
-                >
-                  <option value="gudang">📦 Gudang Koperasi (Diproses mandiri)</option>
-                  <option value="vendor">🏭 Gudang Vendor (Drop-ship Penjahit/Penerbit)</option>
-                </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <input
+                    type="text"
+                    placeholder="Gudang Koperasi (Cth: 10 koli/pcs)"
+                    value={sourceKopkarNotes}
+                    onChange={(e) => setSourceKopkarNotes(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Gudang Penjahit (Cth: 5 kardus)"
+                    value={sourceVendorNotes}
+                    onChange={(e) => setSourceVendorNotes(e.target.value)}
+                  />
+                </div>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>
+                  Isi salah satu atau keduanya sebagai catatan di Surat Jalan.
+                </p>
               </div>
 
               <div className="form-group">
@@ -962,40 +1010,52 @@ const KopkarPesanan = () => {
               </div>
 
               <div className="form-group" style={{ marginTop: '14px' }}>
-                <label>Kuantitas yang Dikirim</label>
-                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '4px' }}>
+                <label>Rincian Qty Pengiriman per Barang</label>
+                <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '4px' }}>
                   {shippingOrder.items.map((it, idx) => (
-                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '0.85rem' }}>{it.name} (Pesan: {it.quantity})</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input 
-                          type="number" 
-                          min="0" 
-                          max={it.quantity}
-                          value={shippedQuantities[idx]}
-                          onChange={(e) => {
-                            const newQties = [...shippedQuantities];
-                            newQties[idx] = parseInt(e.target.value) || 0;
-                            setShippedQuantities(newQties);
-                          }}
-                          style={{ width: '80px', padding: '4px' }}
-                        />
-                        <span style={{ fontSize: '0.85rem' }}>pcs</span>
+                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', marginBottom: '12px', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{it.name} (Pesan: {it.quantity} pcs)</span>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Dari Kopkar:</span>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            value={shippedKopkarQuantities[idx]}
+                            onChange={(e) => {
+                              const newQties = [...shippedKopkarQuantities];
+                              newQties[idx] = parseInt(e.target.value) || 0;
+                              setShippedKopkarQuantities(newQties);
+                            }}
+                            style={{ width: '65px', padding: '4px', fontSize: '0.85rem' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Dari Penjahit:</span>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            value={shippedVendorQuantities[idx]}
+                            onChange={(e) => {
+                              const newQties = [...shippedVendorQuantities];
+                              newQties[idx] = parseInt(e.target.value) || 0;
+                              setShippedVendorQuantities(newQties);
+                            }}
+                            style={{ width: '65px', padding: '4px', fontSize: '0.85rem' }}
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
-                <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
-                  Ubah jumlah di atas jika pesanan dikirim sebagian.
-                </p>
               </div>
 
               <div className="modal-actions">
                 <button type="button" className="btn-secondary" onClick={() => setShippingOrder(null)}>
                   Batal
                 </button>
-                <button type="submit" className="btn-ship">
-                  ✅ Konfirmasi Kirim Barang
+                <button type="submit" className="btn-ship" style={{ backgroundColor: '#2563eb' }}>
+                  📄 Simpan & Cetak Surat Jalan
                 </button>
               </div>
             </form>

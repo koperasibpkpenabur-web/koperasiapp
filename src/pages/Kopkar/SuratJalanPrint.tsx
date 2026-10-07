@@ -125,32 +125,57 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
             </tr>
           </thead>
           <tbody>
-            {order.items.map((item, idx) => {
-              const harga = item.priceStudent || 0;
-              const jumlah = harga * item.quantity;
+            {(() => {
+              let totalCetak = 0;
+              let rowNum = 1;
+              const rows = order.items.map((item, idx) => {
+                const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === item.name && si.type === item.type);
+                const renderQty = shippedIt !== undefined ? shippedIt.shippedQty : item.quantity;
+                
+                if (renderQty <= 0) return null;
+                
+                const harga = item.priceStudent || 0;
+                const jumlah = harga * renderQty;
+                totalCetak += jumlah;
+
+                return (
+                  <tr key={idx}>
+                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{rowNum++}</td>
+                    <td style={{ border: '1px solid #000', padding: '2px' }}>
+                      [{item.type}] {item.name}
+                    </td>
+                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.size || '-'}</td>
+                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{renderQty}</td>
+                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(harga)}</td>
+                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(jumlah)}</td>
+                  </tr>
+                );
+              });
+              
               return (
-                <tr key={idx}>
-                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{idx + 1}</td>
-                  <td style={{ border: '1px solid #000', padding: '2px' }}>
-                    [{item.type}] {item.name}
-                  </td>
-                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.size || '-'}</td>
-                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.quantity}</td>
-                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(harga)}</td>
-                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(jumlah)}</td>
-                </tr>
+                <>
+                  {rows}
+                  <tr>
+                    <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Total Keseluruhan</td>
+                    <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(totalCetak)}</td>
+                  </tr>
+                </>
               );
-            })}
-            <tr>
-              <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Total Keseluruhan</td>
-              <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(order.totalPriceStudent || 0)}</td>
-            </tr>
+            })()}
           </tbody>
         </table>
       </div>
 
       <div style={{ fontSize: '13px', fontStyle: 'italic', marginBottom: '6px', fontWeight: 'bold' }}>
-        Terbilang: {terbilang(order.totalPriceStudent || 0)} Rupiah
+        Terbilang: {(() => {
+          let total = 0;
+          order.items.forEach(it => {
+            const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
+            const renderQty = shippedIt !== undefined ? shippedIt.shippedQty : it.quantity;
+            total += (it.priceStudent || 0) * renderQty;
+          });
+          return terbilang(total);
+        })()} Rupiah
       </div>
 
       {/* Catatan */}
@@ -159,6 +184,15 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
         <ol style={{ margin: '2px 0 0 0', paddingLeft: '16px', lineHeight: '1.2' }}>
           <li>Mohon lembar 1(Putih) dikembalikan ke Koperasi</li>
           <li>Rek BCA 0760256757 a/n Koperasi Konsumen Karyawan BPK Penabur</li>
+          {order.shippingInfo?.sourceVendorNotes && (
+            <li><strong>Dikirim dari Vendor Penjahit:</strong> {order.shippingInfo.sourceVendorNotes}</li>
+          )}
+          {order.shippingInfo?.sourceKopkarNotes && (
+            <li><strong>Dikirim dari Gudang Koperasi:</strong> {order.shippingInfo.sourceKopkarNotes}</li>
+          )}
+          {!order.shippingInfo?.sourceVendorNotes && order.shippingInfo?.source === 'vendor' && (
+            <li><strong>Catatan:</strong> Pesanan ini dikirim langsung dari Gudang Vendor Penjahit/Penerbit.</li>
+          )}
         </ol>
       </div>
 
