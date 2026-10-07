@@ -150,7 +150,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       {/* Header / Kop Surat (Hanya muncul sekali di paling atas) */}
       <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-          <img src="/logo_koperasi2.png" alt="Logo" style={{ width: '38px', height: 'auto', filter: 'grayscale(100%) brightness(0)', marginTop: '2px' }} />
+          <img src={`${import.meta.env.BASE_URL}logo_koperasi2.png`} alt="Logo" style={{ width: '38px', height: 'auto', filter: 'grayscale(100%) brightness(0)', marginTop: '2px' }} />
           <div>
             <h2 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'bold' }}>
               KOPERASI KONSUMEN KARYAWAN BPK PENABUR JAKARTA
