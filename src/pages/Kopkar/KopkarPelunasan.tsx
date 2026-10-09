@@ -20,6 +20,7 @@ const KopkarPelunasan = () => {
 
   // Filters (moved up to avoid TDZ ReferenceError in useEffect)
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
+  const [timeFilter, setTimeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Aggregates
@@ -60,6 +61,19 @@ const KopkarPelunasan = () => {
     if (paymentFilter !== 'all') {
       query = query.eq('payment_status', paymentFilter);
     }
+
+    if (timeFilter === 'this_week') {
+      const startOfWeek = new Date();
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      query = query.gte('created_at', startOfWeek.toISOString());
+    } else if (timeFilter === 'this_month') {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      query = query.gte('created_at', startOfMonth.toISOString());
+    }
+
     if (searchQuery) {
       query = query.ilike('school_name', `%${searchQuery}%`);
     }
@@ -119,7 +133,7 @@ const KopkarPelunasan = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, [paymentFilter, searchQuery, currentPage]);
+  }, [paymentFilter, timeFilter, searchQuery, currentPage]);
 
 
   const {
@@ -267,6 +281,17 @@ const KopkarPelunasan = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <select
+                value={timeFilter}
+                onChange={(e) => {
+                  setTimeFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="all">Semua Waktu</option>
+                <option value="this_week">Minggu Ini</option>
+                <option value="this_month">Bulan Ini</option>
+              </select>
               <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
                 <option value="all">Semua Pembayaran</option>
                 <option value="unpaid">Belum Lunas</option>

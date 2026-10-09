@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { useUI } from '../../context/UIContext';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import NotificationPopup from '../NotificationPopup';
 import './layout.css';
 
 const MainLayout = () => {
@@ -26,6 +27,8 @@ const MainLayout = () => {
           <Outlet />
         </main>
       </div>
+      
+      <NotificationPopup />
     </div>
   );
 };

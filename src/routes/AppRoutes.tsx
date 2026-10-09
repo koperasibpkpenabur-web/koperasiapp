@@ -15,6 +15,7 @@ import ItemManagement from '../pages/Kopkar/ItemManagement';
 import VendorManagement from '../pages/Kopkar/VendorManagement';
 import KopkarReturn from '../pages/Kopkar/KopkarReturn';
 import KopkarRekap from '../pages/Kopkar/KopkarRekap';
+import KopkarNotifikasi from '../pages/Kopkar/KopkarNotifikasi';
 import SchoolReturn from '../pages/School/SchoolReturn';
 import SchoolRekap from '../pages/School/SchoolRekap';
 import PengurusDashboard from '../pages/Pengurus/PengurusDashboard';
@@ -98,6 +99,11 @@ const AppRoutes = () => {
         <Route path="kopkar/vendor" element={
           <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
             <VendorManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="kopkar/notifikasi" element={
+          <ProtectedRoute allowedRoles={['admin', 'kopkar']}>
+            <KopkarNotifikasi />
           </ProtectedRoute>
         } />
         <Route path="kopkar/rekap" element={
