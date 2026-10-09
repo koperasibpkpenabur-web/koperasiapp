@@ -79,6 +79,7 @@ const KopkarPesanan = () => {
     markOrderAsPaid,
     disburseSchoolFee,
     saveShippingInfo,
+    shipRemainingOrder,
   } = useOrders();
 
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima/Selesai), 'cancellations' (Riwayat Pembatalan)
@@ -99,6 +100,7 @@ const KopkarPesanan = () => {
   const [shipError, setShipError] = useState<string>('');
   const [shippedKopkarQuantities, setShippedKopkarQuantities] = useState<number[]>([]);
   const [shippedVendorQuantities, setShippedVendorQuantities] = useState<number[]>([]);
+  const [isShippingRemainder, setIsShippingRemainder] = useState<boolean>(false);
 
   // Kopkar cancellation modal (cancelling an approved order)
   const [cancellingApprovedOrder, setCancellingApprovedOrder] = useState<Order | null>(null);
@@ -229,12 +231,35 @@ const KopkarPesanan = () => {
     const minutes = String(now.getMinutes()).padStart(2, '0');
 
     setShippingOrder(order);
+    setIsShippingRemainder(false);
     setShipDate(todayStr);
     setShipTime(`${hours}:${minutes}`);
     setCourierNotes('Mobil Box Koperasi - Bpk. Supardi');
     setShipError('');
     setShippedKopkarQuantities(order.items.map(it => it.quantity));
     setShippedVendorQuantities(order.items.map(() => 0));
+  };
+
+  const handleOpenShipRemainderModal = (order: Order) => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+
+    setShippingOrder(order);
+    setIsShippingRemainder(true);
+    setShipDate(todayStr);
+    setShipTime(`${hours}:${minutes}`);
+    setCourierNotes('Susulan - Dikirim Langsung oleh Vendor');
+    setShipError('');
+    
+    // Default to missing qty
+    const missingQties = order.items.map(it => {
+      const receivedIt = order.receiveInfo?.receivedItems?.find(r => r.name === it.name && r.type === it.type);
+      return receivedIt?.missingQty || 0;
+    });
+    setShippedKopkarQuantities(order.items.map(() => 0));
+    setShippedVendorQuantities(missingQties);
   };
 
   const handleConfirmShip = async (e: FormEvent) => {
@@ -263,14 +288,33 @@ const KopkarPesanan = () => {
     };
 
     try {
-      await saveShippingInfo(shippingOrder.id, shippingData);
-      
-      // Update local state without changing status
-      setOrders(prev => prev.map(o => o.id === shippingOrder.id ? { ...o, shippingInfo: shippingData } : o));
-      
-      // Langsung buka print
-      setPrintingOrder({ ...shippingOrder, shippingInfo: shippingData });
-      setShippingOrder(null);
+      if (isShippingRemainder) {
+        // Direct ship remainder
+        await shipRemainingOrder(shippingOrder.id, shippingData);
+        // We might want to print surat jalan or not. Let's ask.
+        if (window.confirm('Kekurangan barang berhasil dikonfirmasi dan stok terpotong! Apakah Anda ingin mencetak Surat Jalan Susulan?')) {
+          setPrintingOrder({ ...shippingOrder, shippingInfo: shippingData });
+        }
+        
+        setOrders(prev => prev.map(o => o.id === shippingOrder.id ? { 
+          ...o, 
+          receiveInfo: { ...o.receiveInfo!, isPartial: false, isSusulan: true },
+          shippingInfo: {
+            ...o.shippingInfo!,
+            shippedItems: o.shippingInfo!.shippedItems // Ideally we deep merge this in local state too, but re-fetching is better
+          }
+        } : o));
+        
+        setShippingOrder(null);
+        setIsShippingRemainder(false);
+      } else {
+        await saveShippingInfo(shippingOrder.id, shippingData);
+        // Update local state without changing status
+        setOrders(prev => prev.map(o => o.id === shippingOrder.id ? { ...o, shippingInfo: shippingData } : o));
+        // Langsung buka print
+        setPrintingOrder({ ...shippingOrder, shippingInfo: shippingData });
+        setShippingOrder(null);
+      }
     } catch (err: any) {
       console.error(err);
       setShipError(err.message || 'Gagal menyimpan Surat Jalan');
@@ -571,6 +615,13 @@ const KopkarPesanan = () => {
                                       ))}
                                     </ul>
                                     <div style={{ marginTop: '4px', fontStyle: 'italic', fontSize: '0.75rem' }}>Harap follow-up sisa barang.</div>
+                                    <button 
+                                      className="btn-ship" 
+                                      style={{ marginTop: '8px', width: '100%', fontSize: '0.75rem', padding: '6px' }}
+                                      onClick={() => handleOpenShipRemainderModal(order)}
+                                    >
+                                      📦 Kirim Kekurangan
+                                    </button>
                                   </div>
                                 )}
                                 

@@ -8,6 +8,7 @@ interface OrderContextType {
   rejectOrder: (orderId: string, processorName: string, reason: string) => Promise<void>;
   saveShippingInfo: (orderId: string, shippingData: ShippingInfo) => Promise<void>;
   shipOrder: (orderId: string, shippingData: Omit<ShippingInfo, never>) => Promise<void>;
+  shipRemainingOrder: (orderId: string, additionalShippingData: Omit<ShippingInfo, never>) => Promise<void>;
   cancelShipment: (orderId: string) => Promise<void>;
   receiveOrder: (orderId: string, receiveData: { receivedBy: string; isChecked: boolean; notes?: string }) => Promise<void>;
   partialReceiveOrder: (orderId: string, receiveData: { receivedBy: string; isChecked: boolean; notes?: string; receivedItems: any[] }) => Promise<void>;
@@ -193,6 +194,74 @@ export function OrderProvider({ children }: { children: ReactNode }) {
               await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
             }
           }
+        }
+      }
+    }
+  }, []);
+
+  const shipRemainingOrder = useCallback(async (orderId: string, additionalShippingData: ShippingInfo) => {
+    const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
+    if (!orderRow || !orderRow.shipping_info) return;
+
+    const oldShippingData = orderRow.shipping_info;
+    const oldShippedItems = oldShippingData.shippedItems || [];
+    
+    // Merge shipped items
+    const mergedShippedItems = [...oldShippedItems];
+    for (const newItem of (additionalShippingData.shippedItems || [])) {
+      const existingIdx = mergedShippedItems.findIndex(si => si.name === newItem.name && si.type === newItem.type);
+      if (existingIdx >= 0) {
+        mergedShippedItems[existingIdx].shippedQty += newItem.shippedQty;
+        if (newItem.kopkarQty) mergedShippedItems[existingIdx].kopkarQty = (mergedShippedItems[existingIdx].kopkarQty || 0) + newItem.kopkarQty;
+        if (newItem.vendorQty) mergedShippedItems[existingIdx].vendorQty = (mergedShippedItems[existingIdx].vendorQty || 0) + newItem.vendorQty;
+      } else {
+        mergedShippedItems.push(newItem);
+      }
+    }
+
+    const newShippingData = {
+      ...additionalShippingData, // Use the new dates and notes
+      shippedItems: mergedShippedItems
+    };
+
+    // Keep the old receive history inside a new property so school knows it's a susulan
+    const oldReceive = orderRow.receive_info;
+
+    await updateOrderInSupabase(orderId, {
+      shipping_info: newShippingData,
+      receive_info: {
+         ...oldReceive,
+         isPartial: false, // Turn off the partial flag so school gets prompt to receive again
+         isSusulan: true, // Custom flag to indicate this is the remaining delivery
+      }
+    });
+
+    // Deduct stock for the NEW quantities ONLY
+    const { data: assignment } = await supabase.from('vendor_school_assignments')
+      .select('vendor_id')
+      .eq('school_user_id', orderRow.school_user_id)
+      .single();
+    const assignedVendorId = assignment?.vendor_id || null;
+
+    for (const newItem of (additionalShippingData.shippedItems || [])) {
+      const orderItem = orderRow.order_items?.find((it: any) => it.name === newItem.name && it.type === newItem.type);
+      if (!orderItem || !orderItem.product_id) continue;
+
+      const kopkarQty = newItem.kopkarQty || 0;
+      const vendorQty = newItem.vendorQty || 0;
+
+      if (vendorQty > 0 && assignedVendorId) {
+        const { data: vStock } = await supabase.from('vendor_stocks').select('id, quantity').eq('vendor_id', assignedVendorId).eq('product_id', orderItem.product_id).single();
+        if (vStock) {
+          const newQty = Math.max(0, (vStock.quantity || 0) - vendorQty);
+          await supabase.from('vendor_stocks').update({ quantity: newQty }).eq('id', vStock.id);
+        }
+      }
+      if (kopkarQty > 0) {
+        const { data: pData } = await supabase.from('products').select('stock').eq('id', orderItem.product_id).single();
+        if (pData) {
+          const newStock = Math.max(0, (pData.stock || 0) - kopkarQty);
+          await supabase.from('products').update({ stock: newStock }).eq('id', orderItem.product_id);
         }
       }
     }
@@ -457,6 +526,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         rejectOrder,
         saveShippingInfo,
         shipOrder,
+        shipRemainingOrder,
         cancelShipment,
         receiveOrder,
         partialReceiveOrder,

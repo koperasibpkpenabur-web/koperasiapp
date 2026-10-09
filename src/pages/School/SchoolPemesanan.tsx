@@ -874,9 +874,26 @@ const SchoolPemesanan = () => {
                           {order.status === 'approved' && (
                             <span className="status-badge approved">👍 Disetujui (Siap Kirim)</span>
                           )}
-                          {order.status === 'shipped' && (
+                          {order.status === 'shipped' && !order.receiveInfo?.isPartial && !order.receiveInfo?.isSusulan && (
                             <div className="shipping-badge-container">
                               <span className="status-badge shipped">🚚 Sedang Dikirim</span>
+                              {order.shippingInfo && (
+                                <div className="shipping-info-box">
+                                  <div>{order.shippingInfo.shippedAtDate} (Pk {order.shippingInfo.shippedAtTime})</div>
+                                  <div>{order.shippingInfo.courierNotes || 'Armada Koperasi'}</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {order.status === 'shipped' && order.receiveInfo?.isPartial && (
+                            <div className="shipping-badge-container">
+                              <span className="status-badge shipped" style={{ background: '#fef08a', color: '#854d0e', border: '1px solid #fde047' }}>⚠️ Diterima Sebagian</span>
+                              <div style={{ fontSize: '0.75rem', marginTop: '4px', color: '#b45309' }}>Koperasi akan mengirim sisa barang.</div>
+                            </div>
+                          )}
+                          {order.status === 'shipped' && order.receiveInfo?.isSusulan && (
+                            <div className="shipping-badge-container">
+                              <span className="status-badge shipped" style={{ background: '#bfdbfe', color: '#1e3a8a', border: '1px solid #93c5fd' }}>🚚 Sedang Dikirim (Susulan)</span>
                               {order.shippingInfo && (
                                 <div className="shipping-info-box">
                                   <div>{order.shippingInfo.shippedAtDate} (Pk {order.shippingInfo.shippedAtTime})</div>
@@ -895,12 +912,12 @@ const SchoolPemesanan = () => {
                             >
                               ⋮
                             </button>
-                            {order.status === 'shipped' && (
+                            {order.status === 'shipped' && !order.receiveInfo?.isPartial && (
                               <button
                                 className="btn-receive"
                                 onClick={() => handleOpenReceiveModal(order)}
                               >
-                                📦 Konfirmasi Terima
+                                {order.receiveInfo?.isSusulan ? '📦 Konfirmasi Terima Susulan' : '📦 Konfirmasi Terima'}
                               </button>
                             )}
                             {(order.status === 'pending' || order.status === 'approved') && (

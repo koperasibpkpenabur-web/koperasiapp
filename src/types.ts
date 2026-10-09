@@ -85,6 +85,7 @@ export interface ReceiveInfo {
   isChecked: boolean;     // Checklist verifikasi kondisi & kuantiti fisik
   notes?: string;         // Catatan saat penerimaan barang
   isPartial?: boolean;
+  isSusulan?: boolean;
   receivedItems?: { name: string; type: string; size?: string; receivedQty: number; missingQty?: number }[];
 }
 
@@ -134,6 +135,7 @@ export interface Order {
 
   // Receive info
   receiveInfo?: ReceiveInfo;
+  receiveHistory?: ReceiveInfo[];
 
   // Cancellation info
   cancellationInfo?: CancellationInfo;
