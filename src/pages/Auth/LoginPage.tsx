@@ -88,16 +88,16 @@ const LoginPage = () => {
     <div className="login-page">
       <div className="login-card split-layout">
         <div className="login-left">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px' }}>
-            <img src={`${import.meta.env.BASE_URL}logo-synera1.png`} alt="Logo SINARA" className="login-logo-img" style={{ margin: 0, width: '130px', height: 'auto' }} />
-            <img src={`${import.meta.env.BASE_URL}logo_koperasi2.png`} alt="Logo Koperasi" className="login-logo-img" style={{ margin: 0, width: '130px', height: 'auto' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+            <img src={`${import.meta.env.BASE_URL}logo-synera1.png`} alt="Logo SINARA" className="login-logo-img" style={{ margin: 0, width: '100px', height: 'auto' }} />
+            <img src={`${import.meta.env.BASE_URL}logo_koperasi2.png`} alt="Logo Koperasi" className="login-logo-img" style={{ margin: 0, width: '100px', height: 'auto' }} />
           </div>
           <h1 className="login-welcome-title">Welcome to SINARA</h1>
           <p className="login-tagline">Sinergi Administrasi Koperasi</p>
         </div>
 
         <div className="login-right">
-          <h2 className="login-heading" style={{ marginBottom: '16px', fontSize: '1.5rem', color: '#395886', fontWeight: 800 }}>Login</h2>
+          <h2 className="login-heading" style={{ marginBottom: '12px', fontSize: '1.35rem', color: '#395886', fontWeight: 800 }}>Login</h2>
           <form className="login-form" onSubmit={handleSubmit}>
             {error && <div className="login-error">{error}</div>}
 
@@ -125,7 +125,7 @@ const LoginPage = () => {
               />
             </div>
             
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', fontSize: '0.85rem', color: '#64748b' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.85rem', color: '#64748b' }}>
               <input 
                 type="checkbox" 
                 id="show-password" 
@@ -140,7 +140,7 @@ const LoginPage = () => {
               {isLoading ? 'Memeriksa...' : 'Login'}
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', margin: '12px 0' }}>
               <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>
               <span style={{ padding: '0 10px', color: '#64748b', fontSize: '0.85rem', fontWeight: 500 }}>ATAU</span>
               <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>

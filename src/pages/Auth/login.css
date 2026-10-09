@@ -10,7 +10,7 @@
 .login-card.split-layout {
   display: flex;
   flex-direction: row;
-  max-width: 850px;
+  max-width: 760px;
   width: 100%;
   padding: 0;
   overflow: hidden;
@@ -29,7 +29,7 @@
 .login-left {
   flex: 1;
   background: linear-gradient(145deg, #395886 0%, #243956 100%);
-  padding: 30px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -47,8 +47,8 @@
 
 .login-left .login-welcome-title {
   color: white;
-  margin-top: 24px;
-  font-size: 1.6rem;
+  margin-top: 16px;
+  font-size: 1.35rem;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -61,7 +61,7 @@
 
 .login-right {
   flex: 1;
-  padding: 30px 40px 24px;
+  padding: 20px 30px 16px;
   background: #ffffff;
   display: flex;
   flex-direction: column;
@@ -99,9 +99,9 @@
 }
 
 .form-group input {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: 1.5px solid var(--border-subtle, #d5deef);
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 0.92rem;
   font-family: inherit;
   transition: all 0.2s ease;
@@ -163,7 +163,7 @@
 
 .login-footer {
   text-align: center;
-  margin-top: 26px;
+  margin-top: 16px;
   font-size: 0.74rem;
   color: var(--text-muted, #8494a8);
 }
