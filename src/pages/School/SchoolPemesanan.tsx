@@ -55,7 +55,7 @@ function groupByCatalog(catalog: any[]) {
 
 const SchoolPemesanan = () => {
   const { user } = useAuth();
-  const { createOrder, receiveOrder, requestCancelOrder, deleteOrder, cartItems, setCartItems, showCartModal, setShowCartModal } = useOrders();
+  const { createOrder, receiveOrder, partialReceiveOrder, requestCancelOrder, deleteOrder, cartItems, setCartItems, showCartModal, setShowCartModal } = useOrders();
   const { getProductsByLevel } = useProducts();
   const { getReturnsBySchoolId } = useReturns();
   const { phase1Open, phase2Open, tambahanOpen, tambahanUseDayRule, tambahanUseDateRule, tambahanStartDate, tambahanEndDate } = useSettings();

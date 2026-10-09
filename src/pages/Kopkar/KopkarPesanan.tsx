@@ -546,7 +546,7 @@ const KopkarPesanan = () => {
                                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'shipped' } : o));
                                   }
                                 }} style={{ backgroundColor: '#10b981' }}>
-                                  🚚 Konfirmasi Kirim (Barang Berangkat)
+                                  🚚 Konfirmasi Kirim
                                 </button>
                               </div>
                             )}

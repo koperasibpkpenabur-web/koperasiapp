@@ -10,7 +10,7 @@ interface AuthContextType {
   toggleMaintenanceMode: () => void;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogleData: (email: string, id: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
   addUser: (userData: Omit<User, 'id' | 'createdAt'>) => Promise<{ success: boolean; error?: string }>;
   updateUser: (id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>) => Promise<{ success: boolean; error?: string }>;
   updateUserPassword: (id: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
@@ -144,8 +144,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [isMaintenanceMode]
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     setUser(null);
+    await supabase.auth.signOut();
   }, []);
 
   const addUser = useCallback(async (userData: Omit<User, 'id' | 'createdAt'>) => {

@@ -353,12 +353,17 @@ const StockManagement = () => {
         }}
       >
         <div
+          onClick={() => {
+            setStatusFilter('all');
+            setSortBy('stock-asc');
+          }}
           style={{
             background: '#ffffff',
             border: '1px solid #d5deef',
             borderRadius: '14px',
             padding: '16px 18px',
             boxShadow: '0 2px 6px rgba(57, 88, 134, 0.05)',
+            cursor: 'pointer',
           }}
         >
           <div style={{ fontSize: '1.2rem', marginBottom: '6px' }}>📦</div>
@@ -407,12 +412,17 @@ const StockManagement = () => {
         </div>
 
         <div
+          onClick={() => {
+            setStatusFilter('safe');
+            setSortBy('stock-desc');
+          }}
           style={{
             background: '#ffffff',
             border: '1px solid #d5deef',
             borderRadius: '14px',
             padding: '16px 18px',
             boxShadow: '0 2px 6px rgba(57, 88, 134, 0.05)',
+            cursor: 'pointer',
           }}
         >
           <div style={{ fontSize: '1.2rem', marginBottom: '6px' }}>🟢</div>

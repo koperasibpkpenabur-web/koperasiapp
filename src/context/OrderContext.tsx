@@ -10,6 +10,7 @@ interface OrderContextType {
   shipOrder: (orderId: string, shippingData: Omit<ShippingInfo, never>) => Promise<void>;
   cancelShipment: (orderId: string) => Promise<void>;
   receiveOrder: (orderId: string, receiveData: { receivedBy: string; isChecked: boolean; notes?: string }) => Promise<void>;
+  partialReceiveOrder: (orderId: string, receiveData: { receivedBy: string; isChecked: boolean; notes?: string; receivedItems: any[] }) => Promise<void>;
   requestCancelOrder: (orderId: string, reason: string, schoolUserName: string) => Promise<void>;
   approveCancelOrder: (orderId: string, stafName: string) => Promise<void>;
   kopkarCancelOrder: (orderId: string, reason: string, stafName: string) => Promise<void>;
@@ -296,7 +297,6 @@ export function OrderProvider({ children }: { children: ReactNode }) {
             status: 'pending'
           }]);
         }
-      }
       }
     },
     []
