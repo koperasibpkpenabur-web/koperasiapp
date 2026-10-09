@@ -297,6 +297,26 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           }]);
         }
       }
+      }
+    },
+    []
+  );
+
+  const partialReceiveOrder = useCallback(
+    async (orderId: string, receiveData: { receivedBy: string; isChecked: boolean; notes?: string; receivedItems: any[] }) => {
+      const receiveInfo: ReceiveInfo = {
+        receivedAt: new Date().toISOString(),
+        receivedBy: receiveData.receivedBy,
+        isChecked: receiveData.isChecked,
+        notes: receiveData.notes,
+        isPartial: true,
+        receivedItems: receiveData.receivedItems,
+      };
+      
+      // Status tetap 'shipped', hanya update receive_info
+      await updateOrderInSupabase(orderId, {
+        receive_info: receiveInfo,
+      });
     },
     []
   );
@@ -439,6 +459,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         shipOrder,
         cancelShipment,
         receiveOrder,
+        partialReceiveOrder,
         requestCancelOrder,
         approveCancelOrder,
         kopkarCancelOrder,

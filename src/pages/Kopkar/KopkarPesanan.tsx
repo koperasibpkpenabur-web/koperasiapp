@@ -561,6 +561,19 @@ const KopkarPesanan = () => {
                                     ⚠️ Terdapat barang yang belum dikirim!
                                   </div>
                                 )}
+                                
+                                {order.receiveInfo?.isPartial && (
+                                  <div style={{ marginTop: '8px', padding: '6px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '4px', color: '#b91c1c', fontWeight: 600 }}>
+                                    ⚠️ DITERIMA SEBAGIAN OLEH SEKOLAH
+                                    <ul style={{ margin: '4px 0 0 16px', padding: 0, fontWeight: 'normal', fontSize: '0.75rem' }}>
+                                      {order.receiveInfo.receivedItems?.filter(r => r.missingQty && r.missingQty > 0).map((r, idx) => (
+                                        <li key={idx}>Kurang: {r.missingQty} pcs ({r.name})</li>
+                                      ))}
+                                    </ul>
+                                    <div style={{ marginTop: '4px', fontStyle: 'italic', fontSize: '0.75rem' }}>Harap follow-up sisa barang.</div>
+                                  </div>
+                                )}
+                                
                                 <div style={{ marginTop: '8px' }}>
                                   <button className="btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => handleCancelShipment(order)}>
                                     Batal Kirim (Revert)

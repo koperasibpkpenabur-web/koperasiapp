@@ -60,6 +60,10 @@ const StockManagement = () => {
   const [supplierName, setSupplierName] = useState('');
   const [supplierSchoolName, setSupplierSchoolName] = useState('');
 
+  // Modal Repair Stock Rusak
+  const [repairingItem, setRepairingItem] = useState<ProductItem | null>(null);
+  const [repairQty, setRepairQty] = useState<number>(0);
+
   // Bulk Action Modal (Hapus/Reset Stock)
   const [bulkActionType, setBulkActionType] = useState<'delete-all' | 'reset-all' | 'reset-filtered' | null>(null);
   const [bulkActionStatus, setBulkActionStatus] = useState<'idle' | 'loading' | 'done'>('idle');
@@ -160,6 +164,21 @@ const StockManagement = () => {
       priceStudent: detailPriceKopkar + detailFeeSchool,
     });
     setDetailItem(null);
+  };
+
+  const handleSaveRepair = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!repairingItem || repairQty <= 0) return;
+    
+    const newStock = (repairingItem.stock || 0) + repairQty;
+    const newStockRusak = Math.max(0, (repairingItem.stockRusak || 0) - repairQty);
+    
+    await updateProduct(repairingItem.id, {
+      stock: newStock,
+      stockRusak: newStockRusak
+    });
+    
+    setRepairingItem(null);
   };
 
   const handleSaveSupplier = async (e: FormEvent) => {
@@ -529,6 +548,7 @@ const StockManagement = () => {
               <th>Jenjang</th>
               <th>Stock Gudang</th>
               <th>Stock Vendor</th>
+              <th>Stock Rusak</th>
               <th>Lokasi Penyimpanan</th>
               <th style={{ textAlign: 'center', width: '90px' }}>Aksi</th>
             </tr>
@@ -588,6 +608,22 @@ const StockManagement = () => {
                         {p.stockVendor || 0} pcs
                       </span>
                     </td>
+                    <td>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          background: (p.stockRusak && p.stockRusak > 0) ? '#fee2e2' : '#f8fafc',
+                          color: (p.stockRusak && p.stockRusak > 0) ? '#dc2626' : '#94a3b8',
+                          border: `1px solid ${(p.stockRusak && p.stockRusak > 0) ? '#fca5a5' : '#e2e8f0'}`,
+                        }}
+                      >
+                        {p.stockRusak || 0} pcs
+                      </span>
+                    </td>
                     <td>{p.storageLocation || '-'}</td>
                     <td style={{ textAlign: 'center', position: 'relative' }}>
                       <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
@@ -626,6 +662,9 @@ const StockManagement = () => {
                           <button onClick={() => { setActiveMenuId(null); handleOpenSetStock(p); }}>Update Stock</button>
                           <button onClick={() => { setActiveMenuId(null); handleOpenDetail(p); }}>Detail Harga & Lokasi</button>
                           <button onClick={() => { setActiveMenuId(null); setSupplierItem(p); setSupplierLevel(p.level); setSupplierName(p.supplierName || ''); setSupplierSchoolName(p.schoolName || ''); }}>Atur Supplier & Jenjang</button>
+                          {(p.stockRusak && p.stockRusak > 0) ? (
+                            <button onClick={() => { setActiveMenuId(null); setRepairingItem(p); setRepairQty(p.stockRusak || 0); }} style={{ color: '#dc2626' }}>Perbaiki Barang Rusak</button>
+                          ) : null}
                         </div>
                       )}
                     </td>
@@ -820,6 +859,52 @@ const StockManagement = () => {
                 </button>
                 <button type="submit" className="btn-primary">
                   Simpan Input Stock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REPAIR STOCK RUSAK */}
+      {repairingItem && (
+        <div className="modal-overlay" onClick={() => setRepairingItem(null)}>
+          <div className="modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Perbaiki Barang Rusak</h3>
+            <div style={{ fontSize: '0.85rem', color: '#586b84', marginBottom: '16px' }}>
+              Barang: <strong>{repairingItem.name} {repairingItem.size ? `(${repairingItem.size})` : ''}</strong>
+              <div style={{ marginTop: '4px', color: '#dc2626' }}>
+                Stock Rusak Saat Ini: <strong>{repairingItem.stockRusak || 0} pcs</strong>
+              </div>
+            </div>
+
+            <form className="modal-form" onSubmit={handleSaveRepair}>
+              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.85rem', color: '#334155' }}>
+                💡 <strong>Info:</strong> Memperbaiki barang akan memindahkan barang dari <strong>Stock Rusak</strong> kembali ke <strong>Stock Gudang utama</strong> agar bisa dijual lagi.
+              </div>
+
+              <div className="form-group">
+                <label>Jumlah Barang yang Berhasil Diperbaiki (pcs)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={repairingItem.stockRusak || 0}
+                  value={repairQty}
+                  onChange={(e) => setRepairQty(Number(e.target.value))}
+                  required
+                />
+              </div>
+
+              <div className="modal-actions" style={{ marginTop: '24px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setRepairingItem(null)}
+                >
+                  Batal
+                </button>
+                <button type="submit" className="btn-primary">
+                  Kembalikan ke Gudang
                 </button>
               </div>
             </form>

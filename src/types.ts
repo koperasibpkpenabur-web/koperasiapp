@@ -84,6 +84,8 @@ export interface ReceiveInfo {
   receivedBy: string;     // Nama petugas sekolah yang menerima
   isChecked: boolean;     // Checklist verifikasi kondisi & kuantiti fisik
   notes?: string;         // Catatan saat penerimaan barang
+  isPartial?: boolean;
+  receivedItems?: { name: string; type: string; size?: string; receivedQty: number; missingQty?: number }[];
 }
 
 export interface CancellationInfo {

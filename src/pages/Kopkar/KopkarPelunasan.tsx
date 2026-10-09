@@ -144,6 +144,10 @@ const KopkarPelunasan = () => {
   // Pelunasan modal
   const [payingOrder, setPayingOrder] = useState<Order | null>(null);
   const [payNotes, setPayNotes] = useState<string>('');
+  
+  // Saldo Retur
+  const [schoolReturnBalance, setSchoolReturnBalance] = useState({ tagihan: 0, fee: 0 });
+  const [useReturnBalance, setUseReturnBalance] = useState(false);
 
   // Disburse Fee modal
   const [disbursingOrder, setDisbursingOrder] = useState<Order | null>(null);
@@ -166,8 +170,21 @@ const KopkarPelunasan = () => {
 
 
   // Open Pelunasan Modal
-  const handleOpenPaymentModal = (order: Order) => {
+  const handleOpenPaymentModal = async (order: Order) => {
     setPayingOrder(order);
+    setUseReturnBalance(false);
+    
+    // Fetch school return balance
+    const { data } = await supabase.from('app_users').select('return_balance_tagihan, return_balance_fee').eq('id', order.schoolUserId).single();
+    if (data) {
+      setSchoolReturnBalance({
+        tagihan: Number(data.return_balance_tagihan) || 0,
+        fee: Number(data.return_balance_fee) || 0
+      });
+    } else {
+      setSchoolReturnBalance({ tagihan: 0, fee: 0 });
+    }
+
     if (order.paidNotes && order.paidNotes.includes('[BUKTI_TRANSFER]')) {
       setPayNotes(order.paidNotes + '\n\n' + 'Telah diverifikasi lunas oleh Koperasi pada ' + new Date().toLocaleString('id-ID'));
     } else {
@@ -179,8 +196,45 @@ const KopkarPelunasan = () => {
     e.preventDefault();
     if (!payingOrder) return;
 
-    await markOrderAsPaid(payingOrder.id, payNotes.trim());
-    setOrders(prev => prev.map(o => o.id === payingOrder.id ? { ...o, payment_status: 'paid', paymentStatus: 'paid' } : o));
+    if (useReturnBalance && schoolReturnBalance.tagihan > 0) {
+      const tagihanPotong = Math.min(payingOrder.totalPriceStudent, schoolReturnBalance.tagihan);
+      const feePotong = Math.min(payingOrder.totalFeeSchool, schoolReturnBalance.fee);
+      
+      const newTagihan = payingOrder.totalPriceStudent - tagihanPotong;
+      const newFee = payingOrder.totalFeeSchool - feePotong;
+      
+      const finalNotes = payNotes.trim() + `\n[DIPOTONG SALDO RETUR: ${formatRupiah(tagihanPotong)}]`;
+      
+      // Update order
+      const updateData: any = {
+        total_price_student: newTagihan,
+        total_fee_school: newFee,
+      };
+      
+      if (newTagihan === 0) {
+        updateData.payment_status = 'paid';
+        updateData.paid_at = new Date().toISOString();
+        updateData.paid_notes = finalNotes;
+        updateData.fee_status = 'ready'; // Since it's fully paid now
+      } else {
+        updateData.payment_status = 'unpaid';
+        updateData.paid_notes = finalNotes;
+      }
+      
+      await supabase.from('orders').update(updateData).eq('id', payingOrder.id);
+      
+      // Deduct balance
+      await supabase.from('app_users').update({
+        return_balance_tagihan: schoolReturnBalance.tagihan - tagihanPotong,
+        return_balance_fee: schoolReturnBalance.fee - feePotong
+      }).eq('id', payingOrder.schoolUserId);
+      
+      fetchOrders();
+    } else {
+      await markOrderAsPaid(payingOrder.id, payNotes.trim());
+      setOrders(prev => prev.map(o => o.id === payingOrder.id ? { ...o, payment_status: 'paid', paymentStatus: 'paid' } : o));
+    }
+    
     setPayingOrder(null);
   };
 
@@ -531,13 +585,36 @@ const KopkarPelunasan = () => {
               <div style={{ fontSize: '0.85rem', color: '#166534' }}>
                 Total Tagihan Siswa yang Diterima Koperasi:
               </div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#15803d', marginTop: '2px', textDecoration: (useReturnBalance && schoolReturnBalance.tagihan > 0) ? 'line-through' : 'none' }}>
                 {formatRupiah(payingOrder.totalPriceStudent)}
               </div>
+              
+              {useReturnBalance && schoolReturnBalance.tagihan > 0 && (
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#dc2626', marginTop: '4px' }}>
+                  {formatRupiah(Math.max(0, payingOrder.totalPriceStudent - schoolReturnBalance.tagihan))}
+                </div>
+              )}
+
               <div style={{ fontSize: '0.75rem', color: '#166534', marginTop: '4px' }}>
-                Hak Fee Sekolah sebesar <strong>{formatRupiah(payingOrder.totalFeeSchool)}</strong> akan terbuka dan siap dicairkan ke sekolah setelah konfirmasi ini.
+                Hak Fee Sekolah sebesar <strong style={{ textDecoration: (useReturnBalance && schoolReturnBalance.fee > 0) ? 'line-through' : 'none' }}>{formatRupiah(payingOrder.totalFeeSchool)}</strong> 
+                {useReturnBalance && schoolReturnBalance.fee > 0 && <strong> {formatRupiah(Math.max(0, payingOrder.totalFeeSchool - schoolReturnBalance.fee))} </strong>}
+                akan terbuka dan siap dicairkan ke sekolah setelah konfirmasi ini.
               </div>
             </div>
+
+            {schoolReturnBalance.tagihan > 0 && (
+              <div style={{ background: '#fef3c7', padding: '12px', borderRadius: '8px', border: '1px solid #fde68a', marginBottom: '14px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: '#92400e', fontWeight: 'bold' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={useReturnBalance} 
+                    onChange={(e) => setUseReturnBalance(e.target.checked)} 
+                    style={{ width: '18px', height: '18px' }}
+                  />
+                  Gunakan Saldo Potongan Retur Sekolah (Tersedia: {formatRupiah(schoolReturnBalance.tagihan)})
+                </label>
+              </div>
+            )}
 
             <form className="modal-form" onSubmit={handleConfirmPayment}>
               <div className="form-group">

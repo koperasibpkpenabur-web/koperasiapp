@@ -178,25 +178,33 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
     if (!error) {
       const currentReturn = returns.find(r => r.id === returnId);
       if (currentReturn) {
-        if (data.isRestocked) {
-          // Tambah ke stok gudang utama (kondisi bagus dan bisa dijual kembali)
-          for (const item of currentReturn.items) {
-            if (item.productId) {
-              const { data: pData } = await supabase.from('products').select('stock').eq('id', item.productId).single();
-              if (pData) {
+        let totalTagihanKredit = 0;
+        let totalFeeKredit = 0;
+
+        for (const item of currentReturn.items) {
+          if (item.productId) {
+            const { data: pData } = await supabase.from('products').select('stock, stock_rusak, price_student, fee_school').eq('id', item.productId).single();
+            if (pData) {
+              totalTagihanKredit += (Number(pData.price_student) || 0) * item.quantity;
+              totalFeeKredit += (Number(pData.fee_school) || 0) * item.quantity;
+
+              if (data.isRestocked) {
                 await supabase.from('products').update({ stock: pData.stock + item.quantity }).eq('id', item.productId);
-              }
-            }
-          }
-        } else if (currentReturn.reasonCategory === 'Rusak') {
-          // Tambah ke stok_rusak khusus untuk pendataan
-          for (const item of currentReturn.items) {
-            if (item.productId) {
-              const { data: pData, error: pErr } = await supabase.from('products').select('stock_rusak').eq('id', item.productId).single();
-              if (!pErr && pData) {
+              } else if (currentReturn.reasonCategory === 'Rusak') {
                 await supabase.from('products').update({ stock_rusak: (pData.stock_rusak || 0) + item.quantity }).eq('id', item.productId);
               }
             }
+          }
+        }
+
+        // Add credit to school's app_users record
+        if (totalTagihanKredit > 0 || totalFeeKredit > 0) {
+          const { data: schoolData } = await supabase.from('app_users').select('return_balance_tagihan, return_balance_fee').eq('id', currentReturn.schoolUserId).single();
+          if (schoolData) {
+            await supabase.from('app_users').update({
+              return_balance_tagihan: (Number(schoolData.return_balance_tagihan) || 0) + totalTagihanKredit,
+              return_balance_fee: (Number(schoolData.return_balance_fee) || 0) + totalFeeKredit
+            }).eq('id', currentReturn.schoolUserId);
           }
         }
       }

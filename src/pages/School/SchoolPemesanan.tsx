@@ -600,6 +600,8 @@ const SchoolPemesanan = () => {
     }
   };
 
+  const [receiveQuantities, setReceiveQuantities] = useState<Record<string, number>>({});
+
   // Open receive modal
   const handleOpenReceiveModal = (order: Order) => {
     setReceivingOrder(order);
@@ -607,6 +609,16 @@ const SchoolPemesanan = () => {
     setIsChecklistDone(false);
     setReceiveNotes('');
     setReceiveError('');
+    
+    const initialQty: Record<string, number> = {};
+    if (order.shippingInfo?.shippedItems) {
+      order.shippingInfo.shippedItems.forEach(item => {
+        const key = `${item.name}-${item.type}-${item.size || ''}`;
+        const previousReceived = order.receiveInfo?.receivedItems?.find(r => r.name === item.name && r.type === item.type && (r.size || '') === (item.size || ''))?.receivedQty || 0;
+        initialQty[key] = Math.max(0, item.shippedQty - previousReceived);
+      });
+    }
+    setReceiveQuantities(initialQty);
   };
 
   const handleConfirmReceive = async (e: FormEvent) => {
@@ -622,11 +634,44 @@ const SchoolPemesanan = () => {
       return;
     }
 
-    await receiveOrder(receivingOrder.id, {
-      receivedBy: receiverName.trim(),
-      isChecked: true,
-      notes: receiveNotes.trim() || undefined,
-    });
+    let isPartial = false;
+    const receivedItemsData: any[] = [];
+    
+    if (receivingOrder.shippingInfo?.shippedItems) {
+      receivingOrder.shippingInfo.shippedItems.forEach(item => {
+        const key = `${item.name}-${item.type}-${item.size || ''}`;
+        const inputQty = receiveQuantities[key] || 0;
+        const previousReceived = receivingOrder.receiveInfo?.receivedItems?.find(r => r.name === item.name && r.type === item.type && (r.size || '') === (item.size || ''))?.receivedQty || 0;
+        
+        const totalReceived = previousReceived + inputQty;
+        receivedItemsData.push({
+          name: item.name,
+          type: item.type,
+          size: item.size,
+          receivedQty: totalReceived,
+          missingQty: item.shippedQty - totalReceived
+        });
+
+        if (totalReceived < item.shippedQty) {
+          isPartial = true;
+        }
+      });
+    }
+
+    if (isPartial) {
+      await partialReceiveOrder(receivingOrder.id, {
+        receivedBy: receiverName.trim(),
+        isChecked: true,
+        notes: receiveNotes.trim() || undefined,
+        receivedItems: receivedItemsData
+      });
+    } else {
+      await receiveOrder(receivingOrder.id, {
+        receivedBy: receiverName.trim(),
+        isChecked: true,
+        notes: receiveNotes.trim() || undefined,
+      });
+    }
 
     setReceivingOrder(null);
     refetchData();
@@ -1689,11 +1734,35 @@ const SchoolPemesanan = () => {
                   Periksa Kesesuaian Fisik Barang:
                 </div>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {receivingOrder.items.map((it, idx) => (
-                    <li key={idx} style={{ padding: '6px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem' }}>
-                      📦 <strong>{it.name}</strong> — {it.quantity} pcs ({it.type})
-                    </li>
-                  ))}
+                  {receivingOrder.shippingInfo?.shippedItems ? receivingOrder.shippingInfo.shippedItems.map((it, idx) => {
+                    const key = `${it.name}-${it.type}-${it.size || ''}`;
+                    const previousReceived = receivingOrder.receiveInfo?.receivedItems?.find(r => r.name === it.name && r.type === it.type && (r.size || '') === (it.size || ''))?.receivedQty || 0;
+                    const remainingToReceive = Math.max(0, it.shippedQty - previousReceived);
+                    
+                    if (remainingToReceive === 0) return null; // Already fully received
+                    
+                    return (
+                      <li key={idx} style={{ padding: '8px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>📦 <strong>{it.name}</strong> {it.size ? `(Size: ${it.size})` : ''} — {it.type}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Dikirim: {remainingToReceive} pcs</span>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            max={remainingToReceive} 
+                            value={receiveQuantities[key] !== undefined ? receiveQuantities[key] : remainingToReceive}
+                            onChange={(e) => {
+                              const val = Math.min(remainingToReceive, Math.max(0, parseInt(e.target.value) || 0));
+                              setReceiveQuantities(prev => ({ ...prev, [key]: val }));
+                            }}
+                            style={{ width: '60px', padding: '4px', textAlign: 'center', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                          />
+                        </div>
+                      </li>
+                    );
+                  }) : (
+                    <li style={{ padding: '6px 0', fontSize: '0.88rem' }}>⚠️ Data pengiriman rinci tidak tersedia. Semua barang dianggap diterima.</li>
+                  )}
                 </ul>
               </div>
 
