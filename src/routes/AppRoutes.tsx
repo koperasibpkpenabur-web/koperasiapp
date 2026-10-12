@@ -133,12 +133,12 @@ const AppRoutes = () => {
           </ProtectedRoute>
         } />
         <Route path="school/pelunasan" element={
-          <ProtectedRoute allowedRoles={['admin', 'sekolah', 'guru_ots']}>
+          <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
             <SchoolPayment />
           </ProtectedRoute>
         } />
         <Route path="school/retur" element={
-          <ProtectedRoute allowedRoles={['admin', 'sekolah', 'guru_ots']}>
+          <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
             <SchoolReturn />
           </ProtectedRoute>
         } />

@@ -216,16 +216,18 @@ const Sidebar = () => {
                   <span className="nav-text">Pemesanan Barang</span>
                 </NavLink>
               </li>
-              <li>
-                <NavLink
-                  to="/school/retur"
-                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-                  onClick={closeMobileNav}
-                >
-                  <span className="nav-icon">↩️</span>
-                  <span className="nav-text">Retur Barang</span>
-                </NavLink>
-              </li>
+              {user.role === 'sekolah' && (
+                <li>
+                  <NavLink
+                    to="/school/retur"
+                    className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                    onClick={closeMobileNav}
+                  >
+                    <span className="nav-icon">↩️</span>
+                    <span className="nav-text">Retur Barang</span>
+                  </NavLink>
+                </li>
+              )}
               <li>
                 <NavLink
                   to="/school/rekap"
@@ -236,16 +238,18 @@ const Sidebar = () => {
                   <span className="nav-text">Rekap Pesanan</span>
                 </NavLink>
               </li>
-              <li>
-                <NavLink
-                  to="/school/pelunasan"
-                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-                  onClick={closeMobileNav}
-                >
-                  <span className="nav-icon">💳</span>
-                  <span className="nav-text">Pelunasan Tagihan</span>
-                </NavLink>
-              </li>
+              {user.role === 'sekolah' && (
+                <li>
+                  <NavLink
+                    to="/school/pelunasan"
+                    className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                    onClick={closeMobileNav}
+                  >
+                    <span className="nav-icon">💳</span>
+                    <span className="nav-text">Pelunasan Tagihan</span>
+                  </NavLink>
+                </li>
+              )}
             </>
           )}
         </ul>
