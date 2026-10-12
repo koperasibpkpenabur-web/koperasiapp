@@ -35,9 +35,9 @@ const Sidebar = () => {
             ✕
           </button>
         </div>
-        {user.role === 'sekolah' && user.schoolLevel && (
+        {(user.role === 'sekolah' || user.role === 'guru_ots') && (
           <div className="sidebar-school-level">
-            Jenjang: <span className="level-badge">{user.schoolLevel}</span>
+            Jenjang: <span className="level-badge">{user.schoolLevel || 'Semua Jenjang'}</span>
           </div>
         )}
       </div>
@@ -192,8 +192,8 @@ const Sidebar = () => {
             </>
           )}
 
-          {/* School menu items */}
-          {user.role === 'sekolah' && (
+          {/* School & Guru OTS menu items */}
+          {(user.role === 'sekolah' || user.role === 'guru_ots') && (
             <>
               <li>
                 <NavLink

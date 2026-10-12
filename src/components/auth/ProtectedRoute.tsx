@@ -127,6 +127,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       kopkar: '/kopkar',
       sekolah: '/school',
       pengurus: '/pengurus',
+      guru_ots: '/school',
     };
     return <Navigate to={roleHome[user.role]} replace />;
   }

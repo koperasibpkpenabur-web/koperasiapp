@@ -235,6 +235,18 @@
   border: 1px solid var(--border-success, #99f6e4);
 }
 
+.role-badge.guru_ots {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #d8b4fe;
+}
+
+.role-badge.pengurus {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
 .empty-state {
   text-align: center;
   padding: 44px 20px;

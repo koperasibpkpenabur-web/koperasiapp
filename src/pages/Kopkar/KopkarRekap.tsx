@@ -166,6 +166,7 @@ const KopkarRekap = () => {
             <option value="Tahap 1">Hanya Tahap 1</option>
             <option value="Tahap 2">Hanya Tahap 2</option>
             <option value="Tambahan">Hanya Tambahan</option>
+            <option value="On The Spot">Hanya On The Spot (Langsung di Koperasi)</option>
           </select>
         </div>
         

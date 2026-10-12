@@ -19,6 +19,8 @@ const Topbar = () => {
       admin: 'Admin',
       kopkar: 'Karyawan Kopkar',
       sekolah: 'Sekolah',
+      pengurus: 'Pengurus',
+      guru_ots: 'Guru on the Spot',
     };
     return labels[role] || role;
   };
@@ -88,7 +90,7 @@ const Topbar = () => {
               >
                 🏠 Menu Utama
               </button>
-              {user.role === 'sekolah' && (
+              {(user.role === 'sekolah' || user.role === 'guru_ots') && (
                 <button 
                   className="cart-icon-btn" 
                   onClick={() => setShowCartModal(true)}

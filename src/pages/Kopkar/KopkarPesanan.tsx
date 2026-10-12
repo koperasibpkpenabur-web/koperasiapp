@@ -7,6 +7,7 @@ import { useReturns } from '../../context/ReturnContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, ShippingInfo } from '../../types';
 import SuratJalanPrint from './SuratJalanPrint';
+import KwitansiPrint from './KwitansiPrint';
 import { generateSuratJalanExcel } from '../../utils/excelGenerator';
 import './kopkar.css';
 
@@ -117,6 +118,7 @@ const KopkarPesanan = () => {
 
   // Print Order state
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
+  const [printingKwitansiOrder, setPrintingKwitansiOrder] = useState<Order | null>(null);
 
   // Cancellation action menu and detail state
   const [openCancelMenuId, setOpenCancelMenuId] = useState<string | null>(null);
@@ -131,6 +133,16 @@ const KopkarPesanan = () => {
       return () => clearTimeout(timer);
     }
   }, [printingOrder]);
+
+  useEffect(() => {
+    if (printingKwitansiOrder) {
+      const timer = setTimeout(() => {
+        window.print();
+        setPrintingKwitansiOrder(null);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [printingKwitansiOrder]);
 
   // 1. Pesanan Berjalan: pending, approved, shipped
   const activeOrders = orders.filter(
@@ -510,8 +522,13 @@ const KopkarPesanan = () => {
                           </div>
                         </td>
                         <td>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                          <div style={{ fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             {order.schoolName}
+                            {order.orderPhase === 'On The Spot' && (
+                              <span style={{ background: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', padding: '1px 6px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700 }}>
+                                On The Spot
+                              </span>
+                            )}
                           </div>
                           {order.schoolLevel && (
                             <span className={`badge-level ${order.schoolLevel}`}>
@@ -1169,8 +1186,9 @@ const KopkarPesanan = () => {
         </div>
       )}
 
-      {/* Print Only Surat Jalan */}
+      {/* Print Only Surat Jalan & Kwitansi */}
       <SuratJalanPrint order={printingOrder} />
+      <KwitansiPrint order={printingKwitansiOrder} />
       {/* Modal Detail Order */}
       {detailOrder && (
         <div className="modal-overlay" onClick={() => setDetailOrder(null)}>
@@ -1230,12 +1248,20 @@ const KopkarPesanan = () => {
               </div>
             </div>
 
-            <div className="modal-actions" style={{ marginTop: '24px' }}>
+            <div className="modal-actions" style={{ marginTop: '24px', display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setPrintingKwitansiOrder(detailOrder)}
+                style={{ background: '#0284c7', borderColor: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flex: 1 }}
+              >
+                🧾 Cetak Kwitansi
+              </button>
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => setDetailOrder(null)}
-                style={{ width: '100%' }}
+                style={{ flex: 1 }}
               >
                 Tutup
               </button>

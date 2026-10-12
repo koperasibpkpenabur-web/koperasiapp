@@ -140,6 +140,7 @@ const UserManagement = () => {
       return;
     }
 
+    const isSchoolOrOts = formRole === 'sekolah' || formRole === 'guru_ots';
     if (formRole === 'sekolah' && !formSchoolName.trim()) {
       setFormError('Nama sekolah wajib diisi untuk role Sekolah');
       return;
@@ -150,8 +151,8 @@ const UserManagement = () => {
         name: formName.trim(),
         username: formUsername.trim(),
         role: formRole,
-        schoolName: formRole === 'sekolah' ? formSchoolName.trim() : undefined,
-        schoolLevel: formRole === 'sekolah' ? formSchoolLevel : undefined,
+        schoolName: isSchoolOrOts ? (formSchoolName.trim() || 'On The Spot Koperasi') : undefined,
+        schoolLevel: isSchoolOrOts ? formSchoolLevel : undefined,
       };
       
       const result = await updateUser(editTargetId, updates);
@@ -167,8 +168,8 @@ const UserManagement = () => {
         username: formUsername.trim(),
         password: formPassword,
         role: formRole,
-        schoolName: formRole === 'sekolah' ? formSchoolName.trim() : undefined,
-        schoolLevel: formRole === 'sekolah' ? formSchoolLevel : undefined,
+        schoolName: isSchoolOrOts ? (formSchoolName.trim() || 'On The Spot Koperasi') : undefined,
+        schoolLevel: isSchoolOrOts ? formSchoolLevel : undefined,
       });
 
       if (result.success) {
@@ -225,8 +226,9 @@ const UserManagement = () => {
       kopkar: 'Kopkar',
       sekolah: 'Sekolah',
       pengurus: 'Pengurus',
+      guru_ots: 'Guru on the Spot',
     };
-    return labels[role];
+    return labels[role] || role;
   };
 
   const exportToExcel = async () => {
@@ -299,6 +301,7 @@ const UserManagement = () => {
             <option value="pengurus">Pengurus Koperasi</option>
             <option value="kopkar">Karyawan Kopkar</option>
             <option value="sekolah">Sekolah</option>
+            <option value="guru_ots">Guru on the Spot</option>
           </select>
 
           {filterRole === 'sekolah' && (
@@ -523,23 +526,24 @@ const UserManagement = () => {
                   onChange={(e) => setFormRole(e.target.value as UserRole)}
                 >
                   <option value="sekolah">Sekolah (PIC Pemesanan)</option>
+                  <option value="guru_ots">Guru on the Spot (Langsung di Koperasi)</option>
                   <option value="kopkar">Karyawan Koperasi</option>
                   <option value="pengurus">Pengurus Koperasi</option>
                   <option value="admin">Administrator</option>
                 </select>
               </div>
 
-              {formRole === 'sekolah' && (
+              {(formRole === 'sekolah' || formRole === 'guru_ots') && (
                 <>
                   <div className="form-group">
-                    <label htmlFor="schoolName">Nama Sekolah *</label>
+                    <label htmlFor="schoolName">{formRole === 'guru_ots' ? 'Nama Asal Sekolah / Keterangan Unit (Opsional)' : 'Nama Sekolah *'}</label>
                     <input
                       id="schoolName"
                       type="text"
-                      placeholder="Contoh: SMPK 1 PENABUR Jakarta"
+                      placeholder={formRole === 'guru_ots' ? 'Contoh: On The Spot Koperasi / SMPK 1' : 'Contoh: SMPK 1 PENABUR Jakarta'}
                       value={formSchoolName}
                       onChange={(e) => setFormSchoolName(e.target.value)}
-                      required
+                      required={formRole === 'sekolah'}
                     />
                   </div>
 
@@ -550,6 +554,7 @@ const UserManagement = () => {
                       value={formSchoolLevel}
                       onChange={(e) => setFormSchoolLevel(e.target.value as SchoolLevel)}
                     >
+                      {formRole === 'guru_ots' && <option value="SEMUA">Semua Jenjang (Umum / Bebas)</option>}
                       <option value="TK">TK (Taman Kanak-kanak)</option>
                       <option value="SD">SD (Sekolah Dasar)</option>
                       <option value="SMP">SMP (Sekolah Menengah Pertama)</option>
@@ -559,7 +564,9 @@ const UserManagement = () => {
                       <option value="SPK-SMA">SPK (Upper Sec)</option>
                     </select>
                     <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
-                      Katalog barang saat pemesanan akan otomatis disesuaikan dengan jenjang ini.
+                      {formRole === 'guru_ots'
+                        ? 'Akun Guru on the Spot dapat memilih dan memesan barang lintas semua jenjang saat pemesanan.'
+                        : 'Katalog barang saat pemesanan akan otomatis disesuaikan dengan jenjang ini.'}
                     </div>
                   </div>
                 </>

@@ -18,7 +18,7 @@ const NotificationPopup = () => {
   const [activeNotification, setActiveNotification] = useState<AppNotification | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'sekolah') {
+    if (isAuthenticated && (user?.role === 'sekolah' || user?.role === 'guru_ots')) {
       checkNotifications();
     }
   }, [isAuthenticated, user]);

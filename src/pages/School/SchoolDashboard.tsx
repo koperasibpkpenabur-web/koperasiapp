@@ -39,9 +39,9 @@ const SchoolDashboard = () => {
     <div className="school-dashboard">
       <div className="school-header-section">
         <div>
-          <h2>School Area Dashboard</h2>
+          <h2>{user?.role === 'guru_ots' ? 'Dashboard Guru on the Spot' : 'School Area Dashboard'}</h2>
           <div className="school-welcome">
-            Selamat datang, <strong>{user?.name}</strong> ({user?.schoolName || 'Akun Sekolah'})
+            Selamat datang, <strong>{user?.name}</strong> ({user?.schoolName || (user?.role === 'guru_ots' ? 'Guru on the Spot' : 'Akun Sekolah')})
             {user?.schoolLevel && (
               <span className={`badge-level ${user.schoolLevel}`} style={{ marginLeft: '8px' }}>
                 Jenjang {user.schoolLevel}

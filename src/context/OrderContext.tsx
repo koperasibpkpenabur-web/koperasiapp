@@ -3,7 +3,7 @@ import type { Order, OrderItem, ShippingInfo, ReceiveInfo, CancellationInfo } fr
 import { supabase } from '../lib/supabase';
 
 interface OrderContextType {
-  createOrder: (orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>) => Promise<{ success: boolean; error?: string }>;
+  createOrder: (orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>, initialStatus?: import('../types').OrderStatus) => Promise<{ success: boolean; newOrderId?: string; error?: string }>;
   approveOrder: (orderId: string, processorName: string) => Promise<void>;
   rejectOrder: (orderId: string, processorName: string, reason: string) => Promise<void>;
   saveShippingInfo: (orderId: string, shippingData: ShippingInfo) => Promise<void>;
@@ -33,7 +33,10 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   const [showCartModal, setShowCartModal] = useState(false);
 
   const createOrder = useCallback(
-    async (orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>) => {
+    async (
+      orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>,
+      initialStatus?: import('../types').OrderStatus
+    ) => {
       if (!orderData.items || orderData.items.length === 0) {
         return { success: false, error: 'Daftar item pesanan tidak boleh kosong' };
       }
@@ -61,13 +64,14 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       const seq = String((count || 0) + 1).padStart(3, '0');
       const newOrderId = `ORD-${dateForId}-${seq}`;
 
-      const { error: orderError } = await supabase.from('orders').insert([{
+      const finalStatus = initialStatus || 'pending';
+      const orderPayload: any = {
         id: newOrderId,
         school_user_id: orderData.schoolUserId,
         school_name: orderData.schoolName,
         school_level: orderData.schoolLevel,
         order_phase: orderData.orderPhase,
-        status: 'pending',
+        status: finalStatus,
         notes: orderData.notes,
         total_price_kopkar: totalPriceKopkar,
         total_fee_school: totalFeeSchool,
@@ -75,7 +79,18 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         payment_status: 'unpaid',
         fee_status: 'locked',
         created_at: now
-      }]);
+      };
+
+      if (finalStatus === 'received') {
+        orderPayload.receive_info = {
+          receivedBy: orderData.schoolName || 'Petugas / Guru OTS',
+          isChecked: true,
+          receivedAt: now,
+          notes: 'Barang langsung diambil di Koperasi (On The Spot)'
+        };
+      }
+
+      const { error: orderError } = await supabase.from('orders').insert([orderPayload]);
 
       if (orderError) return { success: false, error: orderError.message };
 
@@ -96,7 +111,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       
       if (itemsError) return { success: false, error: itemsError.message };
 
-      return { success: true };
+      return { success: true, newOrderId };
     },
     []
   );

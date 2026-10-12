@@ -188,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.role !== undefined) dbUpdates.role = updates.role;
     
-    if (updates.role === 'sekolah') {
+    if (updates.role === 'sekolah' || updates.role === 'guru_ots') {
       if (updates.schoolName !== undefined) dbUpdates.school_name = updates.schoolName;
       if (updates.schoolLevel !== undefined) dbUpdates.school_level = updates.schoolLevel;
     } else if (updates.role) {

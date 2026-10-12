@@ -19,6 +19,7 @@ import KopkarNotifikasi from '../pages/Kopkar/KopkarNotifikasi';
 import SchoolReturn from '../pages/School/SchoolReturn';
 import SchoolRekap from '../pages/School/SchoolRekap';
 import PengurusDashboard from '../pages/Pengurus/PengurusDashboard';
+import GuruOtsPemesanan from '../pages/GuruOts/GuruOtsPemesanan';
 import type { UserRole } from '../types';
 
 const RootRedirect = () => {
@@ -33,13 +34,14 @@ const RootRedirect = () => {
     kopkar: '/kopkar',
     sekolah: '/school',
     pengurus: '/pengurus',
+    guru_ots: '/school',
   };
 
   return <Navigate to={roleHome[user.role]} replace />;
 };
 
 const AppRoutes = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   return (
     <Routes>
@@ -121,29 +123,29 @@ const AppRoutes = () => {
 
         {/* School routes */}
         <Route path="school" element={
-          <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
+          <ProtectedRoute allowedRoles={['admin', 'sekolah', 'guru_ots']}>
             <SchoolDashboard />
           </ProtectedRoute>
         } />
         <Route path="school/pemesanan" element={
-          <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
-            <SchoolPemesanan />
+          <ProtectedRoute allowedRoles={['admin', 'sekolah', 'guru_ots']}>
+            {user?.role === 'guru_ots' ? <GuruOtsPemesanan /> : <SchoolPemesanan />}
           </ProtectedRoute>
         } />
         <Route path="school/pelunasan" element={
-          <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
+          <ProtectedRoute allowedRoles={['admin', 'sekolah', 'guru_ots']}>
             <SchoolPayment />
           </ProtectedRoute>
         } />
         <Route path="school/retur" element={
-          <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
+          <ProtectedRoute allowedRoles={['admin', 'sekolah', 'guru_ots']}>
             <SchoolReturn />
           </ProtectedRoute>
         } />
 
         
         <Route path="school/rekap" element={
-          <ProtectedRoute allowedRoles={['admin', 'sekolah']}>
+          <ProtectedRoute allowedRoles={['admin', 'sekolah', 'guru_ots']}>
             <SchoolRekap />
           </ProtectedRoute>
         } />

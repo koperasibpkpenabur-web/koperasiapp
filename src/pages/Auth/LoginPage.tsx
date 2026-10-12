@@ -21,6 +21,7 @@ const LoginPage = () => {
     kopkar: '/kopkar',
     sekolah: '/school',
     pengurus: '/pengurus',
+    guru_ots: '/school',
   };
 
   useEffect(() => {

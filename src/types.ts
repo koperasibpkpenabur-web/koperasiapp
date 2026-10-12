@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'kopkar' | 'sekolah' | 'pengurus';
+export type UserRole = 'admin' | 'kopkar' | 'sekolah' | 'pengurus' | 'guru_ots';
 
 export type SchoolLevel = 'TK' | 'SD' | 'SMP' | 'SMA' | 'SPK-SD' | 'SPK-SMP' | 'SPK-SMA' | 'SEMUA';
 
@@ -102,7 +102,7 @@ export interface Order {
   schoolUserId: string;   // ID of the school user who created this order
   schoolName: string;      // Name of the school
   schoolLevel?: SchoolLevel; // Jenjang sekolah pemesan (TK/SD/SMP/SMA/SPK-SD/SPK-SMP/SPK-SMA)
-  orderPhase?: 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan';
+  orderPhase?: 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan' | 'On The Spot';
   items: OrderItem[];
   status: OrderStatus;
   notes: string;           // Notes from school
