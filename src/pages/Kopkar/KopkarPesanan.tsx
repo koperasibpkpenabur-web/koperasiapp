@@ -423,13 +423,18 @@ const KopkarPesanan = () => {
   };
 
   const getFormattedOrderId = (order: Order) => {
-    const sortedOrders = [...orders].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    const index = sortedOrders.findIndex(o => o.id === order.id);
-    const num = (index + 1).toString().padStart(3, '0');
-    const year = new Date(order.createdAt).getFullYear();
-    let baseId = `ORD-${year}-${num}`;
+    let baseId = order.id;
+    if (!baseId || !baseId.startsWith('ORD-')) {
+      const sortedOrders = [...orders].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const index = sortedOrders.findIndex(o => o.id === order.id);
+      const num = (index + 1).toString().padStart(3, '0');
+      const year = new Date(order.createdAt).getFullYear();
+      baseId = `ORD-${year}-${num}`;
+    }
     if (order.status === 'cancelled' || order.status === 'cancellation_requested' || order.status === 'rejected') {
-      baseId += '-BTL';
+      if (!baseId.endsWith('-BTL')) {
+        baseId += '-BTL';
+      }
     }
     return baseId;
   };

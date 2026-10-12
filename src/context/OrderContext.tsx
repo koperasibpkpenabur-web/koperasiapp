@@ -52,16 +52,33 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       }
 
       const now = new Date().toISOString();
-      const dateStr = now.split('T')[0];
-      const dateForId = dateStr.replace(/-/g, '');
+      const localDate = new Date();
+      const year = localDate.getFullYear();
+      const month = String(localDate.getMonth() + 1).padStart(2, '0');
+      const day = String(localDate.getDate()).padStart(2, '0');
+      const dateForId = `${year}${month}${day}`;
       
-      const { count } = await supabase
+      // Ambil seluruh ID pesanan yang berawalan tanggal hari ini untuk menentukan nomor urut tertinggi
+      const prefix = `ORD-${dateForId}-`;
+      const { data: todayOrders } = await supabase
         .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', `${dateStr}T00:00:00.000Z`)
-        .lte('created_at', `${dateStr}T23:59:59.999Z`);
+        .select('id')
+        .like('id', `${prefix}%`);
         
-      const seq = String((count || 0) + 1).padStart(3, '0');
+      let maxSeq = 0;
+      if (todayOrders && todayOrders.length > 0) {
+        for (const row of todayOrders) {
+          const parts = (row.id || '').split('-');
+          if (parts.length >= 3) {
+            const num = parseInt(parts[2], 10);
+            if (!isNaN(num) && num > maxSeq) {
+              maxSeq = num;
+            }
+          }
+        }
+      }
+        
+      const seq = String(maxSeq + 1).padStart(3, '0');
       const newOrderId = `ORD-${dateForId}-${seq}`;
 
       const finalStatus = initialStatus || 'pending';

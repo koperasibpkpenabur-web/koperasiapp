@@ -127,8 +127,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
 
+      let effectiveUserId = id;
+
+      try {
+        // Cek apakah akun sudah terdaftar di app_users berdasarkan ID atau email
+        const { data: existingAppUser } = await supabase
+          .from('app_users')
+          .select('*')
+          .or(`id.eq.${id},username.eq.${email}`)
+          .maybeSingle();
+
+        if (existingAppUser) {
+          effectiveUserId = existingAppUser.id;
+          // Pastikan nama sekolah dan jenjang tetap sinkron
+          await supabase
+            .from('app_users')
+            .update({
+              name: data.nama_sekolah || existingAppUser.name,
+              school_name: data.nama_sekolah || existingAppUser.school_name,
+              school_level: data.jenjang || existingAppUser.school_level,
+            })
+            .eq('id', existingAppUser.id);
+        } else {
+          // Buat akun baru di app_users agar selalu memiliki ID valid & konsisten
+          const { data: insertedUser, error: insertErr } = await supabase
+            .from('app_users')
+            .insert([{
+              id: id,
+              username: email,
+              password: '',
+              name: data.nama_sekolah || email.split('@')[0],
+              role: 'sekolah',
+              school_name: data.nama_sekolah || '-',
+              school_level: data.jenjang || 'SMP',
+            }])
+            .select()
+            .single();
+
+          if (!insertErr && insertedUser) {
+            effectiveUserId = insertedUser.id;
+          } else if (insertErr) {
+            console.warn('Sync app_users with Auth ID warning, retrying without explicit ID:', insertErr.message);
+            const { data: retryUser } = await supabase
+              .from('app_users')
+              .insert([{
+                username: email,
+                password: '',
+                name: data.nama_sekolah || email.split('@')[0],
+                role: 'sekolah',
+                school_name: data.nama_sekolah || '-',
+                school_level: data.jenjang || 'SMP',
+              }])
+              .select()
+              .single();
+
+            if (retryUser) {
+              effectiveUserId = retryUser.id;
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.error('Error syncing Google user to app_users:', syncErr);
+      }
+
       const loggedInUser: User = {
-        id: id,
+        id: effectiveUserId,
         username: email,
         password: '', // OAuth tidak pakai password
         name: data.nama_sekolah || email.split('@')[0],
