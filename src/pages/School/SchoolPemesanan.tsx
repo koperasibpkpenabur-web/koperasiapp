@@ -253,17 +253,80 @@ const SchoolPemesanan = () => {
     return (
       <div style={{ marginBottom: '32px' }} key={title}>
         <h4 style={{ margin: '0 0 12px 0', color: '#1e293b', borderBottom: '2px solid #cbd5e1', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {title.includes('Sepatu') ? '👟' : title.includes('Angka') ? '🔢' : title.includes('Huruf') ? '👕' : '🎒'} {title}
+          {title.includes('Pakaian') ? '👕' : title.includes('Celana') ? '👖' : title.includes('Kaos Kaki') ? '🧦' : title.includes('Sepatu') ? '👟' : '🎒'} {title}
         </h4>
-        <div className="matrix-table-wrapper" style={{ overflowX: 'auto', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-          <table className="order-table" style={{ minWidth: isAllSize ? '400px' : '800px', margin: 0 }}>
-            <thead style={{ background: '#f8fafc' }}>
+        <div 
+          className="matrix-table-wrapper" 
+          style={{ 
+            maxHeight: '440px',
+            overflowY: 'auto',
+            overflowX: 'auto', 
+            background: '#fff', 
+            borderRadius: '8px', 
+            border: '1px solid #cbd5e1',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+            position: 'relative'
+          }}
+        >
+          <table 
+            className="order-table" 
+            style={{ 
+              minWidth: isAllSize ? '400px' : '800px', 
+              margin: 0, 
+              borderCollapse: 'separate', 
+              borderSpacing: 0 
+            }}
+          >
+            <thead>
               <tr>
-                <th style={{ padding: '12px', borderBottom: '2px solid #cbd5e1', minWidth: '200px' }}>Nama Barang</th>
+                <th 
+                  style={{ 
+                    position: 'sticky', 
+                    top: 0, 
+                    left: 0, 
+                    zIndex: 30, 
+                    background: '#f1f5f9', 
+                    padding: '12px', 
+                    borderBottom: '2px solid #cbd5e1', 
+                    borderRight: '1px solid #cbd5e1',
+                    minWidth: '220px',
+                    boxShadow: '2px 2px 4px rgba(0,0,0,0.04)'
+                  }}
+                >
+                  Nama Barang
+                </th>
                 {!isAllSize && allSizes.map(sz => (
-                  <th key={sz} style={{ width: '40px', textAlign: 'center', padding: '12px 4px', borderBottom: '2px solid #cbd5e1' }}>{sz}</th>
+                  <th 
+                    key={sz} 
+                    style={{ 
+                      position: 'sticky', 
+                      top: 0, 
+                      zIndex: 20, 
+                      background: '#f8fafc', 
+                      width: '40px', 
+                      textAlign: 'center', 
+                      padding: '12px 4px', 
+                      borderBottom: '2px solid #cbd5e1',
+                      borderRight: '1px solid #f1f5f9'
+                    }}
+                  >
+                    {sz}
+                  </th>
                 ))}
-                <th style={{ width: '80px', textAlign: 'center', padding: '12px', borderBottom: '2px solid #cbd5e1' }}>Total</th>
+                <th 
+                  style={{ 
+                    position: 'sticky', 
+                    top: 0, 
+                    zIndex: 20, 
+                    background: '#f8fafc', 
+                    width: '80px', 
+                    textAlign: 'center', 
+                    padding: '12px', 
+                    borderBottom: '2px solid #cbd5e1' 
+                  }}
+                >
+                  Total
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -272,16 +335,29 @@ const SchoolPemesanan = () => {
                 const standardVariants = row.variants.filter((v: any) => allSizes.includes(v.size?.trim().toUpperCase()));
 
                 return (
-                  <tr key={row.name} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '12px' }}>
-                      <strong>{row.name}</strong>
-                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>Rp {new Intl.NumberFormat('id-ID').format(row.priceStudent)}</div>
+                  <tr key={row.name}>
+                    <td 
+                      style={{ 
+                        position: 'sticky', 
+                        left: 0, 
+                        zIndex: 10, 
+                        background: '#ffffff', 
+                        padding: '12px', 
+                        borderBottom: '1px solid #e2e8f0', 
+                        borderRight: '1px solid #cbd5e1',
+                        boxShadow: '2px 0 4px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <strong style={{ color: '#1e293b' }}>{row.name}</strong>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>
+                        Rp {new Intl.NumberFormat('id-ID').format(row.priceStudent)}
+                      </div>
                     </td>
                     
                     {!isAllSize && allSizes.map(sz => {
                       const variant = standardVariants.find((v: any) => v.size?.trim().toUpperCase() === sz);
                       return (
-                        <td key={sz} style={{ padding: '6px', textAlign: 'center' }}>
+                        <td key={sz} style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #f1f5f9' }}>
                           {variant ? (
                             <input 
                               type="number" 
@@ -291,7 +367,7 @@ const SchoolPemesanan = () => {
                                 const val = parseInt(e.target.value) || 0;
                                 setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [variant.id]: val } } : it));
                               }}
-                              style={{ width: '30px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                              style={{ width: '32px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
                             />
                           ) : (
                             <div style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>-</div>
@@ -301,7 +377,7 @@ const SchoolPemesanan = () => {
                     })}
 
                     {isAllSize && (
-                      <td style={{ padding: '6px', textAlign: 'center' }}>
+                      <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #f1f5f9' }}>
                         {row.variants.length > 0 ? (
                           <div style={{ display: 'flex', justifyContent: 'center' }}>
                             <input 
@@ -312,7 +388,7 @@ const SchoolPemesanan = () => {
                                 const val = parseInt(e.target.value) || 0;
                                 setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [row.variants[0].id]: val } } : it));
                               }}
-                              style={{ width: '30px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                              style={{ width: '32px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
                             />
                           </div>
                         ) : (
@@ -321,7 +397,9 @@ const SchoolPemesanan = () => {
                       </td>
                     )}
 
-                    <td style={{ textAlign: 'center', fontWeight: 600, padding: '12px' }}>{rowTotal}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 700, padding: '12px', borderBottom: '1px solid #e2e8f0', color: rowTotal > 0 ? '#2563eb' : '#64748b' }}>
+                      {rowTotal}
+                    </td>
                   </tr>
                 );
               })}
@@ -1481,9 +1559,9 @@ const SchoolPemesanan = () => {
                     ) : (
                       <>
                         {renderMatrixTable(pakaianItems, 'Pakaian Standar')}
-                        {renderMatrixTable(celanaItems, 'Celana & Rok')}
+                        {renderMatrixTable(celanaItems, 'Celana')}
                         {renderMatrixTable(kaosKakiItems, 'Kaos Kaki')}
-                        {renderMatrixTable(sepatuItems, 'Sepatu Phantom')}
+                        {renderMatrixTable(sepatuItems, 'Sepatu')}
                         {renderMatrixTable(aksesorisItems, 'Aksesoris & Perlengkapan')}
                       </>
                     )}

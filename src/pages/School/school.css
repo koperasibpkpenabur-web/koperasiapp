@@ -21,6 +21,29 @@
   -moz-appearance: textfield;
 }
 
+/* Scrollbar & hover enhancements for sticky matrix tables */
+.matrix-table-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+.matrix-table-wrapper::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.matrix-table-wrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.matrix-table-wrapper::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+.matrix-table-wrapper tr:hover td {
+  background-color: #f8fafc !important;
+}
+.matrix-table-wrapper tr:hover td:first-child {
+  background-color: #f1f5f9 !important;
+}
+
 .school-welcome {
   font-size: 0.92rem;
   color: var(--text-secondary, #586b84);
