@@ -382,3 +382,40 @@
 .ots-btn-kwitansi:hover {
   background: #0369a1;
 }
+
+/* --- Print Styles Khusus Guru OTS --- */
+@media print {
+  @page {
+    margin: 5mm;
+    size: auto;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Sembunyikan seluruh UI web, navigasi, sidebar, catalog, cart, history, modal */
+  .sidebar,
+  .topbar,
+  .no-print,
+  .ots-header,
+  .ots-level-nav,
+  .ots-grid-layout,
+  .ots-history-section,
+  .ots-container > *:not(.print-only) {
+    display: none !important;
+  }
+
+  /* Tampilkan HANYA kwitansi */
+  .print-only,
+  .print-surat-jalan {
+    display: block !important;
+    width: 190mm !important;
+    margin: 0 auto !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+

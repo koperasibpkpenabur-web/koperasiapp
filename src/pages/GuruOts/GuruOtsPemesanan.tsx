@@ -45,6 +45,7 @@ const GuruOtsPemesanan = () => {
   // Selected item variant selection state (maps product name to selected variant id)
   const [selectedVariantByGroup, setSelectedVariantByGroup] = useState<Record<string, string>>({});
   const [selectedQtyByGroup, setSelectedQtyByGroup] = useState<Record<string, number>>({});
+  const [selectedPriceByGroup, setSelectedPriceByGroup] = useState<Record<string, number>>({});
 
   // Local Cart for OTS
   const [otsCart, setOtsCart] = useState<OrderItem[]>([]);
@@ -184,6 +185,11 @@ const GuruOtsPemesanan = () => {
     const qty = selectedQtyByGroup[groupName] || 1;
     if (qty <= 0) return;
 
+    const basePrice = variant.priceStudent || ((variant.priceKopkar || 0) + (variant.feeSchool || 0));
+    const finalPrice = selectedPriceByGroup[groupName] !== undefined
+      ? selectedPriceByGroup[groupName]
+      : basePrice;
+
     setOtsCart((prev) => {
       const existingIdx = prev.findIndex(
         (it) => it.productId === variant.id && it.name === variant.name
@@ -194,6 +200,7 @@ const GuruOtsPemesanan = () => {
         next[existingIdx] = {
           ...next[existingIdx],
           quantity: next[existingIdx].quantity + qty,
+          priceStudent: finalPrice,
         };
         return next;
       }
@@ -209,13 +216,21 @@ const GuruOtsPemesanan = () => {
           quantity: qty,
           priceKopkar: variant.priceKopkar,
           feeSchool: variant.feeSchool,
-          priceStudent: variant.priceStudent || variant.priceKopkar + variant.feeSchool,
+          priceStudent: finalPrice,
         },
       ];
     });
 
     // Reset qty for this group
     setSelectedQtyByGroup((prev) => ({ ...prev, [groupName]: 1 }));
+  };
+
+  const handleUpdateCartPrice = (idx: number, newPrice: number) => {
+    setOtsCart((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], priceStudent: Math.max(0, newPrice) };
+      return next;
+    });
   };
 
   const handleUpdateCartQty = (idx: number, delta: number) => {
@@ -424,8 +439,28 @@ const GuruOtsPemesanan = () => {
                           </div>
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: '6px' }}>
-                            {formatRupiah(priceDisplay)}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Harga Siswa (Rp):</span>
+                            <input
+                              type="number"
+                              min={0}
+                              placeholder="0"
+                              value={selectedPriceByGroup[grp.name] !== undefined ? selectedPriceByGroup[grp.name] : priceDisplay}
+                              onChange={(e) => {
+                                const p = Math.max(0, parseInt(e.target.value) || 0);
+                                setSelectedPriceByGroup((prev) => ({ ...prev, [grp.name]: p }));
+                              }}
+                              style={{
+                                width: '100px',
+                                padding: '4px 6px',
+                                borderRadius: '6px',
+                                border: (selectedPriceByGroup[grp.name] !== undefined ? selectedPriceByGroup[grp.name] : priceDisplay) === 0 ? '1px solid #f87171' : '1px solid #cbd5e1',
+                                background: (selectedPriceByGroup[grp.name] !== undefined ? selectedPriceByGroup[grp.name] : priceDisplay) === 0 ? '#fef2f2' : '#ffffff',
+                                textAlign: 'right',
+                                fontWeight: 800,
+                                fontSize: '0.88rem',
+                              }}
+                            />
                           </div>
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <input
@@ -485,8 +520,26 @@ const GuruOtsPemesanan = () => {
                   <div key={idx} className="ots-cart-item">
                     <div className="ots-item-info">
                       <div className="ots-item-name">{item.name}</div>
-                      <div className="ots-item-sub">
-                        Ukuran: <strong style={{ color: '#7e22ce' }}>{item.size || '-'}</strong> • @{formatRupiah(item.priceStudent || 0)}
+                      <div className="ots-item-sub" style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
+                        <span>Ukuran: <strong style={{ color: '#7e22ce' }}>{item.size || '-'}</strong></span>
+                        <span>• @Rp</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.priceStudent || 0}
+                          onChange={(e) => handleUpdateCartPrice(idx, parseInt(e.target.value) || 0)}
+                          style={{
+                            width: '78px',
+                            padding: '2px 4px',
+                            borderRadius: '4px',
+                            border: (item.priceStudent || 0) === 0 ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                            background: (item.priceStudent || 0) === 0 ? '#fef2f2' : '#ffffff',
+                            textAlign: 'right',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                          }}
+                          title="Klik untuk ubah harga satuan siswa"
+                        />
                       </div>
                     </div>
                     <div className="ots-qty-controls">
@@ -635,6 +688,7 @@ const GuruOtsPemesanan = () => {
       {/* Modal Sukses Order & Cetak Kwitansi Langsung */}
       {successOrder && (
         <div
+          className="no-print"
           style={{
             position: 'fixed',
             inset: 0,
@@ -697,7 +751,13 @@ const GuruOtsPemesanan = () => {
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button
                 type="button"
-                onClick={() => setPrintingOrder(successOrder)}
+                onClick={() => {
+                  const ord = successOrder;
+                  setSuccessOrder(null);
+                  setTimeout(() => {
+                    setPrintingOrder(ord);
+                  }, 100);
+                }}
                 style={{
                   background: '#0284c7',
                   color: '#ffffff',

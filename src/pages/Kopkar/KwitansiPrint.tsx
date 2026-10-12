@@ -111,19 +111,33 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
   const pageStyle = `
     @media print {
       @page {
-        margin: 0; /* Hindari header/footer */
+        margin: 5mm;
+        size: auto;
       }
       body {
-        margin: 0;
+        margin: 0 !important;
+        padding: 0 !important;
         -webkit-print-color-adjust: exact;
-        padding-top: 5mm;
-        padding-left: 5mm;
       }
+      .sidebar,
+      .topbar,
+      .no-print,
+      .ots-header,
+      .ots-level-nav,
+      .ots-grid-layout,
+      .ots-history-section,
+      .ots-container > *:not(.print-only):not(.print-surat-jalan) {
+        display: none !important;
+      }
+      .print-only,
       .print-surat-jalan {
+        display: block !important;
         font-family: 'Courier New', Courier, monospace !important;
         -webkit-font-smoothing: none;
         color: #000 !important;
         font-size: 13px !important;
+        width: 190mm !important;
+        margin: 0 auto !important;
       }
       .print-surat-jalan h1,
       .print-surat-jalan h2,
