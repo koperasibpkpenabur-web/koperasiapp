@@ -19,7 +19,7 @@ interface Plotting {
   school_user_id: string;
   created_at?: string;
   vendors?: { name: string };
-  app_users?: { school_name: string };
+  app_users?: { school_name: string; username?: string; school_level?: string };
 }
 
 interface VendorStock {
@@ -30,6 +30,13 @@ interface VendorStock {
   last_updated: string;
   vendors?: { name: string };
   products?: { name: string; level: string; category?: string; size?: string };
+}
+
+interface SchoolItem {
+  id: string; // ID dari app_users untuk relasi foreign key
+  email: string;
+  school_name: string;
+  level: string;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -202,7 +209,7 @@ const VendorManagement = () => {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [plottings, setPlottings] = useState<Plotting[]>([]);
   const [stocks, setStocks] = useState<VendorStock[]>([]);
-  const [schools, setSchools] = useState<{ id: string; school_name: string }[]>([]);
+  const [schools, setSchools] = useState<SchoolItem[]>([]);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -214,6 +221,7 @@ const VendorManagement = () => {
 
   // Modals Plotting
   const [showAddPlotting, setShowAddPlotting] = useState(false);
+  const [plotLevelFilter, setPlotLevelFilter] = useState('ALL');
 
   // Modals Stock
   const [showAddStock, setShowAddStock] = useState(false);
@@ -254,18 +262,86 @@ const VendorManagement = () => {
   };
 
   const fetchSchools = async () => {
-    const { data } = await supabase
-      .from('app_users')
-      .select('id, name, school_name')
-      .eq('role', 'sekolah')
-      .order('school_name', { ascending: true });
+    try {
+      // 1. Ambil seluruh data sekolah dari school_whitelist (Google accounts BPK PENABUR)
+      const { data: whitelistData, error: wlError } = await supabase
+        .from('school_whitelist')
+        .select('*')
+        .order('nama_sekolah', { ascending: true });
 
-    if (data) {
-      const formatted = data.map((s) => ({
-        id: s.id,
-        school_name: s.school_name || s.name || 'Sekolah',
-      }));
-      setSchools(formatted);
+      if (wlError || !whitelistData) {
+        console.error('Error fetching school_whitelist:', wlError);
+        return;
+      }
+
+      // 2. Ambil data app_users yang memiliki username berupa email
+      const { data: appUsersData } = await supabase
+        .from('app_users')
+        .select('id, username, school_name, school_level')
+        .ilike('username', '%@%');
+
+      const userMap = new Map<string, { id: string; school_name: string; school_level: string }>();
+      if (appUsersData) {
+        appUsersData.forEach((u) => {
+          userMap.set(u.username.toLowerCase().trim(), {
+            id: u.id,
+            school_name: u.school_name || '',
+            school_level: u.school_level || '',
+          });
+        });
+      }
+
+      const list: SchoolItem[] = [];
+
+      for (const w of whitelistData) {
+        const emailClean = (w.email || '').toLowerCase().trim();
+        if (!emailClean) continue;
+
+        let appUser = userMap.get(emailClean);
+        const rawJenjang = w.Jenjang || w.jenjang || appUser?.school_level || 'SMP';
+        const cleanJenjang = typeof rawJenjang === 'string' ? rawJenjang.trim() : rawJenjang;
+        const schoolName = (w.nama_sekolah || w.Nama_Sekolah || appUser?.school_name || emailClean).trim();
+
+        // Jika belum ada di app_users, otomatis sinkronkan ke app_users
+        if (!appUser) {
+          const { data: newUser } = await supabase
+            .from('app_users')
+            .insert([{
+              username: emailClean,
+              password: '',
+              name: schoolName,
+              role: 'sekolah',
+              school_name: schoolName,
+              school_level: cleanJenjang,
+            }])
+            .select()
+            .single();
+
+          if (newUser) {
+            appUser = {
+              id: newUser.id,
+              school_name: newUser.school_name || schoolName,
+              school_level: newUser.school_level || cleanJenjang,
+            };
+            userMap.set(emailClean, appUser);
+          }
+        }
+
+        if (appUser) {
+          list.push({
+            id: appUser.id,
+            email: emailClean,
+            school_name: schoolName,
+            level: cleanJenjang,
+          });
+        }
+      }
+
+      // Urutkan berdasarkan nama sekolah secara alfabetis
+      list.sort((a, b) => a.school_name.localeCompare(b.school_name));
+      setSchools(list);
+    } catch (err) {
+      console.error('Error fetching schools from whitelist:', err);
     }
   };
 
@@ -273,7 +349,7 @@ const VendorManagement = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('vendor_school_assignments')
-      .select('*, vendors(name), app_users(school_name)');
+      .select('*, vendors(name), app_users(school_name, username, school_level)');
 
     if (!error && data) setPlottings(data);
     setLoading(false);
@@ -281,7 +357,6 @@ const VendorManagement = () => {
 
   const fetchStocks = async () => {
     setLoading(true);
-    // Join dengan products (name, level, category, size)
     const { data, error } = await supabase
       .from('vendor_stocks')
       .select('*, vendors(name), products(name, level, category, size)');
@@ -507,7 +582,9 @@ const VendorManagement = () => {
   const filteredPlottings = plottings.filter(
     (p) =>
       p.vendors?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.app_users?.school_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      p.app_users?.school_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.app_users?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.app_users?.school_level?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredStocks = stocks.filter(
@@ -521,6 +598,12 @@ const VendorManagement = () => {
   // Products filtered by level for add stock modal
   const modalAvailableProducts =
     stockLevelFilter === 'ALL' ? products : products.filter((p) => p.level === stockLevelFilter);
+
+  // Schools filtered by level for add plotting modal
+  const filteredModalSchools =
+    plotLevelFilter === 'ALL'
+      ? schools
+      : schools.filter((s) => s.level.toUpperCase() === plotLevelFilter);
 
   return (
     <div className="kopkar-dashboard">
@@ -698,7 +781,7 @@ const VendorManagement = () => {
           >
             <input
               type="text"
-              placeholder="Cari vendor atau sekolah..."
+              placeholder="Cari vendor, sekolah, atau email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -727,7 +810,7 @@ const VendorManagement = () => {
             <thead>
               <tr>
                 <th>Nama Vendor (Penjahit)</th>
-                <th>Sekolah yang Dilayani</th>
+                <th>Sekolah yang Dilayani (Google Penjualan)</th>
                 <th style={{ textAlign: 'center' }}>Aksi</th>
               </tr>
             </thead>
@@ -764,6 +847,11 @@ const VendorManagement = () => {
                       >
                         🏫 {p.app_users?.school_name || 'Sekolah'}
                       </span>
+                      {p.app_users?.username && p.app_users.username.includes('@') && (
+                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>
+                          ✉️ {p.app_users.username} {p.app_users?.school_level ? `• Jenjang: ${p.app_users.school_level}` : ''}
+                        </div>
+                      )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -1141,10 +1229,10 @@ const VendorManagement = () => {
       {/* MODAL PLOTTING SEKOLAH */}
       {showAddPlotting && (
         <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '520px' }}>
+          <div className="modal" style={{ maxWidth: '560px' }}>
             <h3>🔗 Plotting Vendor ke Sekolah</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
-              Tentukan vendor konveksi mana yang bertanggung jawab menyediakan seragam untuk sekolah tertentu.
+              Tentukan vendor konveksi mana yang bertanggung jawab menyediakan seragam untuk sekolah tertentu (khusus akun resmi Gmail Penjualan).
             </p>
             <form onSubmit={handleAddPlotting} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
@@ -1155,7 +1243,7 @@ const VendorManagement = () => {
                   onChange={(e) => setPlotVendorId(e.target.value)}
                   style={inputStyle}
                 >
-                  <option value="">-- Pilih Vendor --</option>
+                  <option value="">-- Pilih Vendor ({vendors.length} Vendor Tersedia) --</option>
                   {vendors.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
@@ -1163,22 +1251,53 @@ const VendorManagement = () => {
                   ))}
                 </select>
               </div>
+
               <div>
-                <label style={labelStyle}>Pilih Sekolah</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={labelStyle}>Pilih Sekolah (Akun Gmail Penjualan)</label>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {['ALL', 'TK', 'SD', 'SMP', 'SMA'].map((lvl) => (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => {
+                          setPlotLevelFilter(lvl);
+                          setPlotSchoolId('');
+                        }}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #cbd5e1',
+                          background: plotLevelFilter === lvl ? '#0284c7' : '#f8fafc',
+                          color: plotLevelFilter === lvl ? '#fff' : '#475569',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {lvl === 'ALL' ? 'Semua' : lvl}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <select
                   required
                   value={plotSchoolId}
                   onChange={(e) => setPlotSchoolId(e.target.value)}
                   style={inputStyle}
                 >
-                  <option value="">-- Pilih Sekolah --</option>
-                  {schools.map((s) => (
+                  <option value="">
+                    -- Pilih Sekolah ({filteredModalSchools.length} Sekolah Google Terdaftar) --
+                  </option>
+                  {filteredModalSchools.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.school_name}
+                      [{s.level}] {s.school_name} — ({s.email})
                     </option>
                   ))}
                 </select>
               </div>
+
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
                 <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={submitting}>
                   {submitting ? 'Menyimpan...' : 'Simpan Plotting'}
