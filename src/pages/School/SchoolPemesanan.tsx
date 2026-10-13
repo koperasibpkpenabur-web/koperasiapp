@@ -76,6 +76,7 @@ const SchoolPemesanan = () => {
   const [shippedCount, setShippedCount] = useState(0);
   const [totalAllCount, setTotalAllCount] = useState(0);
   const [receivedCount, setReceivedCount] = useState(0);
+  const [cancellationsCount, setCancellationsCount] = useState(0);
 
   const [schoolReturns, setSchoolReturns] = useState<any[]>([]);
 
@@ -84,17 +85,19 @@ const SchoolPemesanan = () => {
     if (!user?.id) return;
     const { data, error } = await supabase.from('orders').select('status').eq('school_user_id', user.id);
     if (!error && data) {
-      let p = 0, a = 0, s = 0, r = 0;
+      let p = 0, a = 0, s = 0, r = 0, c = 0;
       data.forEach((o: any) => {
         if (o.status === 'pending') p++;
         else if (o.status === 'approved') a++;
         else if (o.status === 'shipped') s++;
         else if (o.status === 'received') r++;
+        else if (o.status === 'cancelled' || o.status === 'cancellation_requested' || o.status === 'rejected') c++;
       });
       setPendingCount(p);
       setApprovedCount(a);
       setShippedCount(s);
       setReceivedCount(r);
+      setCancellationsCount(c);
       setTotalAllCount(data.length);
     }
   };
@@ -892,7 +895,7 @@ const SchoolPemesanan = () => {
           className={`tab-button ${activeTab === 'cancellations' ? 'active' : ''}`}
           onClick={() => setActiveTab('cancellations')}
         >
-          🚫 History Pembatalan ({totalAllCount})
+          🚫 History Pembatalan ({cancellationsCount})
         </button>
       </div>
 
