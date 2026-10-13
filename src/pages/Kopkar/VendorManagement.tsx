@@ -186,7 +186,7 @@ const ActionMenu = ({
                 cursor: 'pointer',
                 fontSize: '0.85rem',
                 color: '#ef4444',
-                borderTop: '1px solid #f1f5f9',
+                borderTop: onEdit || onDetail || onAddStock ? '1px solid #f1f5f9' : 'none',
               }}
               onMouseOver={(e) => (e.currentTarget.style.background = '#fef2f2')}
               onMouseOut={(e) => (e.currentTarget.style.background = 'none')}
@@ -222,8 +222,19 @@ const VendorManagement = () => {
 
   // Modals Plotting
   const [showAddPlotting, setShowAddPlotting] = useState(false);
+  const [editingPlotting, setEditingPlotting] = useState<Plotting | null>(null);
   const [plotLevelFilter, setPlotLevelFilter] = useState('ALL');
   const [plotClothingType, setPlotClothingType] = useState('');
+
+  // Form Plotting (Add)
+  const [plotVendorId, setPlotVendorId] = useState('');
+  const [plotSchoolId, setPlotSchoolId] = useState('');
+
+  // Form Plotting (Edit)
+  const [editPlotVendorId, setEditPlotVendorId] = useState('');
+  const [editPlotSchoolId, setEditPlotSchoolId] = useState('');
+  const [editPlotLevelFilter, setEditPlotLevelFilter] = useState('ALL');
+  const [editPlotClothingType, setEditPlotClothingType] = useState('');
 
   // Modals Stock
   const [showAddStock, setShowAddStock] = useState(false);
@@ -234,10 +245,6 @@ const VendorManagement = () => {
   const [vendorContact, setVendorContact] = useState('');
   const [vendorPhone, setVendorPhone] = useState('');
   const [vendorAddress, setVendorAddress] = useState('');
-
-  // Form Plotting
-  const [plotVendorId, setPlotVendorId] = useState('');
-  const [plotSchoolId, setPlotSchoolId] = useState('');
 
   // Form Stock
   const [stockVendorId, setStockVendorId] = useState('');
@@ -500,6 +507,63 @@ const VendorManagement = () => {
     }
   };
 
+  const handleOpenEditPlotting = (p: Plotting) => {
+    setEditingPlotting(p);
+    setEditPlotVendorId(p.vendor_id);
+    setEditPlotSchoolId(p.school_user_id);
+    setEditPlotClothingType(p.clothing_type || 'Semua Jenis Baju');
+    const sch = schools.find((s) => s.id === p.school_user_id);
+    if (sch) {
+      setEditPlotLevelFilter(sch.level.toUpperCase());
+    } else {
+      setEditPlotLevelFilter('ALL');
+    }
+  };
+
+  const handleUpdatePlotting = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPlotting) return;
+    if (!editPlotVendorId || !editPlotSchoolId) {
+      alert('Pilih vendor dan sekolah');
+      return;
+    }
+    if (!editPlotClothingType) {
+      alert('Pilih jenis baju yang diproduksi');
+      return;
+    }
+
+    setSubmitting(true);
+    let { error } = await supabase
+      .from('vendor_school_assignments')
+      .update({
+        vendor_id: editPlotVendorId,
+        school_user_id: editPlotSchoolId,
+        clothing_type: editPlotClothingType,
+      })
+      .eq('id', editingPlotting.id);
+
+    if (error && error.message.includes('clothing_type')) {
+      const res = await supabase
+        .from('vendor_school_assignments')
+        .update({
+          vendor_id: editPlotVendorId,
+          school_user_id: editPlotSchoolId,
+        })
+        .eq('id', editingPlotting.id);
+      error = res.error;
+    }
+
+    setSubmitting(false);
+
+    if (!error) {
+      alert('Plotting sekolah berhasil diperbarui!');
+      setEditingPlotting(null);
+      fetchPlottings();
+    } else {
+      alert('Gagal memperbarui plotting: ' + error.message);
+    }
+  };
+
   const handleDeletePlotting = async (id: string) => {
     if (!window.confirm('Hapus plotting sekolah ini?')) return;
     const { error } = await supabase.from('vendor_school_assignments').delete().eq('id', id);
@@ -631,10 +695,10 @@ const VendorManagement = () => {
       ? schools
       : schools.filter((s) => s.level.toUpperCase() === plotLevelFilter);
 
-  // Deteksi sekolah terpilih di modal plotting untuk memanggil jenis baju sesuai jenjang
+  // Deteksi sekolah terpilih di modal tambah plotting untuk memanggil jenis baju sesuai jenjang
   const selectedPlotSchool = schools.find((s) => s.id === plotSchoolId);
 
-  // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah yang dipilih
+  // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah yang dipilih di modal tambah plotting
   const availableClothingTypes = Array.from(
     new Set(
       products
@@ -647,6 +711,29 @@ const VendorManagement = () => {
         .map((p) => p.name.trim())
     )
   ).sort();
+
+  // Deteksi sekolah terpilih di modal edit plotting
+  const selectedEditPlotSchool = schools.find((s) => s.id === editPlotSchoolId);
+
+  // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah yang dipilih di modal edit plotting
+  const editAvailableClothingTypes = Array.from(
+    new Set(
+      products
+        .filter(
+          (p) =>
+            selectedEditPlotSchool &&
+            p.level?.toUpperCase() === selectedEditPlotSchool.level?.toUpperCase() &&
+            p.category === 'seragam'
+        )
+        .map((p) => p.name.trim())
+    )
+  ).sort();
+
+  // Filter sekolah di modal edit plotting
+  const filteredEditModalSchools =
+    editPlotLevelFilter === 'ALL'
+      ? schools
+      : schools.filter((s) => s.level.toUpperCase() === editPlotLevelFilter);
 
   return (
     <div className="kopkar-dashboard">
@@ -835,14 +922,7 @@ const VendorManagement = () => {
                 minWidth: '260px',
               }}
             />
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                className="btn-secondary"
-                onClick={() => openAddStockModal()}
-                style={{ background: '#f0f9ff', color: '#0369a1', borderColor: '#bae6fd' }}
-              >
-                📦 + Input Stok Barang Jadi
-              </button>
+            <div>
               <button className="btn-primary" onClick={() => setShowAddPlotting(true)}>
                 🔗 + Plot Sekolah Baru
               </button>
@@ -914,26 +994,10 @@ const VendorManagement = () => {
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          type="button"
-                          onClick={() => openAddStockModal(p.vendor_id)}
-                          style={{
-                            background: '#f8fafc',
-                            border: '1px solid #cbd5e1',
-                            padding: '4px 10px',
-                            borderRadius: '6px',
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                            color: '#0284c7',
-                            fontWeight: 600,
-                          }}
-                          title="Input stok langsung untuk vendor ini"
-                        >
-                          📦 Input Stok
-                        </button>
-                        <ActionMenu onDelete={() => handleDeletePlotting(p.id)} />
-                      </div>
+                      <ActionMenu
+                        onEdit={() => handleOpenEditPlotting(p)}
+                        onDelete={() => handleDeletePlotting(p.id)}
+                      />
                     </td>
                   </tr>
                 ))
@@ -1286,7 +1350,7 @@ const VendorManagement = () => {
         </div>
       )}
 
-      {/* MODAL PLOTTING SEKOLAH */}
+      {/* MODAL TAMBAH PLOTTING SEKOLAH */}
       {showAddPlotting && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '560px' }}>
@@ -1402,6 +1466,126 @@ const VendorManagement = () => {
                   type="button"
                   className="btn-secondary"
                   onClick={() => setShowAddPlotting(false)}
+                  style={{ flex: 1 }}
+                  disabled={submitting}
+                >
+                  Batal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT PLOTTING SEKOLAH */}
+      {editingPlotting && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '560px' }}>
+            <h3>✏️ Edit Plotting Vendor ke Sekolah</h3>
+            <p style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
+              Ubah vendor konveksi, sekolah yang dilayani, atau jenis baju yang diproduksi.
+            </p>
+            <form onSubmit={handleUpdatePlotting} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={labelStyle}>Pilih Vendor (Penjahit)</label>
+                <select
+                  required
+                  value={editPlotVendorId}
+                  onChange={(e) => setEditPlotVendorId(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">-- Pilih Vendor --</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={labelStyle}>Pilih Sekolah (Akun Gmail Penjualan)</label>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {['ALL', 'TK', 'SD', 'SMP', 'SMA'].map((lvl) => (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => {
+                          setEditPlotLevelFilter(lvl);
+                        }}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #cbd5e1',
+                          background: editPlotLevelFilter === lvl ? '#0284c7' : '#f8fafc',
+                          color: editPlotLevelFilter === lvl ? '#fff' : '#475569',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {lvl === 'ALL' ? 'Semua' : lvl}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <select
+                  required
+                  value={editPlotSchoolId}
+                  onChange={(e) => {
+                    setEditPlotSchoolId(e.target.value);
+                    setEditPlotClothingType('');
+                  }}
+                  style={inputStyle}
+                >
+                  <option value="">
+                    -- Pilih Sekolah ({filteredEditModalSchools.length} Sekolah Google Terdaftar) --
+                  </option>
+                  {filteredEditModalSchools.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      [{s.level}] {s.school_name} — ({s.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Jenis Baju yang Diproduksi</label>
+                <select
+                  required
+                  value={editPlotClothingType}
+                  onChange={(e) => setEditPlotClothingType(e.target.value)}
+                  style={inputStyle}
+                  disabled={!editPlotSchoolId}
+                >
+                  {!editPlotSchoolId ? (
+                    <option value="">-- Pilih Sekolah Terlebih Dahulu --</option>
+                  ) : (
+                    <>
+                      <option value="">
+                        -- Pilih Jenis Baju ({editAvailableClothingTypes.length} Jenis di Jenjang {selectedEditPlotSchool?.level}) --
+                      </option>
+                      <option value="Semua Jenis Baju">👕 Semua Jenis Baju (Full Seragam)</option>
+                      {editAvailableClothingTypes.map((item) => (
+                        <option key={item} value={item}>
+                          👔 {item}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={submitting}>
+                  {submitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setEditingPlotting(null)}
                   style={{ flex: 1 }}
                   disabled={submitting}
                 >
