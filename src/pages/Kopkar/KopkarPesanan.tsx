@@ -23,6 +23,23 @@ const KopkarPesanan = () => {
     setExpandedItems(prev => ({ ...prev, [orderId]: !prev[orderId] }));
   };
 
+  const [isNotifEnabled, setIsNotifEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('kopkar_order_notif_enabled');
+    return saved === null ? true : saved === 'true';
+  });
+
+  const handleToggleNotif = () => {
+    setIsNotifEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem('kopkar_order_notif_enabled', String(next));
+      window.dispatchEvent(new CustomEvent('kopkar-notif-toggle', { detail: next }));
+      if (next) {
+        playOrderNotificationSound();
+      }
+      return next;
+    });
+  };
+
   const fetchOrders = useCallback(async (silent = false) => {
     if (!silent) setLoadingOrders(true);
     const { data, error } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false });
@@ -462,25 +479,37 @@ const KopkarPesanan = () => {
         <h2 style={{ margin: 0 }}>Pengelolaan Pesanan</h2>
         <button
           type="button"
-          onClick={playOrderNotificationSound}
+          onClick={handleToggleNotif}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
+            gap: '8px',
             fontSize: '0.85rem',
-            fontWeight: 600,
+            fontWeight: 700,
             padding: '7px 14px',
             cursor: 'pointer',
             borderRadius: '8px',
-            border: '1px solid #cbd5e1',
-            background: '#ffffff',
-            color: '#334155',
+            border: isNotifEnabled ? '1px solid #10b981' : '1px solid #cbd5e1',
+            background: isNotifEnabled ? '#ecfdf5' : '#f8fafc',
+            color: isNotifEnabled ? '#065f46' : '#64748b',
             boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-            transition: 'all 0.15s ease'
+            transition: 'all 0.2s ease',
           }}
-          title="Uji coba suara notifikasi 'ting' untuk pesanan baru"
+          title={isNotifEnabled ? 'Notifikasi Suara: AKTIF (Klik untuk mematikan)' : 'Notifikasi Suara: NONAKTIF (Klik untuk mengaktifkan)'}
         >
-          🔊 Tes Notifikasi Suara
+          <span style={{ fontSize: '1.05rem' }}>{isNotifEnabled ? '🔔' : '🔕'}</span>
+          <span>Notifikasi Suara: <strong>{isNotifEnabled ? 'ON' : 'OFF'}</strong></span>
+          <span
+            style={{
+              display: 'inline-block',
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: isNotifEnabled ? '#10b981' : '#94a3b8',
+              marginLeft: '2px',
+              boxShadow: isNotifEnabled ? '0 0 6px #10b981' : 'none',
+            }}
+          />
         </button>
       </div>
 

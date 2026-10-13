@@ -30,27 +30,33 @@ const OrderRealtimeNotification = () => {
     lastProcessedIdRef.current = order.id;
     latestOrderIdRef.current = order.id;
 
-    console.log('🔔 Memproses notifikasi pesanan baru:', order);
+    // Check setting (default is ON/true)
+    const notifSetting = localStorage.getItem('kopkar_order_notif_enabled');
+    const isEnabled = notifSetting === null ? true : notifSetting === 'true';
 
-    // 1. Play "ting" sound
-    playOrderNotificationSound();
-
-    // 2. Dispatch custom event so active pages (KopkarPesanan, KopkarDashboard) auto-refresh
+    // 1. Dispatch custom event so active pages (KopkarPesanan, KopkarDashboard) always auto-refresh
     window.dispatchEvent(
       new CustomEvent('new-order-received', { detail: order })
     );
 
-    // 3. Add to floating toasts
-    const toastId = `${order.id}-${Date.now()}`;
-    setToasts((prev) => [
-      {
-        id: toastId,
-        orderId: order.id,
-        schoolName: order.school_name || 'Sekolah',
-        timestamp: Date.now(),
-      },
-      ...prev.slice(0, 3), // Keep max 4 toasts
-    ]);
+    // 2. Play sound & show floating toast when ON
+    if (isEnabled) {
+      console.log('🔔 Memproses notifikasi pesanan baru (Status: ON):', order);
+      playOrderNotificationSound();
+
+      const toastId = `${order.id}-${Date.now()}`;
+      setToasts((prev) => [
+        {
+          id: toastId,
+          orderId: order.id,
+          schoolName: order.school_name || 'Sekolah',
+          timestamp: Date.now(),
+        },
+        ...prev.slice(0, 3), // Keep max 4 toasts
+      ]);
+    } else {
+      console.log('🔕 Notifikasi suara & toast dimatikan (Status: OFF). Data tetap diperbarui:', order);
+    }
   }, []);
 
   const checkForNewOrders = useCallback(async () => {
