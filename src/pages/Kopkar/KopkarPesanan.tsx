@@ -1,11 +1,12 @@
 // @ts-nocheck
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useReturns } from '../../context/ReturnContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, ShippingInfo } from '../../types';
+import { playOrderNotificationSound } from '../../utils/sound';
 import SuratJalanPrint from './SuratJalanPrint';
 import KwitansiPrint from './KwitansiPrint';
 import { generateSuratJalanExcel } from '../../utils/excelGenerator';
@@ -22,53 +23,64 @@ const KopkarPesanan = () => {
     setExpandedItems(prev => ({ ...prev, [orderId]: !prev[orderId] }));
   };
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      setLoadingOrders(true);
-      const { data, error } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false });
-      if (!error && data) {
-        setOrders(data.map((row: any) => ({
-          id: row.id,
-          schoolUserId: row.school_user_id,
-          schoolName: row.school_name,
-          schoolLevel: row.school_level,
-          orderPhase: row.order_phase,
-          items: (row.order_items || []).map((it: any) => ({
-            id: it.id,
-            productId: it.product_id,
-            name: it.name,
-            type: it.type,
-            size: it.size,
-            gender: it.gender,
-            quantity: it.quantity,
-            priceKopkar: Number(it.price_kopkar),
-            feeSchool: Number(it.fee_school),
-            priceStudent: Number(it.price_student),
-          })),
-          totalPriceKopkar: Number(row.total_price_kopkar),
-          totalFeeSchool: Number(row.total_fee_school),
-          totalPriceStudent: Number(row.total_price_student),
-          status: row.status,
-          rejectionReason: row.rejection_reason,
-          shippingInfo: row.shipping_info,
-          receiveInfo: row.receive_info,
-          cancellationInfo: row.cancellation_info,
-          paymentStatus: row.payment_status,
-          paidAt: row.paid_at,
-          paidNotes: row.paid_notes,
-          feeStatus: row.fee_status,
-          feeDisbursedAt: row.fee_disbursed_at,
-          feeDisbursedBy: row.fee_disbursed_by,
-          feeDisbursedNotes: row.fee_disbursed_notes,
-          createdAt: row.created_at,
-          processedAt: row.processed_at,
-          processedBy: row.processed_by,
-        })));
-      }
-      setLoadingOrders(false);
-    };
-    fetchOrders();
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setLoadingOrders(true);
+    const { data, error } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false });
+    if (!error && data) {
+      setOrders(data.map((row: any) => ({
+        id: row.id,
+        schoolUserId: row.school_user_id,
+        schoolName: row.school_name,
+        schoolLevel: row.school_level,
+        orderPhase: row.order_phase,
+        items: (row.order_items || []).map((it: any) => ({
+          id: it.id,
+          productId: it.product_id,
+          name: it.name,
+          type: it.type,
+          size: it.size,
+          gender: it.gender,
+          quantity: it.quantity,
+          priceKopkar: Number(it.price_kopkar),
+          feeSchool: Number(it.fee_school),
+          priceStudent: Number(it.price_student),
+        })),
+        totalPriceKopkar: Number(row.total_price_kopkar),
+        totalFeeSchool: Number(row.total_fee_school),
+        totalPriceStudent: Number(row.total_price_student),
+        status: row.status,
+        rejectionReason: row.rejection_reason,
+        shippingInfo: row.shipping_info,
+        receiveInfo: row.receive_info,
+        cancellationInfo: row.cancellation_info,
+        paymentStatus: row.payment_status,
+        paidAt: row.paid_at,
+        paidNotes: row.paid_notes,
+        feeStatus: row.fee_status,
+        feeDisbursedAt: row.fee_disbursed_at,
+        feeDisbursedBy: row.fee_disbursed_by,
+        feeDisbursedNotes: row.fee_disbursed_notes,
+        createdAt: row.created_at,
+        processedAt: row.processed_at,
+        processedBy: row.processed_by,
+      })));
+    }
+    if (!silent) setLoadingOrders(false);
   }, []);
+
+  useEffect(() => {
+    fetchOrders();
+
+    const handleNewOrder = () => {
+      // Auto-refresh orders list silently without full screen blink
+      fetchOrders(true);
+    };
+
+    window.addEventListener('new-order-received', handleNewOrder);
+    return () => {
+      window.removeEventListener('new-order-received', handleNewOrder);
+    };
+  }, [fetchOrders]);
 
   const {
     approveOrder,
@@ -441,7 +453,31 @@ const KopkarPesanan = () => {
 
   return (
     <div className="kopkar-dashboard">
-      <h2>Pengelolaan Pesanan</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+        <h2 style={{ margin: 0 }}>Pengelolaan Pesanan</h2>
+        <button
+          type="button"
+          onClick={playOrderNotificationSound}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            padding: '7px 14px',
+            cursor: 'pointer',
+            borderRadius: '8px',
+            border: '1px solid #cbd5e1',
+            background: '#ffffff',
+            color: '#334155',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            transition: 'all 0.15s ease'
+          }}
+          title="Uji coba suara notifikasi 'ting' untuk pesanan baru"
+        >
+          🔊 Tes Notifikasi Suara
+        </button>
+      </div>
 
 
       {/* Operational Highlights */}

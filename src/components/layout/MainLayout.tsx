@@ -3,6 +3,7 @@ import { useUI } from '../../context/UIContext';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import NotificationPopup from '../NotificationPopup';
+import OrderRealtimeNotification from '../common/OrderRealtimeNotification';
 import './layout.css';
 
 const MainLayout = () => {
@@ -29,6 +30,7 @@ const MainLayout = () => {
       </div>
       
       <NotificationPopup />
+      <OrderRealtimeNotification />
     </div>
   );
 };

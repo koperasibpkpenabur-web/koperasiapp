@@ -14,8 +14,8 @@ const KopkarDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
+    const fetchData = async (silent = false) => {
+      if (!silent) setLoading(true);
       const { data, error } = await supabase
         .from('orders')
         .select('status, school_name, total_price_student, total_price_kopkar');
@@ -23,12 +23,19 @@ const KopkarDashboard = () => {
       if (!error && data) {
         setPendingOrders(data.filter((o: any) => o.status === 'pending').length);
         setCancelRequestsCount(data.filter((o: any) => o.status === 'cancellation_requested').length);
-
-
       }
-      setLoading(false);
+      if (!silent) setLoading(false);
     };
     fetchData();
+
+    const handleNewOrder = () => {
+      fetchData(true);
+    };
+
+    window.addEventListener('new-order-received', handleNewOrder);
+    return () => {
+      window.removeEventListener('new-order-received', handleNewOrder);
+    };
   }, []);
 
 
