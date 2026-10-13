@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import './NotificationPopup.css';
@@ -16,33 +16,31 @@ interface AppNotification {
 const NotificationPopup = () => {
   const { user, isAuthenticated } = useAuth();
   const [activeNotification, setActiveNotification] = useState<AppNotification | null>(null);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated && (user?.role === 'sekolah' || user?.role === 'guru_ots')) {
-      checkNotifications();
-    }
-  }, [isAuthenticated, user]);
-
-  const checkNotifications = async () => {
+  const checkNotifications = useCallback(async () => {
     if (!user) return;
 
-    // Fetch all active notifications
-    // Note: To prevent fetching too many, we can limit to recent 10.
-    const { data } = await supabase
+    // Ambil daftar pengumuman yang ditandai "Jangan tampilkan lagi" selama sesi login ini
+    let suppressedList: string[] = [];
+    try {
+      const raw = sessionStorage.getItem('suppressed_notifications');
+      if (raw) suppressedList = JSON.parse(raw);
+    } catch {}
+
+    // Ambil daftar pengumuman terbaru
+    const { data, error } = await supabase
       .from('notifications')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(10);
 
-    if (data && data.length > 0) {
-      // Get read history from local storage
-      const readNotifs = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+    if (!error && data && data.length > 0) {
+      // Cari pengumuman pertama yang cocok untuk user dan belum diceklis "Jangan tampilkan lagi" di sesi ini
+      const unsuppressed = data.find((n: AppNotification) => {
+        if (suppressedList.includes(n.id)) return false;
 
-      // Find the first unread notification that matches this user
-      const unread = data.find((n: AppNotification) => {
-        if (readNotifs.includes(n.id)) return false;
-
-        // Check target matching
+        // Cocokkan target pengumuman
         if (n.target_type === 'all') return true;
         if (n.target_type === 'level' && n.target_value === user.schoolLevel) return true;
         if (n.target_type === 'school' && n.target_value === user.id) return true;
@@ -50,21 +48,74 @@ const NotificationPopup = () => {
         return false;
       });
 
-      if (unread) {
-        setActiveNotification(unread);
+      if (unsuppressed) {
+        setActiveNotification(unsuppressed);
+        setDontShowAgain(false); // Reset checkbox untuk pengumuman yang tampil
+      } else {
+        setActiveNotification(null);
       }
     }
-  };
+  }, [user]);
+
+  // Cek pengumuman saat pertama kali login / komponen mount
+  useEffect(() => {
+    if (isAuthenticated && (user?.role === 'sekolah' || user?.role === 'guru_ots')) {
+      checkNotifications();
+    } else {
+      setActiveNotification(null);
+    }
+  }, [isAuthenticated, user, checkNotifications]);
+
+  // Deteksi ketika window di-minimize lalu di-maximize lagi, atau berpindah window/tab
+  useEffect(() => {
+    if (!isAuthenticated || (user?.role !== 'sekolah' && user?.role !== 'guru_ots')) {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      // Saat window kembali aktif / un-minimized (document.hidden === false)
+      if (!document.hidden) {
+        checkNotifications();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      checkNotifications();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [isAuthenticated, user, checkNotifications]);
 
   const handleClose = () => {
-    if (activeNotification) {
-      const readNotifs = JSON.parse(localStorage.getItem('read_notifications') || '[]');
-      readNotifs.push(activeNotification.id);
-      localStorage.setItem('read_notifications', JSON.stringify(readNotifs));
-      
-      // Close and check if there are more unread notifications
-      setActiveNotification(null);
-      checkNotifications(); 
+    if (!activeNotification) return;
+
+    if (dontShowAgain) {
+      // Jika dicentang: simpan ID ke sessionStorage agar tidak muncul lagi selama sesi login ini
+      try {
+        const raw = sessionStorage.getItem('suppressed_notifications');
+        const list: string[] = raw ? JSON.parse(raw) : [];
+        if (!list.includes(activeNotification.id)) {
+          list.push(activeNotification.id);
+          sessionStorage.setItem('suppressed_notifications', JSON.stringify(list));
+        }
+      } catch (err) {
+        console.warn('Gagal menyimpan suppressed notification:', err);
+      }
+    }
+
+    // Tutup popup
+    setActiveNotification(null);
+    setDontShowAgain(false);
+
+    // Jika tadi dicentang, cek apakah masih ada pengumuman lain yang belum diceklis
+    if (dontShowAgain) {
+      checkNotifications();
     }
   };
 
@@ -77,19 +128,35 @@ const NotificationPopup = () => {
           <h3>📢 PENGUMUMAN</h3>
         </div>
         <div className="notif-popup-body">
-          <h4 style={{ margin: '0 0 12px 0', fontSize: '1.2rem', color: '#1e293b' }}>{activeNotification.title}</h4>
+          <h4 style={{ margin: '0 0 12px 0', fontSize: '1.2rem', color: '#1e293b' }}>
+            {activeNotification.title}
+          </h4>
           <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', color: '#334155', margin: 0 }}>
             {activeNotification.message}
           </p>
           <div style={{ marginTop: '24px', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>
-            Dikirim oleh: {activeNotification.created_by} <br/>
+            Dikirim oleh: {activeNotification.created_by} <br />
             {new Date(activeNotification.created_at).toLocaleDateString('id-ID', {
-              day: 'numeric', month: 'long', year: 'numeric'
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
             })}
           </div>
         </div>
         <div className="notif-popup-footer">
-          <button className="btn-primary" onClick={handleClose} style={{ width: '100%', padding: '12px', fontSize: '1rem' }}>
+          <label className="notif-popup-checkbox-label">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.target.checked)}
+              className="notif-popup-checkbox"
+            />
+            <span>Jangan tampilkan lagi selama sesi login ini</span>
+          </label>
+          <button
+            className="btn-primary notif-popup-close-btn"
+            onClick={handleClose}
+          >
             Saya Mengerti & Tutup
           </button>
         </div>

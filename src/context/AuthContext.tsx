@@ -209,6 +209,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     setUser(null);
+    try {
+      sessionStorage.removeItem('suppressed_notifications');
+    } catch {}
     await supabase.auth.signOut();
   }, []);
 
