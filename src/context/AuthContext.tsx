@@ -56,9 +56,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(MAINTENANCE_KEY, String(isMaintenanceMode));
   }, [isMaintenanceMode]);
 
+  // Sinkronisasi/auto-heal schoolLevel jika user adalah sekolah tetapi schoolLevel belum terisi di state/storage
   useEffect(() => {
-    localStorage.setItem(MAINTENANCE_KEY, String(isMaintenanceMode));
-  }, [isMaintenanceMode]);
+    if (user && (user.role === 'sekolah' || user.role === 'guru_ots') && !user.schoolLevel) {
+      supabase
+        .from('app_users')
+        .select('school_level, school_name')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data: appUserData }) => {
+          if (appUserData?.school_level) {
+            setUser((prev) => prev ? { ...prev, schoolLevel: appUserData.school_level.trim() } : prev);
+          } else {
+            supabase
+              .from('school_whitelist')
+              .select('*')
+              .eq('email', user.username)
+              .maybeSingle()
+              .then(({ data: wlData }) => {
+                const j = wlData?.Jenjang || wlData?.jenjang;
+                if (j) {
+                  const clean = typeof j === 'string' ? j.trim() : j;
+                  setUser((prev) => prev ? { ...prev, schoolLevel: clean } : prev);
+                }
+              });
+          }
+        });
+    }
+  }, [user]);
 
   const setMaintenanceMode = useCallback((enabled: boolean) => {
     setIsMaintenanceMode(enabled);
@@ -129,6 +154,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       let effectiveUserId = id;
 
+      // Ambil nama & jenjang sekolah dari whitelist (perhatikan casing kolom Jenjang / nama_sekolah)
+      const rawJenjang = data.Jenjang || data.jenjang;
+      const cleanJenjang = typeof rawJenjang === 'string' ? rawJenjang.trim() : rawJenjang;
+      const cleanSchoolName = (data.nama_sekolah || data.Nama_Sekolah || email.split('@')[0] || '-').trim();
+
       try {
         // Cek apakah akun sudah terdaftar di app_users berdasarkan ID atau email
         const { data: existingAppUser } = await supabase
@@ -137,15 +167,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .or(`id.eq.${id},username.eq.${email}`)
           .maybeSingle();
 
+        const finalJenjang = cleanJenjang || existingAppUser?.school_level?.trim() || 'SMP';
+        const finalSchoolName = cleanSchoolName || existingAppUser?.school_name?.trim() || '-';
+
         if (existingAppUser) {
           effectiveUserId = existingAppUser.id;
           // Pastikan nama sekolah dan jenjang tetap sinkron
           await supabase
             .from('app_users')
             .update({
-              name: data.nama_sekolah || existingAppUser.name,
-              school_name: data.nama_sekolah || existingAppUser.school_name,
-              school_level: data.jenjang || existingAppUser.school_level,
+              name: finalSchoolName,
+              school_name: finalSchoolName,
+              school_level: finalJenjang,
             })
             .eq('id', existingAppUser.id);
         } else {
@@ -156,10 +189,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: id,
               username: email,
               password: '',
-              name: data.nama_sekolah || email.split('@')[0],
+              name: finalSchoolName,
               role: 'sekolah',
-              school_name: data.nama_sekolah || '-',
-              school_level: data.jenjang || 'SMP',
+              school_name: finalSchoolName,
+              school_level: finalJenjang,
             }])
             .select()
             .single();
@@ -173,10 +206,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               .insert([{
                 username: email,
                 password: '',
-                name: data.nama_sekolah || email.split('@')[0],
+                name: finalSchoolName,
                 role: 'sekolah',
-                school_name: data.nama_sekolah || '-',
-                school_level: data.jenjang || 'SMP',
+                school_name: finalSchoolName,
+                school_level: finalJenjang,
               }])
               .select()
               .single();
@@ -194,10 +227,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: effectiveUserId,
         username: email,
         password: '', // OAuth tidak pakai password
-        name: data.nama_sekolah || email.split('@')[0],
+        name: cleanSchoolName,
         role: 'sekolah',
-        schoolName: data.nama_sekolah || '-', 
-        schoolLevel: data.jenjang,
+        schoolName: cleanSchoolName, 
+        schoolLevel: cleanJenjang || 'SMP',
         createdAt: new Date().toISOString(),
       };
 

@@ -36,14 +36,59 @@ const NotificationPopup = () => {
       .limit(10);
 
     if (!error && data && data.length > 0) {
+      // Ambil level sekolah pengguna (dengan fallback langsung ke app_users/school_whitelist jika di state masih undefined/kosong)
+      let currentSchoolLevel = user.schoolLevel?.trim();
+      if (!currentSchoolLevel && (user.role === 'sekolah' || user.role === 'guru_ots')) {
+        try {
+          const { data: dbUser } = await supabase
+            .from('app_users')
+            .select('school_level')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (dbUser?.school_level) {
+            currentSchoolLevel = dbUser.school_level.trim();
+          } else {
+            const { data: wlData } = await supabase
+              .from('school_whitelist')
+              .select('*')
+              .eq('email', user.username)
+              .maybeSingle();
+            const raw = wlData?.Jenjang || wlData?.jenjang;
+            if (raw) currentSchoolLevel = typeof raw === 'string' ? raw.trim() : raw;
+          }
+        } catch (e) {
+          console.warn('Gagal mengambil level sekolah:', e);
+        }
+      }
+
       // Cari pengumuman pertama yang cocok untuk user dan belum diceklis "Jangan tampilkan lagi" di sesi ini
       const unsuppressed = data.find((n: AppNotification) => {
         if (suppressedList.includes(n.id)) return false;
 
         // Cocokkan target pengumuman
         if (n.target_type === 'all') return true;
-        if (n.target_type === 'level' && n.target_value === user.schoolLevel) return true;
-        if (n.target_type === 'school' && n.target_value === user.id) return true;
+
+        if (n.target_type === 'level') {
+          const userLevelUpper = currentSchoolLevel?.toUpperCase();
+          const targetLevelUpper = n.target_value?.trim().toUpperCase();
+          if (userLevelUpper && targetLevelUpper && userLevelUpper === targetLevelUpper) {
+            return true;
+          }
+        }
+
+        if (n.target_type === 'school') {
+          const target = n.target_value?.trim().toLowerCase();
+          if (
+            target &&
+            (target === user.id?.toLowerCase() ||
+             target === user.username?.toLowerCase() ||
+             target === user.name?.trim().toLowerCase() ||
+             target === user.schoolName?.trim().toLowerCase())
+          ) {
+            return true;
+          }
+        }
 
         return false;
       });
