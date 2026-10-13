@@ -134,3 +134,27 @@
   color: #475569;
   background: #f1f5f9;
 }
+
+/* Variant for Return (Retur) Notifications */
+.order-realtime-toast.toast-return {
+  border-left-color: #e11d48;
+}
+
+.order-realtime-toast.toast-return .order-toast-icon-wrap {
+  background: #ffe4e6;
+  color: #e11d48;
+}
+
+.order-realtime-toast.toast-return .order-toast-badge {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.order-realtime-toast.toast-return .order-toast-btn-view {
+  background: #e11d48;
+}
+
+.order-realtime-toast.toast-return .order-toast-btn-view:hover {
+  background: #be123c;
+}
+

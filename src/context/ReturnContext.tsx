@@ -80,6 +80,20 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchReturns();
+
+    const handleNewReturn = () => {
+      fetchReturns();
+    };
+
+    window.addEventListener('new-return-received', handleNewReturn);
+    window.addEventListener('focus', handleNewReturn);
+    document.addEventListener('visibilitychange', handleNewReturn);
+
+    return () => {
+      window.removeEventListener('new-return-received', handleNewReturn);
+      window.removeEventListener('focus', handleNewReturn);
+      document.removeEventListener('visibilitychange', handleNewReturn);
+    };
   }, [fetchReturns]);
 
   const generateReturnId = useCallback(() => {
@@ -123,6 +137,26 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
         return { success: false, error: error.message };
       }
       
+      // Kirim sinyal broadcast realtime ke role Kopkar agar langsung ada notifikasi suara & refresh
+      try {
+        const returnChannel = supabase.channel('order_realtime_broadcast');
+        returnChannel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            returnChannel.send({
+              type: 'broadcast',
+              event: 'new_return',
+              payload: {
+                id: newId,
+                school_name: data.schoolName,
+                created_at: newReturn.created_at,
+              },
+            });
+          }
+        });
+      } catch (broadcastErr) {
+        console.warn('Realtime broadcast error for return:', broadcastErr);
+      }
+
       await fetchReturns();
       return { success: true, id: newId };
     },
