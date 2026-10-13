@@ -110,7 +110,7 @@ const OrderRealtimeNotification = () => {
         { event: 'INSERT', schema: 'public', table: 'orders' },
         (payload) => {
           console.log('⚡ Postgres Changes diterima:', payload);
-          handleIncomingOrder(payload.new);
+          handleIncomingOrder(payload.new as any);
         }
       )
       .subscribe();
