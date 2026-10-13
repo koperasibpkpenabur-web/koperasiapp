@@ -128,6 +128,26 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       
       if (itemsError) return { success: false, error: itemsError.message };
 
+      // Kirim sinyal broadcast realtime ke role Kopkar agar langsung muncul notifikasi & refresh
+      try {
+        const orderChannel = supabase.channel('order_realtime_broadcast');
+        orderChannel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            orderChannel.send({
+              type: 'broadcast',
+              event: 'new_order',
+              payload: {
+                id: newOrderId,
+                school_name: orderData.schoolName,
+                created_at: now,
+              },
+            });
+          }
+        });
+      } catch (broadcastErr) {
+        console.warn('Realtime broadcast error:', broadcastErr);
+      }
+
       return { success: true, newOrderId };
     },
     []

@@ -77,8 +77,13 @@ const KopkarPesanan = () => {
     };
 
     window.addEventListener('new-order-received', handleNewOrder);
+    window.addEventListener('focus', handleNewOrder);
+    document.addEventListener('visibilitychange', handleNewOrder);
+
     return () => {
       window.removeEventListener('new-order-received', handleNewOrder);
+      window.removeEventListener('focus', handleNewOrder);
+      document.removeEventListener('visibilitychange', handleNewOrder);
     };
   }, [fetchOrders]);
 

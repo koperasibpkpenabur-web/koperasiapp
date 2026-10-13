@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -16,6 +16,72 @@ const OrderRealtimeNotification = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [toasts, setToasts] = useState<OrderToast[]>([]);
+  const latestOrderIdRef = useRef<string | null>(null);
+  const lastProcessedIdRef = useRef<string | null>(null);
+  const isInitialFetchRef = useRef<boolean>(true);
+
+  const handleIncomingOrder = useCallback((order: { id: string; school_name?: string }) => {
+    if (!order || !order.id) return;
+
+    // Deduplicate: Don't process the exact same order twice
+    if (lastProcessedIdRef.current === order.id) {
+      return;
+    }
+    lastProcessedIdRef.current = order.id;
+    latestOrderIdRef.current = order.id;
+
+    console.log('🔔 Memproses notifikasi pesanan baru:', order);
+
+    // 1. Play "ting" sound
+    playOrderNotificationSound();
+
+    // 2. Dispatch custom event so active pages (KopkarPesanan, KopkarDashboard) auto-refresh
+    window.dispatchEvent(
+      new CustomEvent('new-order-received', { detail: order })
+    );
+
+    // 3. Add to floating toasts
+    const toastId = `${order.id}-${Date.now()}`;
+    setToasts((prev) => [
+      {
+        id: toastId,
+        orderId: order.id,
+        schoolName: order.school_name || 'Sekolah',
+        timestamp: Date.now(),
+      },
+      ...prev.slice(0, 3), // Keep max 4 toasts
+    ]);
+  }, []);
+
+  const checkForNewOrders = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, school_name, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error || !data || data.length === 0) return;
+
+      const latest = data[0];
+
+      if (isInitialFetchRef.current) {
+        // On initial mount, just store the latest existing order ID so we don't ring on page load
+        isInitialFetchRef.current = false;
+        latestOrderIdRef.current = latest.id;
+        lastProcessedIdRef.current = latest.id;
+        return;
+      }
+
+      // If a newer order is detected
+      if (latest.id !== latestOrderIdRef.current && latest.id !== lastProcessedIdRef.current) {
+        console.log('⚡ Polling mendeteksi pesanan baru:', latest.id);
+        handleIncomingOrder(latest);
+      }
+    } catch (err) {
+      console.warn('Gagal cek pesanan baru:', err);
+    }
+  }, [handleIncomingOrder]);
 
   useEffect(() => {
     // Only subscribe for Kopkar and Admin users
@@ -23,41 +89,52 @@ const OrderRealtimeNotification = () => {
       return;
     }
 
-    const channel = supabase
-      .channel('public_orders_realtime_chime')
+    // Reset initial state
+    isInitialFetchRef.current = true;
+    checkForNewOrders();
+
+    // 1. Realtime Broadcast Channel (Client-to-Client WebSockets)
+    const broadcastChannel = supabase
+      .channel('order_realtime_broadcast')
+      .on('broadcast', { event: 'new_order' }, ({ payload }) => {
+        console.log('⚡ Realtime Broadcast diterima:', payload);
+        handleIncomingOrder(payload);
+      })
+      .subscribe();
+
+    // 2. Postgres Changes Listener (Database Replication)
+    const postgresChannel = supabase
+      .channel('order_postgres_changes')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },
         (payload) => {
-          const newOrder = payload.new;
-
-          // 1. Play "ting" sound
-          playOrderNotificationSound();
-
-          // 2. Dispatch event so active pages (e.g., KopkarPesanan) can auto-refresh
-          window.dispatchEvent(
-            new CustomEvent('new-order-received', { detail: newOrder })
-          );
-
-          // 3. Add to floating toasts
-          const toastId = `${newOrder.id}-${Date.now()}`;
-          setToasts((prev) => [
-            {
-              id: toastId,
-              orderId: newOrder.id,
-              schoolName: newOrder.school_name || 'Sekolah',
-              timestamp: Date.now(),
-            },
-            ...prev.slice(0, 3), // Keep max 4 toasts
-          ]);
+          console.log('⚡ Postgres Changes diterima:', payload);
+          handleIncomingOrder(payload.new);
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
+    // 3. Fallback Polling every 4 seconds (Guaranteed 100% reliable)
+    const pollInterval = setInterval(() => {
+      checkForNewOrders();
+    }, 4000);
+
+    // 4. Instant check on tab focus or visibility change
+    const handleFocus = () => {
+      checkForNewOrders();
     };
-  }, [user]);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      supabase.removeChannel(broadcastChannel);
+      supabase.removeChannel(postgresChannel);
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [user, handleIncomingOrder, checkForNewOrders]);
 
   // Auto-dismiss toasts after 8 seconds
   useEffect(() => {
