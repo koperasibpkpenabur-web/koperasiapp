@@ -17,6 +17,7 @@ interface Plotting {
   id: string;
   vendor_id: string;
   school_user_id: string;
+  clothing_type?: string;
   created_at?: string;
   vendors?: { name: string };
   app_users?: { school_name: string; username?: string; school_level?: string };
@@ -222,6 +223,7 @@ const VendorManagement = () => {
   // Modals Plotting
   const [showAddPlotting, setShowAddPlotting] = useState(false);
   const [plotLevelFilter, setPlotLevelFilter] = useState('ALL');
+  const [plotClothingType, setPlotClothingType] = useState('');
 
   // Modals Stock
   const [showAddStock, setShowAddStock] = useState(false);
@@ -357,6 +359,7 @@ const VendorManagement = () => {
 
   const fetchStocks = async () => {
     setLoading(true);
+    // Join dengan products (name, level, category, size)
     const { data, error } = await supabase
       .from('vendor_stocks')
       .select('*, vendors(name), products(name, level, category, size)');
@@ -450,25 +453,47 @@ const VendorManagement = () => {
       return;
     }
 
+    if (!plotClothingType) {
+      alert('Pilih jenis baju yang diproduksi');
+      return;
+    }
+
     const alreadyExists = plottings.some(
-      (p) => p.vendor_id === plotVendorId && p.school_user_id === plotSchoolId
+      (p) =>
+        p.vendor_id === plotVendorId &&
+        p.school_user_id === plotSchoolId &&
+        (p.clothing_type || 'Semua Jenis Baju') === plotClothingType
     );
     if (alreadyExists) {
-      alert('Sekolah ini sudah di-plot ke vendor tersebut.');
+      alert('Plotting dengan vendor, sekolah, dan jenis baju tersebut sudah terdaftar.');
       return;
     }
 
     setSubmitting(true);
-    const { error } = await supabase.from('vendor_school_assignments').insert({
+
+    // Coba insert dengan field clothing_type
+    let { error } = await supabase.from('vendor_school_assignments').insert({
       vendor_id: plotVendorId,
       school_user_id: plotSchoolId,
+      clothing_type: plotClothingType,
     });
+
+    // Fallback jika database belum menambahkan kolom clothing_type
+    if (error && error.message.includes('clothing_type')) {
+      const res = await supabase.from('vendor_school_assignments').insert({
+        vendor_id: plotVendorId,
+        school_user_id: plotSchoolId,
+      });
+      error = res.error;
+    }
+
     setSubmitting(false);
 
     if (!error) {
       alert('Plotting sekolah berhasil disimpan!');
       setShowAddPlotting(false);
       setPlotSchoolId('');
+      setPlotClothingType('');
       fetchPlottings();
     } else {
       alert('Gagal menyimpan plotting: ' + error.message);
@@ -584,7 +609,8 @@ const VendorManagement = () => {
       p.vendors?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.app_users?.school_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.app_users?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.app_users?.school_level?.toLowerCase().includes(searchQuery.toLowerCase())
+      p.app_users?.school_level?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.clothing_type?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredStocks = stocks.filter(
@@ -604,6 +630,23 @@ const VendorManagement = () => {
     plotLevelFilter === 'ALL'
       ? schools
       : schools.filter((s) => s.level.toUpperCase() === plotLevelFilter);
+
+  // Deteksi sekolah terpilih di modal plotting untuk memanggil jenis baju sesuai jenjang
+  const selectedPlotSchool = schools.find((s) => s.id === plotSchoolId);
+
+  // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah yang dipilih
+  const availableClothingTypes = Array.from(
+    new Set(
+      products
+        .filter(
+          (p) =>
+            selectedPlotSchool &&
+            p.level?.toUpperCase() === selectedPlotSchool.level?.toUpperCase() &&
+            p.category === 'seragam'
+        )
+        .map((p) => p.name.trim())
+    )
+  ).sort();
 
   return (
     <div className="kopkar-dashboard">
@@ -781,7 +824,7 @@ const VendorManagement = () => {
           >
             <input
               type="text"
-              placeholder="Cari vendor, sekolah, atau email..."
+              placeholder="Cari vendor, sekolah, jenis baju, atau email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -811,19 +854,20 @@ const VendorManagement = () => {
               <tr>
                 <th>Nama Vendor (Penjahit)</th>
                 <th>Sekolah yang Dilayani (Google Penjualan)</th>
+                <th>Jenis Baju yang Diproduksi</th>
                 <th style={{ textAlign: 'center' }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={3} style={{ textAlign: 'center', padding: '24px' }}>
+                  <td colSpan={4} style={{ textAlign: 'center', padding: '24px' }}>
                     Memuat data plotting...
                   </td>
                 </tr>
               ) : filteredPlottings.length === 0 ? (
                 <tr>
-                  <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                  <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
                     {plottings.length === 0 ? 'Belum ada plotting sekolah ke vendor.' : 'Tidak ada plotting yang cocok dengan pencarian.'}
                   </td>
                 </tr>
@@ -852,6 +896,22 @@ const VendorManagement = () => {
                           ✉️ {p.app_users.username} {p.app_users?.school_level ? `• Jenjang: ${p.app_users.school_level}` : ''}
                         </div>
                       )}
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          background: '#f8fafc',
+                          border: '1px solid #e2e8f0',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          color: '#1e293b',
+                          display: 'inline-block',
+                        }}
+                      >
+                        👔 {p.clothing_type || 'Semua Jenis Baju'}
+                      </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -1166,7 +1226,7 @@ const VendorManagement = () => {
                         fontWeight: 600,
                       }}
                     >
-                      {p.app_users?.school_name}
+                      {p.app_users?.school_name} {p.clothing_type ? `(${p.clothing_type})` : ''}
                     </span>
                   ))
               )}
@@ -1232,7 +1292,7 @@ const VendorManagement = () => {
           <div className="modal" style={{ maxWidth: '560px' }}>
             <h3>🔗 Plotting Vendor ke Sekolah</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
-              Tentukan vendor konveksi mana yang bertanggung jawab menyediakan seragam untuk sekolah tertentu (khusus akun resmi Gmail Penjualan).
+              Tentukan vendor konveksi mana yang bertanggung jawab memproduksi seragam tertentu untuk sekolah yang dipilih.
             </p>
             <form onSubmit={handleAddPlotting} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
@@ -1263,6 +1323,7 @@ const VendorManagement = () => {
                         onClick={() => {
                           setPlotLevelFilter(lvl);
                           setPlotSchoolId('');
+                          setPlotClothingType('');
                         }}
                         style={{
                           padding: '2px 8px',
@@ -1284,7 +1345,10 @@ const VendorManagement = () => {
                 <select
                   required
                   value={plotSchoolId}
-                  onChange={(e) => setPlotSchoolId(e.target.value)}
+                  onChange={(e) => {
+                    setPlotSchoolId(e.target.value);
+                    setPlotClothingType('');
+                  }}
                   style={inputStyle}
                 >
                   <option value="">
@@ -1296,6 +1360,38 @@ const VendorManagement = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Jenis Baju yang Diproduksi</label>
+                <select
+                  required
+                  value={plotClothingType}
+                  onChange={(e) => setPlotClothingType(e.target.value)}
+                  style={inputStyle}
+                  disabled={!plotSchoolId}
+                >
+                  {!plotSchoolId ? (
+                    <option value="">-- Pilih Sekolah Terlebih Dahulu --</option>
+                  ) : (
+                    <>
+                      <option value="">
+                        -- Pilih Jenis Baju ({availableClothingTypes.length} Jenis di Jenjang {selectedPlotSchool?.level}) --
+                      </option>
+                      <option value="Semua Jenis Baju">👕 Semua Jenis Baju (Full Seragam)</option>
+                      {availableClothingTypes.map((item) => (
+                        <option key={item} value={item}>
+                          👔 {item}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+                {selectedPlotSchool && availableClothingTypes.length === 0 && (
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#eab308' }}>
+                    * Belum ada data produk seragam terdaftar untuk jenjang {selectedPlotSchool.level}. Pilihan "Semua Jenis Baju" tetap dapat digunakan.
+                  </p>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
