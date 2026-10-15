@@ -80,18 +80,27 @@ const SchoolPemesanan = () => {
 
   const [schoolReturns, setSchoolReturns] = useState<any[]>([]);
 
-  // Fetch Aggregate Counts
+  const [hasPhase1Order, setHasPhase1Order] = useState(false);
+  const [hasPhase2Order, setHasPhase2Order] = useState(false);
+
+  // Fetch Aggregate Counts & Phase Records
   const fetchCounts = async () => {
     if (!user?.id) return;
-    const { data, error } = await supabase.from('orders').select('status').eq('school_user_id', user.id);
+    const { data, error } = await supabase.from('orders').select('status, order_phase').eq('school_user_id', user.id);
     if (!error && data) {
       let p = 0, a = 0, s = 0, r = 0, c = 0;
+      let p1 = false, p2 = false;
       data.forEach((o: any) => {
         if (o.status === 'pending') p++;
         else if (o.status === 'approved') a++;
         else if (o.status === 'shipped') s++;
         else if (o.status === 'received') r++;
         else if (o.status === 'cancelled' || o.status === 'cancellation_requested' || o.status === 'rejected') c++;
+
+        if (o.status !== 'cancelled' && o.status !== 'rejected') {
+          if (o.order_phase === 'Tahap 1') p1 = true;
+          if (o.order_phase === 'Tahap 2') p2 = true;
+        }
       });
       setPendingCount(p);
       setApprovedCount(a);
@@ -99,6 +108,8 @@ const SchoolPemesanan = () => {
       setReceivedCount(r);
       setCancellationsCount(c);
       setTotalAllCount(data.length);
+      setHasPhase1Order(p1);
+      setHasPhase2Order(p2);
     }
   };
 
@@ -174,6 +185,27 @@ const SchoolPemesanan = () => {
       // Will be updated when ReturnContext is refactored
       setSchoolReturns(getReturnsBySchoolId(user.id) as any[]);
     }
+  }, [user?.id, activeTab, statusFilter, currentPage]);
+
+  // Realtime update & window focus auto-refresh
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const handleAutoRefresh = () => {
+      fetchCounts();
+      fetchPaginated();
+      setSchoolReturns(getReturnsBySchoolId(user.id) as any[]);
+    };
+
+    window.addEventListener('school-order-updated', handleAutoRefresh);
+    window.addEventListener('focus', handleAutoRefresh);
+    document.addEventListener('visibilitychange', handleAutoRefresh);
+
+    return () => {
+      window.removeEventListener('school-order-updated', handleAutoRefresh);
+      window.removeEventListener('focus', handleAutoRefresh);
+      document.removeEventListener('visibilitychange', handleAutoRefresh);
+    };
   }, [user?.id, activeTab, statusFilter, currentPage]);
   
   const refetchData = () => {
@@ -467,8 +499,7 @@ const SchoolPemesanan = () => {
   };
   const isAllowedToInput = isInputAllowed();
 
-  const hasPhase1Order = paginatedOrders.some(o => o.orderPhase === 'Tahap 1' && o.status !== 'cancelled' && o.status !== 'rejected');
-  const hasPhase2Order = paginatedOrders.some(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected');
+  // Day Restriction Logic
 
   const handleAddItem = () => {
     const firstGroup = groupedCatalogArray[0];
@@ -1368,9 +1399,10 @@ const SchoolPemesanan = () => {
                                 </button>
                                 <button
                                   className="dropdown-item delete"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if(window.confirm('Yakin ingin menghapus permanen riwayat pembatalan ini?')) {
-                                      deleteOrder(order.id);
+                                      await deleteOrder(order.id);
+                                      refetchData();
                                     }
                                     setOpenCancelMenuId(null);
                                   }}
@@ -1427,9 +1459,10 @@ const SchoolPemesanan = () => {
                       <button 
                         className="btn-reject" 
                         style={{ flex: 1, padding: '8px', fontSize: '0.85rem' }}
-                        onClick={() => {
+                        onClick={async () => {
                           if(window.confirm('Yakin ingin menghapus permanen riwayat pembatalan ini?')) {
-                            deleteOrder(order.id);
+                            await deleteOrder(order.id);
+                            refetchData();
                           }
                         }}
                       >

@@ -76,6 +76,30 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchProducts();
+
+    // Realtime subscription for products (stock, price, catalog updates)
+    const channel = supabase
+      .channel('products_realtime_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        () => {
+          fetchProducts();
+        }
+      )
+      .subscribe();
+
+    const handleFocus = () => {
+      fetchProducts();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
   }, [fetchProducts]);
 
   const getProductsByLevel = useCallback(

@@ -133,6 +133,20 @@ const SchoolPayment = () => {
 
   useEffect(() => {
     fetchUnpaidOrders();
+
+    const handleAutoRefresh = () => {
+      fetchUnpaidOrders();
+    };
+
+    window.addEventListener('school-order-updated', handleAutoRefresh);
+    window.addEventListener('focus', handleAutoRefresh);
+    document.addEventListener('visibilitychange', handleAutoRefresh);
+
+    return () => {
+      window.removeEventListener('school-order-updated', handleAutoRefresh);
+      window.removeEventListener('focus', handleAutoRefresh);
+      document.removeEventListener('visibilitychange', handleAutoRefresh);
+    };
   }, [user?.id, currentPage]);
 
   const formatRupiah = (num: number) => {

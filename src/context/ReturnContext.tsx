@@ -217,15 +217,19 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
 
         for (const item of currentReturn.items) {
           if (item.productId) {
-            const { data: pData } = await supabase.from('products').select('stock, stock_rusak, price_student, fee_school').eq('id', item.productId).single();
+            const { data: pData } = await supabase.from('products').select('stock, price_student, fee_school').eq('id', item.productId).single();
             if (pData) {
               totalTagihanKredit += (Number(pData.price_student) || 0) * item.quantity;
               totalFeeKredit += (Number(pData.fee_school) || 0) * item.quantity;
 
               if (data.isRestocked) {
-                await supabase.from('products').update({ stock: pData.stock + item.quantity }).eq('id', item.productId);
+                await supabase.from('products').update({ stock: (pData.stock || 0) + item.quantity }).eq('id', item.productId);
               } else if (currentReturn.reasonCategory === 'Rusak') {
-                await supabase.from('products').update({ stock_rusak: (pData.stock_rusak || 0) + item.quantity }).eq('id', item.productId);
+                try {
+                  await supabase.from('products').update({ stock_rusak: item.quantity }).eq('id', item.productId);
+                } catch (e) {
+                  console.warn('Kolom stock_rusak belum aktif di Supabase:', e);
+                }
               }
             }
           }

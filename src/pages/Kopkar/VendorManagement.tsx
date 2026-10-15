@@ -255,6 +255,26 @@ const VendorManagement = () => {
   useEffect(() => {
     fetchVendors();
     fetchSchools();
+    fetchPlottings();
+    fetchStocks();
+
+    // Sinkronisasi realtime Supabase antara role Karyawan (Kopkar) & Pengurus
+    const channel = supabase
+      .channel('vendor_realtime_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors' }, () => {
+        fetchVendors();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendor_school_assignments' }, () => {
+        fetchPlottings();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendor_stocks' }, () => {
+        fetchStocks();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {

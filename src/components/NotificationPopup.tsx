@@ -102,10 +102,25 @@ const NotificationPopup = () => {
     }
   }, [user]);
 
-  // Cek pengumuman saat pertama kali login / komponen mount
+  // Cek pengumuman saat pertama kali login / komponen mount & dengarkan siaran baru secara realtime
   useEffect(() => {
     if (isAuthenticated && (user?.role === 'sekolah' || user?.role === 'guru_ots')) {
       checkNotifications();
+
+      const channel = supabase
+        .channel('app_notifications_changes')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'notifications' },
+          () => {
+            checkNotifications();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     } else {
       setActiveNotification(null);
     }

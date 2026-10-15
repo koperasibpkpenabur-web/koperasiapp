@@ -161,8 +161,40 @@ const OrderRealtimeNotification = () => {
   }, [handleIncomingOrder, handleIncomingReturn]);
 
   useEffect(() => {
-    // Only subscribe for Kopkar and Admin users
-    if (!user || (user.role !== 'kopkar' && user.role !== 'admin')) {
+    if (!user) return;
+
+    // A. Role Sekolah & Guru OTS: Listen to realtime status updates on their own orders & returns
+    if (user.role === 'sekolah' || user.role === 'guru_ots') {
+      const schoolOrderChannel = supabase
+        .channel(`school_orders_${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders', filter: `school_user_id=eq.${user.id}` },
+          (payload) => {
+            window.dispatchEvent(new CustomEvent('school-order-updated', { detail: payload.new }));
+          }
+        )
+        .subscribe();
+
+      const schoolReturnChannel = supabase
+        .channel(`school_returns_${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'returns', filter: `school_user_id=eq.${user.id}` },
+          (payload) => {
+            window.dispatchEvent(new CustomEvent('new-return-received', { detail: payload.new }));
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(schoolOrderChannel);
+        supabase.removeChannel(schoolReturnChannel);
+      };
+    }
+
+    // B. Role Kopkar & Admin: Listen to all incoming orders & returns
+    if (user.role !== 'kopkar' && user.role !== 'admin') {
       return;
     }
 
@@ -183,15 +215,20 @@ const OrderRealtimeNotification = () => {
       })
       .subscribe();
 
-    // 2. Postgres Changes Listeners
+    // 2. Postgres Changes Listeners (listen to both INSERT and UPDATE)
     const postgresOrderChannel = supabase
       .channel('order_postgres_changes')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
+        { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
-          console.log('⚡ Postgres changes orders diterima:', payload);
-          handleIncomingOrder(payload.new as any);
+          if (payload.eventType === 'INSERT') {
+            console.log('⚡ Postgres changes orders (INSERT) diterima:', payload);
+            handleIncomingOrder(payload.new as any);
+          } else {
+            console.log('⚡ Postgres changes orders (UPDATE) diterima:', payload);
+            window.dispatchEvent(new CustomEvent('new-order-received', { detail: payload.new }));
+          }
         }
       )
       .subscribe();
@@ -200,10 +237,15 @@ const OrderRealtimeNotification = () => {
       .channel('return_postgres_changes')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'returns' },
+        { event: '*', schema: 'public', table: 'returns' },
         (payload) => {
-          console.log('⚡ Postgres changes returns diterima:', payload);
-          handleIncomingReturn(payload.new as any);
+          if (payload.eventType === 'INSERT') {
+            console.log('⚡ Postgres changes returns (INSERT) diterima:', payload);
+            handleIncomingReturn(payload.new as any);
+          } else {
+            console.log('⚡ Postgres changes returns (UPDATE) diterima:', payload);
+            window.dispatchEvent(new CustomEvent('new-return-received', { detail: payload.new }));
+          }
         }
       )
       .subscribe();

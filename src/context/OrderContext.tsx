@@ -128,6 +128,18 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       
       if (itemsError) return { success: false, error: itemsError.message };
 
+      // Jika pesanan langsung berstatus received (On The Spot / Guru OTS), potong stok fisik gudang koperasi
+      if (finalStatus === 'received') {
+        for (const it of orderData.items) {
+          if (!it.productId) continue;
+          const { data: pData } = await supabase.from('products').select('stock').eq('id', it.productId).single();
+          if (pData) {
+            const newStock = Math.max(0, (pData.stock || 0) - it.quantity);
+            await supabase.from('products').update({ stock: newStock }).eq('id', it.productId);
+          }
+        }
+      }
+
       // Kirim sinyal broadcast realtime ke role Kopkar agar langsung muncul notifikasi & refresh
       try {
         const orderChannel = supabase.channel('order_realtime_broadcast');
@@ -199,7 +211,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       const { data: assignment } = await supabase.from('vendor_school_assignments')
         .select('vendor_id')
         .eq('school_user_id', orderRow.school_user_id)
-        .single();
+        .limit(1)
+        .maybeSingle();
       const assignedVendorId = assignment?.vendor_id || null;
 
       for (const item of orderRow.order_items) {
@@ -292,7 +305,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     const { data: assignment } = await supabase.from('vendor_school_assignments')
       .select('vendor_id')
       .eq('school_user_id', orderRow.school_user_id)
-      .single();
+      .limit(1)
+      .maybeSingle();
     const assignedVendorId = assignment?.vendor_id || null;
 
     for (const newItem of (additionalShippingData.shippedItems || [])) {
@@ -324,7 +338,13 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
     if (orderRow && orderRow.shipping_info) {
       const shippingData = orderRow.shipping_info;
-      const assignedVendorId = orderRow.vendor_id;
+      // Ambil vendor yang diplot ke sekolah pemesan agar stok vendor dapat dikembalikan
+      const { data: assignment } = await supabase.from('vendor_school_assignments')
+        .select('vendor_id')
+        .eq('school_user_id', orderRow.school_user_id)
+        .limit(1)
+        .maybeSingle();
+      const assignedVendorId = assignment?.vendor_id || null;
 
       for (const item of (orderRow.order_items || [])) {
         if (!item.product_id) continue;

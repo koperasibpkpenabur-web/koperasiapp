@@ -22,6 +22,25 @@ const SchoolDashboard = () => {
         setLoading(false);
       });
       setSchoolReturns(getReturnsBySchoolId(user.id) as any[]);
+
+      const handleAutoRefresh = () => {
+        getOrdersBySchoolId(user.id).then(data => {
+          setAllSchoolOrders(data);
+        });
+        setSchoolReturns(getReturnsBySchoolId(user.id) as any[]);
+      };
+
+      window.addEventListener('school-order-updated', handleAutoRefresh);
+      window.addEventListener('new-return-received', handleAutoRefresh);
+      window.addEventListener('focus', handleAutoRefresh);
+      document.addEventListener('visibilitychange', handleAutoRefresh);
+
+      return () => {
+        window.removeEventListener('school-order-updated', handleAutoRefresh);
+        window.removeEventListener('new-return-received', handleAutoRefresh);
+        window.removeEventListener('focus', handleAutoRefresh);
+        document.removeEventListener('visibilitychange', handleAutoRefresh);
+      };
     }
   }, [user?.id, getOrdersBySchoolId, getReturnsBySchoolId]);
 
