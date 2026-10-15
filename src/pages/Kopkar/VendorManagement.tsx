@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Fragment } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { useProducts } from '../../context/ProductContext';
@@ -229,7 +229,9 @@ const VendorManagement = () => {
 
   // Form Plotting (Add)
   const [plotVendorId, setPlotVendorId] = useState('');
-  const [plotSchoolId, setPlotSchoolId] = useState('');
+  const [plotSchoolIds, setPlotSchoolIds] = useState<string[]>([]);
+  const [plotSchoolSearch, setPlotSchoolSearch] = useState('');
+  const [expandedPlotVendors, setExpandedPlotVendors] = useState<Record<string, boolean>>({});
 
   // Form Plotting (Edit)
   const [editPlotVendorId, setEditPlotVendorId] = useState('');
@@ -474,10 +476,66 @@ const VendorManagement = () => {
   };
 
   // --- HANDLER PLOTTING ---
+  const openAddPlottingModal = (preselectedVendorId?: string) => {
+    if (preselectedVendorId) {
+      setPlotVendorId(preselectedVendorId);
+    } else if (vendors.length > 0 && !plotVendorId) {
+      setPlotVendorId(vendors[0].id);
+    }
+    setPlotSchoolIds([]);
+    setPlotSchoolSearch('');
+    setPlotLevelFilter('ALL');
+    setPlotClothingType('Semua Jenis Baju');
+    setShowAddPlotting(true);
+  };
+
+  const togglePlotVendor = (vendorId: string) => {
+    setExpandedPlotVendors((prev) => ({
+      ...prev,
+      [vendorId]: !prev[vendorId],
+    }));
+  };
+
+  const expandAllPlotVendors = () => {
+    const all: Record<string, boolean> = {};
+    vendors.forEach((v) => {
+      all[v.id] = true;
+    });
+    plottings.forEach((p) => {
+      all[p.vendor_id] = true;
+    });
+    setExpandedPlotVendors(all);
+  };
+
+  const collapseAllPlotVendors = () => {
+    setExpandedPlotVendors({});
+  };
+
+  const toggleSelectSchool = (schoolId: string) => {
+    setPlotSchoolIds((prev) =>
+      prev.includes(schoolId) ? prev.filter((id) => id !== schoolId) : [...prev, schoolId]
+    );
+  };
+
+  const handleSelectAllFilteredSchools = () => {
+    const filteredIds = filteredModalSchools.map((s) => s.id);
+    const allSelected = filteredIds.length > 0 && filteredIds.every((id) => plotSchoolIds.includes(id));
+    if (allSelected) {
+      setPlotSchoolIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+    } else {
+      setPlotSchoolIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
   const handleAddPlotting = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!plotVendorId || !plotSchoolId) {
-      alert('Pilih vendor dan sekolah terlebih dahulu');
+    if (!plotVendorId) {
+      alert('Pilih vendor (penjahit) terlebih dahulu');
+      return;
+    }
+
+    if (plotSchoolIds.length === 0) {
+      alert('Pilih setidaknya satu sekolah');
       return;
     }
 
@@ -486,41 +544,54 @@ const VendorManagement = () => {
       return;
     }
 
-    const alreadyExists = plottings.some(
-      (p) =>
-        p.vendor_id === plotVendorId &&
-        p.school_user_id === plotSchoolId &&
-        (p.clothing_type || 'Semua Jenis Baju') === plotClothingType
+    // Filter penugasan yang belum terdaftar sebelumnya
+    const newSchoolIds = plotSchoolIds.filter(
+      (schId) =>
+        !plottings.some(
+          (p) =>
+            p.vendor_id === plotVendorId &&
+            p.school_user_id === schId &&
+            (p.clothing_type || 'Semua Jenis Baju') === plotClothingType
+        )
     );
-    if (alreadyExists) {
-      alert('Plotting dengan vendor, sekolah, dan jenis baju tersebut sudah terdaftar.');
+
+    if (newSchoolIds.length === 0) {
+      alert('Semua sekolah yang dipilih sudah terdaftar untuk vendor dan jenis baju ini.');
       return;
     }
 
     setSubmitting(true);
 
-    // Coba insert dengan field clothing_type
-    let { error } = await supabase.from('vendor_school_assignments').insert({
+    const payload = newSchoolIds.map((schId) => ({
       vendor_id: plotVendorId,
-      school_user_id: plotSchoolId,
+      school_user_id: schId,
       clothing_type: plotClothingType,
-    });
+    }));
+
+    let { error } = await supabase.from('vendor_school_assignments').insert(payload);
 
     // Fallback jika database belum menambahkan kolom clothing_type
     if (error && error.message.includes('clothing_type')) {
-      const res = await supabase.from('vendor_school_assignments').insert({
+      const fallbackPayload = newSchoolIds.map((schId) => ({
         vendor_id: plotVendorId,
-        school_user_id: plotSchoolId,
-      });
+        school_user_id: schId,
+      }));
+      const res = await supabase.from('vendor_school_assignments').insert(fallbackPayload);
       error = res.error;
     }
 
     setSubmitting(false);
 
     if (!error) {
-      alert('Plotting sekolah berhasil disimpan!');
+      const skippedCount = plotSchoolIds.length - newSchoolIds.length;
+      let msg = `Plotting untuk ${newSchoolIds.length} sekolah berhasil disimpan!`;
+      if (skippedCount > 0) {
+        msg += ` (${skippedCount} sekolah dilewati karena sudah ada penugasan serupa).`;
+      }
+      alert(msg);
       setShowAddPlotting(false);
-      setPlotSchoolId('');
+      setPlotSchoolIds([]);
+      setPlotSchoolSearch('');
       setPlotClothingType('');
       fetchPlottings();
     } else {
@@ -710,28 +781,85 @@ const VendorManagement = () => {
   const modalAvailableProducts =
     stockLevelFilter === 'ALL' ? products : products.filter((p) => p.level === stockLevelFilter);
 
-  // Schools filtered by level for add plotting modal
-  const filteredModalSchools =
-    plotLevelFilter === 'ALL'
-      ? schools
-      : schools.filter((s) => s.level.toUpperCase() === plotLevelFilter);
+  // Schools filtered by level and search for add plotting modal
+  const filteredModalSchools = useMemo(() => {
+    return schools.filter((s) => {
+      const matchesLevel =
+        plotLevelFilter === 'ALL' || (s.level || '').toUpperCase() === plotLevelFilter.toUpperCase();
+      const q = plotSchoolSearch.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        (s.school_name || '').toLowerCase().includes(q) ||
+        (s.email || '').toLowerCase().includes(q) ||
+        (s.level || '').toLowerCase().includes(q);
+      return matchesLevel && matchesSearch;
+    });
+  }, [schools, plotLevelFilter, plotSchoolSearch]);
 
-  // Deteksi sekolah terpilih di modal tambah plotting untuk memanggil jenis baju sesuai jenjang
-  const selectedPlotSchool = schools.find((s) => s.id === plotSchoolId);
-
-  // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah yang dipilih di modal tambah plotting
-  const availableClothingTypes = Array.from(
-    new Set(
-      products
-        .filter(
-          (p) =>
-            selectedPlotSchool &&
-            p.level?.toUpperCase() === selectedPlotSchool.level?.toUpperCase() &&
-            p.category === 'seragam'
+  // Deteksi jenjang dari sekolah-sekolah yang dipilih di modal tambah plotting
+  const selectedPlotLevels = useMemo(() => {
+    if (plotSchoolIds.length > 0) {
+      return Array.from(
+        new Set(
+          schools
+            .filter((s) => plotSchoolIds.includes(s.id))
+            .map((s) => (s.level || '').toUpperCase())
+            .filter(Boolean)
         )
-        .map((p) => p.name.trim())
-    )
-  ).sort();
+      );
+    }
+    if (plotLevelFilter !== 'ALL') {
+      return [plotLevelFilter.toUpperCase()];
+    }
+    return [];
+  }, [schools, plotSchoolIds, plotLevelFilter]);
+
+  // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah terpilih
+  const availableClothingTypes = useMemo(() => {
+    return Array.from(
+      new Set(
+        products
+          .filter(
+            (p) =>
+              p.category === 'seragam' &&
+              (selectedPlotLevels.length === 0 || selectedPlotLevels.includes((p.level || '').toUpperCase()))
+          )
+          .map((p) => p.name.trim())
+      )
+    ).sort();
+  }, [products, selectedPlotLevels]);
+
+  // Kelompokkan plottings per vendor untuk tampilan ringkas dengan hide/unhide
+  const groupedPlottings = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        vendorId: string;
+        vendorName: string;
+        contactPerson?: string;
+        phone?: string;
+        items: Plotting[];
+      }
+    >();
+
+    filteredPlottings.forEach((p) => {
+      let entry = map.get(p.vendor_id);
+      if (!entry) {
+        const v = vendors.find((vend) => vend.id === p.vendor_id);
+        entry = {
+          vendorId: p.vendor_id,
+          vendorName: p.vendors?.name || v?.name || 'Vendor Tidak Dikenal',
+          contactPerson: p.vendors?.contact_person || v?.contact_person || '-',
+          phone: p.vendors?.phone || v?.phone || '-',
+          items: [],
+        };
+        map.set(p.vendor_id, entry);
+      }
+      entry.items.push(p);
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.vendorName.localeCompare(b.vendorName));
+  }, [filteredPlottings, vendors]);
 
   // Deteksi sekolah terpilih di modal edit plotting
   const selectedEditPlotSchool = schools.find((s) => s.id === editPlotSchoolId);
@@ -1038,22 +1166,58 @@ const VendorManagement = () => {
               gap: '12px',
             }}
           >
-            <input
-              type="text"
-              placeholder="Cari vendor, sekolah, jenis baju, atau email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                padding: '8px 14px',
-                borderRadius: '8px',
-                border: '1px solid #cbd5e1',
-                fontSize: '0.9rem',
-                minWidth: '260px',
-              }}
-            />
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Cari vendor, sekolah, jenis baju, atau email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '0.9rem',
+                  minWidth: '260px',
+                }}
+              />
+              <button
+                type="button"
+                onClick={expandAllPlotVendors}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#334155',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                title="Tampilkan seluruh rincian sekolah semua vendor"
+              >
+                📂 Buka Semua
+              </button>
+              <button
+                type="button"
+                onClick={collapseAllPlotVendors}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#334155',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                title="Sembunyikan rincian sekolah semua vendor agar tabel lebih ringkas"
+              >
+                📁 Tutup Semua
+              </button>
+            </div>
             <div>
-              <button className="btn-primary" onClick={() => setShowAddPlotting(true)}>
-                🔗 + Plot Sekolah Baru
+              <button className="btn-primary" onClick={() => openAddPlottingModal()}>
+                🔗 + Plot Sekolah
               </button>
             </div>
           </div>
@@ -1061,75 +1225,280 @@ const VendorManagement = () => {
           <table className="kopkar-table">
             <thead>
               <tr>
-                <th>Nama Vendor (Penjahit)</th>
-                <th>Sekolah yang Dilayani (Google Penjualan)</th>
-                <th>Jenis Baju yang Diproduksi</th>
-                <th style={{ textAlign: 'center' }}>Aksi</th>
+                <th style={{ width: '45px', textAlign: 'center' }}>No</th>
+                <th style={{ width: '250px' }}>Nama Vendor (Penjahit)</th>
+                <th>Sekolah yang Dilayani & Jenis Baju</th>
+                <th style={{ width: '130px', textAlign: 'center' }}>Total Sekolah</th>
+                <th style={{ width: '180px', textAlign: 'center' }}>Aksi / Rincian</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', padding: '24px' }}>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '28px' }}>
                     Memuat data plotting...
                   </td>
                 </tr>
-              ) : filteredPlottings.length === 0 ? (
+              ) : groupedPlottings.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
-                    {plottings.length === 0 ? 'Belum ada plotting sekolah ke vendor.' : 'Tidak ada plotting yang cocok dengan pencarian.'}
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '28px', color: '#64748b' }}>
+                    {plottings.length === 0
+                      ? 'Belum ada plotting sekolah ke vendor. Klik "+ Plot Sekolah" untuk memulai.'
+                      : 'Tidak ada plotting yang cocok dengan filter pencarian.'}
                   </td>
                 </tr>
               ) : (
-                filteredPlottings.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      <strong>{p.vendors?.name || 'Vendor Tidak Dikenal'}</strong>
-                    </td>
-                    <td>
-                      <span
+                groupedPlottings.map((g, idx) => {
+                  const isExpanded = !!expandedPlotVendors[g.vendorId] || searchQuery.trim().length > 0;
+                  return (
+                    <Fragment key={g.vendorId}>
+                      <tr
                         style={{
-                          background: '#e0f2fe',
-                          color: '#0369a1',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          fontWeight: 600,
-                          fontSize: '0.9rem',
-                          display: 'inline-block',
+                          background: isExpanded ? '#f8fafc' : '#ffffff',
+                          transition: 'background 0.15s ease',
                         }}
                       >
-                        🏫 {p.app_users?.school_name || 'Sekolah'}
-                      </span>
-                      {p.app_users?.username && p.app_users.username.includes('@') && (
-                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>
-                          ✉️ {p.app_users.username} {p.app_users?.school_level ? `• Jenjang: ${p.app_users.school_level}` : ''}
-                        </div>
+                        <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '1.1rem' }}>🏢</span>
+                            <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>{g.vendorName}</strong>
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '3px', marginLeft: '26px' }}>
+                            👤 PIC: <strong>{g.contactPerson}</strong> • 📞 <strong>{g.phone}</strong>
+                          </div>
+                        </td>
+                        <td>
+                          {/* Tampilan ringkas sekolah saat tersembunyi (hide) */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                            {g.items.slice(0, 3).map((item) => (
+                              <span
+                                key={item.id}
+                                style={{
+                                  background: '#e0f2fe',
+                                  color: '#0369a1',
+                                  padding: '3px 8px',
+                                  borderRadius: '5px',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 600,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                🏫 {item.app_users?.school_name || 'Sekolah'}
+                                <span style={{ opacity: 0.7, fontSize: '0.75rem', fontWeight: 400 }}>
+                                  ({item.clothing_type || 'Semua Baju'})
+                                </span>
+                              </span>
+                            ))}
+                            {g.items.length > 3 && (
+                              <span
+                                onClick={() => togglePlotVendor(g.vendorId)}
+                                style={{
+                                  background: '#f1f5f9',
+                                  color: '#0284c7',
+                                  padding: '3px 8px',
+                                  borderRadius: '5px',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                +{g.items.length - 3} sekolah lainnya...
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span
+                            style={{
+                              background: '#f0fdf4',
+                              color: '#166534',
+                              border: '1px solid #bbf7d0',
+                              padding: '4px 10px',
+                              borderRadius: '999px',
+                              fontWeight: 700,
+                              fontSize: '0.82rem',
+                              display: 'inline-block',
+                            }}
+                          >
+                            {g.items.length} Sekolah
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => togglePlotVendor(g.vendorId)}
+                              style={{
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                background: isExpanded ? '#e2e8f0' : '#f1f5f9',
+                                color: '#334155',
+                                fontWeight: 600,
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              {isExpanded ? '▲ Sembunyikan' : `▼ Buka (${g.items.length})`}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openAddPlottingModal(g.vendorId)}
+                              title="Tambah plotting sekolah untuk vendor ini"
+                              style={{
+                                padding: '5px 9px',
+                                borderRadius: '6px',
+                                border: '1px solid #bbf7d0',
+                                background: '#f0fdf4',
+                                color: '#166534',
+                                fontWeight: 600,
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              + Plot
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* RINCIAN SEKOLAH (UNHIDE) */}
+                      {isExpanded && (
+                        <tr style={{ background: '#f8fafc' }}>
+                          <td colSpan={5} style={{ padding: '8px 16px 16px 45px', borderTop: 'none', borderBottom: '2px solid #e2e8f0' }}>
+                            <div
+                              style={{
+                                background: '#ffffff',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '8px',
+                                overflow: 'hidden',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  background: '#f1f5f9',
+                                  padding: '8px 14px',
+                                  borderBottom: '1px solid #e2e8f0',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  fontSize: '0.82rem',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                }}
+                              >
+                                <span>📋 Rincian Sekolah & Jenis Baju untuk {g.vendorName}</span>
+                                <span style={{ color: '#0369a1' }}>{g.items.length} Penugasan Terdaftar</span>
+                              </div>
+
+                              <table className="kopkar-table" style={{ margin: 0, fontSize: '0.85rem' }}>
+                                <thead>
+                                  <tr style={{ background: '#ffffff' }}>
+                                    <th style={{ width: '40px', textAlign: 'center' }}>No</th>
+                                    <th>Sekolah yang Dilayani (Google Penjualan)</th>
+                                    <th style={{ width: '80px', textAlign: 'center' }}>Jenjang</th>
+                                    <th>Jenis Baju yang Diproduksi</th>
+                                    <th style={{ width: '130px', textAlign: 'center' }}>Aksi</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {g.items.map((item, itemIdx) => (
+                                    <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                      <td style={{ textAlign: 'center', color: '#64748b' }}>{itemIdx + 1}</td>
+                                      <td>
+                                        <strong style={{ color: '#1e293b' }}>
+                                          {item.app_users?.school_name || 'Sekolah'}
+                                        </strong>
+                                        {item.app_users?.username && (
+                                          <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
+                                            ✉️ {item.app_users.username}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td style={{ textAlign: 'center' }}>
+                                        <span
+                                          style={{
+                                            background: '#f1f5f9',
+                                            color: '#475569',
+                                            padding: '2px 7px',
+                                            borderRadius: '4px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {item.app_users?.school_level || '-'}
+                                        </span>
+                                      </td>
+                                      <td>
+                                        <span
+                                          style={{
+                                            background: '#f0fdf4',
+                                            border: '1px solid #bbf7d0',
+                                            color: '#166534',
+                                            padding: '3px 8px',
+                                            borderRadius: '5px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 600,
+                                            display: 'inline-block',
+                                          }}
+                                        >
+                                          👔 {item.clothing_type || 'Semua Jenis Baju'}
+                                        </span>
+                                      </td>
+                                      <td style={{ textAlign: 'center' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenEditPlotting(item)}
+                                            title="Edit penugasan ini"
+                                            style={{
+                                              padding: '3px 8px',
+                                              background: '#f1f5f9',
+                                              border: '1px solid #cbd5e1',
+                                              borderRadius: '4px',
+                                              cursor: 'pointer',
+                                              fontSize: '0.78rem',
+                                              color: '#334155',
+                                            }}
+                                          >
+                                            ✏️ Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeletePlotting(item.id)}
+                                            title="Hapus penugasan ini"
+                                            style={{
+                                              padding: '3px 8px',
+                                              background: '#fef2f2',
+                                              border: '1px solid #fecaca',
+                                              borderRadius: '4px',
+                                              cursor: 'pointer',
+                                              color: '#b91c1c',
+                                              fontSize: '0.78rem',
+                                            }}
+                                          >
+                                            🗑️ Hapus
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td>
-                      <span
-                        style={{
-                          background: '#f8fafc',
-                          border: '1px solid #e2e8f0',
-                          padding: '4px 10px',
-                          borderRadius: '6px',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          color: '#1e293b',
-                          display: 'inline-block',
-                        }}
-                      >
-                        👔 {p.clothing_type || 'Semua Jenis Baju'}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <ActionMenu
-                        onEdit={() => handleOpenEditPlotting(p)}
-                        onDelete={() => handleDeletePlotting(p.id)}
-                      />
-                    </td>
-                  </tr>
-                ))
+                    </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -1887,10 +2256,10 @@ const VendorManagement = () => {
       {/* MODAL TAMBAH PLOTTING SEKOLAH */}
       {showAddPlotting && (
         <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '560px' }}>
+          <div className="modal" style={{ maxWidth: '620px' }}>
             <h3>🔗 Plotting Vendor ke Sekolah</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
-              Tentukan vendor konveksi mana yang bertanggung jawab memproduksi seragam tertentu untuk sekolah yang dipilih.
+              Tentukan vendor konveksi dan pilih satu atau beberapa sekolah yang akan dikerjakan secara bersamaan.
             </p>
             <form onSubmit={handleAddPlotting} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
@@ -1904,25 +2273,24 @@ const VendorManagement = () => {
                   <option value="">-- Pilih Vendor ({vendors.length} Vendor Tersedia) --</option>
                   {vendors.map((v) => (
                     <option key={v.id} value={v.id}>
-                      {v.name}
+                      {v.name} {v.contact_person ? `(PIC: ${v.contact_person})` : ''}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label style={labelStyle}>Pilih Sekolah (Akun Gmail Penjualan)</label>
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                  <label style={labelStyle}>
+                    Pilih Sekolah ({plotSchoolIds.length} Sekolah Dipilih)
+                  </label>
+                  {/* Filter Jenjang */}
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                     {['ALL', 'TK', 'SD', 'SMP', 'SMA'].map((lvl) => (
                       <button
                         key={lvl}
                         type="button"
-                        onClick={() => {
-                          setPlotLevelFilter(lvl);
-                          setPlotSchoolId('');
-                          setPlotClothingType('');
-                        }}
+                        onClick={() => setPlotLevelFilter(lvl)}
                         style={{
                           padding: '2px 8px',
                           borderRadius: '4px',
@@ -1934,30 +2302,145 @@ const VendorManagement = () => {
                           fontWeight: 600,
                         }}
                       >
-                        {lvl === 'ALL' ? 'Semua' : lvl}
+                        {lvl === 'ALL' ? 'Semua Jenjang' : lvl}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <select
-                  required
-                  value={plotSchoolId}
-                  onChange={(e) => {
-                    setPlotSchoolId(e.target.value);
-                    setPlotClothingType('');
+                {/* Search & Select All Toolbar */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Cari nama sekolah atau email..."
+                    value={plotSchoolSearch}
+                    onChange={(e) => setPlotSchoolSearch(e.target.value)}
+                    style={{
+                      ...inputStyle,
+                      padding: '7px 12px',
+                      fontSize: '0.85rem',
+                      flex: 1,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSelectAllFilteredSchools}
+                    style={{
+                      whiteSpace: 'nowrap',
+                      padding: '7px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: '#f1f5f9',
+                      color: '#0f172a',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {filteredModalSchools.length > 0 &&
+                    filteredModalSchools.every((s) => plotSchoolIds.includes(s.id))
+                      ? '✓ Batal Pilih Semua'
+                      : `☑ Pilih Semua (${filteredModalSchools.length})`}
+                  </button>
+                </div>
+
+                {/* Checklist Box Sekolah */}
+                <div
+                  style={{
+                    maxHeight: '190px',
+                    overflowY: 'auto',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    background: '#fff',
+                    padding: '4px',
                   }}
-                  style={inputStyle}
                 >
-                  <option value="">
-                    -- Pilih Sekolah ({filteredModalSchools.length} Sekolah Google Terdaftar) --
-                  </option>
-                  {filteredModalSchools.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      [{s.level}] {s.school_name} — ({s.email})
-                    </option>
-                  ))}
-                </select>
+                  {filteredModalSchools.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
+                      Tidak ada sekolah yang cocok dengan filter.
+                    </div>
+                  ) : (
+                    filteredModalSchools.map((s) => {
+                      const isChecked = plotSchoolIds.includes(s.id);
+                      return (
+                        <div
+                          key={s.id}
+                          onClick={() => toggleSelectSchool(s.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            background: isChecked ? '#e0f2fe' : 'transparent',
+                            marginBottom: '2px',
+                            userSelect: 'none',
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isChecked) e.currentTarget.style.background = '#f8fafc';
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isChecked) e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}} // dikendalikan oleh parent onClick
+                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                          />
+                          <span
+                            style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              background: '#f1f5f9',
+                              color: '#475569',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              minWidth: '40px',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {s.level}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {s.school_name}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {s.email}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Status Terpilih */}
+                <div style={{ marginTop: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.82rem', color: plotSchoolIds.length > 0 ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>
+                    {plotSchoolIds.length > 0 ? `✓ ${plotSchoolIds.length} sekolah dipilih` : 'Belum ada sekolah yang dipilih'}
+                  </span>
+                  {plotSchoolIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPlotSchoolIds([])}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#ef4444',
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Bersihkan Pilihan
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -1967,34 +2450,29 @@ const VendorManagement = () => {
                   value={plotClothingType}
                   onChange={(e) => setPlotClothingType(e.target.value)}
                   style={inputStyle}
-                  disabled={!plotSchoolId}
                 >
-                  {!plotSchoolId ? (
-                    <option value="">-- Pilih Sekolah Terlebih Dahulu --</option>
-                  ) : (
-                    <>
-                      <option value="">
-                        -- Pilih Jenis Baju ({availableClothingTypes.length} Jenis di Jenjang {selectedPlotSchool?.level}) --
-                      </option>
-                      <option value="Semua Jenis Baju">👕 Semua Jenis Baju (Full Seragam)</option>
-                      {availableClothingTypes.map((item) => (
-                        <option key={item} value={item}>
-                          👔 {item}
-                        </option>
-                      ))}
-                    </>
-                  )}
+                  <option value="Semua Jenis Baju">👕 Semua Jenis Baju (Full Seragam)</option>
+                  {availableClothingTypes.map((item) => (
+                    <option key={item} value={item}>
+                      👔 {item}
+                    </option>
+                  ))}
                 </select>
-                {selectedPlotSchool && availableClothingTypes.length === 0 && (
-                  <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#eab308' }}>
-                    * Belum ada data produk seragam terdaftar untuk jenjang {selectedPlotSchool.level}. Pilihan "Semua Jenis Baju" tetap dapat digunakan.
-                  </p>
-                )}
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                  * Pilihan ini akan diterapkan ke {plotSchoolIds.length > 0 ? `${plotSchoolIds.length} sekolah yang dipilih di atas` : 'seluruh sekolah yang dipilih'}.
+                </p>
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={submitting}>
-                  {submitting ? 'Menyimpan...' : 'Simpan Plotting'}
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ flex: 1 }}
+                  disabled={submitting || plotSchoolIds.length === 0}
+                >
+                  {submitting
+                    ? 'Menyimpan...'
+                    : `Simpan Plotting (${plotSchoolIds.length} Sekolah)`}
                 </button>
                 <button
                   type="button"
