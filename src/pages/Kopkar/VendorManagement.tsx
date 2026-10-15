@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, Fragment } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { useProducts } from '../../context/ProductContext';
@@ -255,12 +255,9 @@ const VendorManagement = () => {
   const [stockLevelFilter, setStockLevelFilter] = useState('ALL');
   const [stockQty, setStockQty] = useState(0);
 
-  useEffect(() => {
-    fetchVendors();
-    fetchSchools();
-    fetchPlottings();
-    fetchStocks();
+  const schoolsLoadedRef = useRef(false);
 
+  useEffect(() => {
     // Sinkronisasi realtime Supabase antara role Karyawan (Kopkar) & Pengurus
     const channel = supabase
       .channel('vendor_realtime_sync')
@@ -280,10 +277,18 @@ const VendorManagement = () => {
     };
   }, []);
 
+  // Lazy load data sesuai tab yang sedang aktif
   useEffect(() => {
-    if (activeTab === 'vendors') fetchVendors();
-    if (activeTab === 'plotting' || activeTab === 'vendor_sekolah') fetchPlottings();
-    if (activeTab === 'stock') fetchStocks();
+    if (activeTab === 'vendors') {
+      fetchVendors();
+    } else if (activeTab === 'plotting' || activeTab === 'vendor_sekolah') {
+      fetchPlottings();
+      if (!schoolsLoadedRef.current) {
+        fetchSchools();
+      }
+    } else if (activeTab === 'stock') {
+      fetchStocks();
+    }
   }, [activeTab]);
 
   const fetchVendors = async () => {
@@ -295,23 +300,19 @@ const VendorManagement = () => {
 
   const fetchSchools = async () => {
     try {
-      // 1. Ambil seluruh data sekolah dari school_whitelist (Google accounts BPK PENABUR)
-      const { data: whitelistData, error: wlError } = await supabase
-        .from('school_whitelist')
-        .select('*')
-        .order('nama_sekolah', { ascending: true });
+      // 1. Ambil data sekolah dari whitelist dan app_users secara paralel
+      const [wlRes, appUsersRes] = await Promise.all([
+        supabase.from('school_whitelist').select('*').order('nama_sekolah', { ascending: true }),
+        supabase.from('app_users').select('id, username, school_name, school_level').ilike('username', '%@%'),
+      ]);
 
-      if (wlError || !whitelistData) {
-        console.error('Error fetching school_whitelist:', wlError);
+      const whitelistData = wlRes.data;
+      if (wlRes.error || !whitelistData) {
+        console.error('Error fetching school_whitelist:', wlRes.error);
         return;
       }
 
-      // 2. Ambil data app_users yang memiliki username berupa email
-      const { data: appUsersData } = await supabase
-        .from('app_users')
-        .select('id, username, school_name, school_level')
-        .ilike('username', '%@%');
-
+      const appUsersData = appUsersRes.data;
       const userMap = new Map<string, { id: string; school_name: string; school_level: string }>();
       if (appUsersData) {
         appUsersData.forEach((u) => {
@@ -372,6 +373,7 @@ const VendorManagement = () => {
       // Urutkan berdasarkan nama sekolah secara alfabetis
       list.sort((a, b) => a.school_name.localeCompare(b.school_name));
       setSchools(list);
+      schoolsLoadedRef.current = true;
     } catch (err) {
       console.error('Error fetching schools from whitelist:', err);
     }
@@ -477,6 +479,9 @@ const VendorManagement = () => {
 
   // --- HANDLER PLOTTING ---
   const openAddPlottingModal = (preselectedVendorId?: string) => {
+    if (!schoolsLoadedRef.current || schools.length === 0) {
+      fetchSchools();
+    }
     if (preselectedVendorId) {
       setPlotVendorId(preselectedVendorId);
     } else if (vendors.length > 0 && !plotVendorId) {
@@ -653,6 +658,9 @@ const VendorManagement = () => {
   };
 
   const handleOpenEditPlotting = (p: Plotting) => {
+    if (!schoolsLoadedRef.current || schools.length === 0) {
+      fetchSchools();
+    }
     setEditingPlotting(p);
     setEditPlotVendorId(p.vendor_id);
     setEditPlotSchoolId(p.school_user_id);

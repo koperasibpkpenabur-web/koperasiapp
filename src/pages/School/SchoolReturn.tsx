@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useMemo, type FormEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
 import { useProducts } from '../../context/ProductContext';
@@ -24,19 +24,28 @@ const SchoolReturn = () => {
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'koperasi_confirmed' | 'sekolah_dikirim' | 'koperasi_diterima' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewingReturn, setViewingReturn] = useState<ReturnRequest | null>(null);
 
   // Form State
   const schoolLevel: SchoolLevel = user?.schoolLevel || 'SMP';
-  const availableCatalog = getProductsByLevel(schoolLevel).length > 0
-    ? getProductsByLevel(schoolLevel)
-    : products;
+  const availableCatalog = useMemo(() => {
+    const list = getProductsByLevel(schoolLevel);
+    return list.length > 0 ? list : products;
+  }, [getProductsByLevel, schoolLevel, products]);
 
-  const uniqueProducts = Array.from(
-    new Map(availableCatalog.map(p => [p.name, { name: p.name, code: p.code }])).values()
-  ).sort((a, b) => a.code.localeCompare(b.code));
+  const uniqueProducts = useMemo(() => {
+    return Array.from(
+      new Map(availableCatalog.map(p => [p.name, { name: p.name, code: p.code }])).values()
+    ).sort((a, b) => a.code.localeCompare(b.code));
+  }, [availableCatalog]);
+
+  const productMap = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
 
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([
     {
@@ -68,21 +77,29 @@ const SchoolReturn = () => {
   const rejectedCount = schoolReturns.filter((r) => r.status === 'rejected').length;
 
   // Filtered returns
-  const filteredReturns = schoolReturns.filter((r) => {
-    let matchTab = true;
-    if (activeTab === 'pending') matchTab = r.status === 'pending';
-    else if (activeTab === 'koperasi_confirmed') matchTab = r.status === 'koperasi_confirmed';
-    else if (activeTab === 'sekolah_dikirim') matchTab = r.status === 'sekolah_dikirim';
-    else if (activeTab === 'koperasi_diterima') matchTab = r.status === 'koperasi_diterima';
-    else if (activeTab === 'rejected') matchTab = r.status === 'rejected';
+  const filteredReturns = useMemo(() => {
+    return schoolReturns.filter((r) => {
+      let matchTab = true;
+      if (activeTab === 'pending') matchTab = r.status === 'pending';
+      else if (activeTab === 'koperasi_confirmed') matchTab = r.status === 'koperasi_confirmed';
+      else if (activeTab === 'sekolah_dikirim') matchTab = r.status === 'sekolah_dikirim';
+      else if (activeTab === 'koperasi_diterima') matchTab = r.status === 'koperasi_diterima';
+      else if (activeTab === 'rejected') matchTab = r.status === 'rejected';
 
-    const matchSearch =
-      r.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.reason.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.items.some((it) => it.productName.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchSearch =
+        r.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.reason.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.items.some((it) => it.productName.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    return matchTab && matchSearch;
-  });
+      return matchTab && matchSearch;
+    });
+  }, [schoolReturns, activeTab, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredReturns.length / itemsPerPage));
+  const paginatedReturns = useMemo(() => {
+    const from = (currentPage - 1) * itemsPerPage;
+    return filteredReturns.slice(from, from + itemsPerPage);
+  }, [filteredReturns, currentPage, itemsPerPage]);
 
   const [shippingReturn, setShippingReturn] = useState<ReturnRequest | null>(null);
   
@@ -325,42 +342,42 @@ const SchoolReturn = () => {
           <button
             type="button"
             className={`returns-tab-btn ${activeTab === 'all' ? 'active' : ''}`}
-            onClick={() => setActiveTab('all')}
+            onClick={() => { setActiveTab('all'); setCurrentPage(1); }}
           >
             Semua <span className="tab-badge">{totalCount}</span>
           </button>
           <button
             type="button"
             className={`returns-tab-btn ${activeTab === 'pending' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pending')}
+            onClick={() => { setActiveTab('pending'); setCurrentPage(1); }}
           >
             ⏳ Menunggu Koperasi <span className="tab-badge">{pendingCount}</span>
           </button>
           <button
             type="button"
             className={`returns-tab-btn ${activeTab === 'koperasi_confirmed' ? 'active' : ''}`}
-            onClick={() => setActiveTab('koperasi_confirmed')}
+            onClick={() => { setActiveTab('koperasi_confirmed'); setCurrentPage(1); }}
           >
             📋 Disetujui <span className="tab-badge">{confirmedCount}</span>
           </button>
           <button
             type="button"
             className={`returns-tab-btn ${activeTab === 'sekolah_dikirim' ? 'active' : ''}`}
-            onClick={() => setActiveTab('sekolah_dikirim')}
+            onClick={() => { setActiveTab('sekolah_dikirim'); setCurrentPage(1); }}
           >
             🚚 Dikirim <span className="tab-badge">{sentCount}</span>
           </button>
           <button
             type="button"
             className={`returns-tab-btn ${activeTab === 'koperasi_diterima' ? 'active' : ''}`}
-            onClick={() => setActiveTab('koperasi_diterima')}
+            onClick={() => { setActiveTab('koperasi_diterima'); setCurrentPage(1); }}
           >
             ✅ Selesai Diterima <span className="tab-badge">{receivedCount}</span>
           </button>
           <button
             type="button"
             className={`returns-tab-btn ${activeTab === 'rejected' ? 'active' : ''}`}
-            onClick={() => setActiveTab('rejected')}
+            onClick={() => { setActiveTab('rejected'); setCurrentPage(1); }}
           >
             ❌ Ditolak <span className="tab-badge">{rejectedCount}</span>
           </button>
@@ -372,7 +389,10 @@ const SchoolReturn = () => {
             type="text"
             placeholder="Cari ID retur, alasan, atau nama barang..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
           />
         </div>
       </div>
@@ -390,7 +410,7 @@ const SchoolReturn = () => {
         </div>
       ) : (
         <div className="returns-list">
-          {filteredReturns.map((ret) => {
+          {paginatedReturns.map((ret) => {
             const isPending = ret.status === 'pending';
             const isConfirmed = ret.status === 'koperasi_confirmed';
             const isSent = ret.status === 'sekolah_dikirim';
@@ -446,7 +466,7 @@ const SchoolReturn = () => {
                       Daftar Barang yang Diretur ({ret.items.length} item)
                     </div>
                     {ret.items.map((it, idx) => {
-                      const prodInfo = products.find(p => p.id === it.productId);
+                      const prodInfo = it.productId ? productMap.get(it.productId) : undefined;
                       return (
                       <div key={idx} className="return-item-row">
                         <div className="return-item-info">
@@ -569,6 +589,52 @@ const SchoolReturn = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Paginasi Retur */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px 16px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: '0.88rem', color: '#64748b' }}>
+            Menampilkan {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredReturns.length)} dari {filteredReturns.length} pengajuan
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                background: currentPage === 1 ? '#f1f5f9' : '#fff',
+                color: currentPage === 1 ? '#94a3b8' : '#334155',
+                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                fontSize: '0.85rem',
+              }}
+            >
+              ← Sebelumnya
+            </button>
+            <span style={{ padding: '6px 10px', fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+              Hal {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid #cbd5e1',
+                background: currentPage === totalPages ? '#f1f5f9' : '#fff',
+                color: currentPage === totalPages ? '#94a3b8' : '#334155',
+                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                fontSize: '0.85rem',
+              }}
+            >
+              Selanjutnya →
+            </button>
+          </div>
         </div>
       )}
 

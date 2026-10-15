@@ -1,4 +1,4 @@
-import { useState, type FormEvent , useEffect} from 'react';
+import { useState, type FormEvent, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
@@ -222,13 +222,12 @@ const SchoolPemesanan = () => {
   const [orderPhase, setOrderPhase] = useState<'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan'>('Tahap 1');
 
   // Available products for current school level
-  const availableCatalog = getProductsByLevel(orderLevelFilter);
+  const availableCatalog = useMemo(() => getProductsByLevel(orderLevelFilter), [getProductsByLevel, orderLevelFilter]);
 
   // Group products by name for smarter forms, sorted by kode barang (same as Karyawan stock list)
-  const groupedCatalogArray = groupByCatalog(availableCatalog);
+  const groupedCatalogArray = useMemo(() => groupByCatalog(availableCatalog), [availableCatalog]);
   // Lookup map by name for fast access
-  const groupedCatalog = Object.fromEntries(groupedCatalogArray.map(g => [g.name, g]));
-
+  const groupedCatalog = useMemo(() => Object.fromEntries(groupedCatalogArray.map(g => [g.name, g])), [groupedCatalogArray]);
 
   // Selected items in order form
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
@@ -238,32 +237,42 @@ const SchoolPemesanan = () => {
   const [formError, setFormError] = useState('');
 
   // Derived categorized items for matrix tables
-  const pakaianItems: any[] = [];
-  const kaosKakiItems: any[] = [];
-  const celanaItems: any[] = [];
-  const sepatuItems: any[] = [];
-  const aksesorisItems: any[] = [];
+  const { pakaianItems, kaosKakiItems, celanaItems, sepatuItems, aksesorisItems } = useMemo(() => {
+    const pakaian: any[] = [];
+    const kaosKaki: any[] = [];
+    const celana: any[] = [];
+    const sepatu: any[] = [];
+    const aksesoris: any[] = [];
 
-  matrixItems.forEach(row => {
-    const nameLower = row.name.toLowerCase();
-    
-    if (nameLower.includes('sepatu')) {
-      sepatuItems.push(row);
-    } else if (nameLower.includes('kaos kaki')) {
-      kaosKakiItems.push(row);
-    } else if (row.type === 'celana/rok' || nameLower.includes('celana') || nameLower.includes('rok')) {
-      const isNumeric = row.variants.some((v: any) => /^\d+$/.test(v.size?.trim()));
-      if (isNumeric) {
-        celanaItems.push(row);
+    matrixItems.forEach(row => {
+      const nameLower = row.name.toLowerCase();
+      
+      if (nameLower.includes('sepatu')) {
+        sepatu.push(row);
+      } else if (nameLower.includes('kaos kaki')) {
+        kaosKaki.push(row);
+      } else if (row.type === 'celana/rok' || nameLower.includes('celana') || nameLower.includes('rok')) {
+        const isNumeric = row.variants.some((v: any) => /^\d+$/.test(v.size?.trim()));
+        if (isNumeric) {
+          celana.push(row);
+        } else {
+          pakaian.push(row);
+        }
+      } else if (row.type === 'aksesoris' || row.type === 'buku' || (row.variants.length <= 1 && (!row.variants[0]?.size || row.variants[0]?.size.trim().toUpperCase() === 'ALL SIZE'))) {
+        aksesoris.push(row);
       } else {
-        pakaianItems.push(row);
+        pakaian.push(row);
       }
-    } else if (row.type === 'aksesoris' || row.type === 'buku' || (row.variants.length <= 1 && (!row.variants[0]?.size || row.variants[0]?.size.trim().toUpperCase() === 'ALL SIZE'))) {
-      aksesorisItems.push(row);
-    } else {
-      pakaianItems.push(row);
-    }
-  });
+    });
+
+    return {
+      pakaianItems: pakaian,
+      kaosKakiItems: kaosKaki,
+      celanaItems: celana,
+      sepatuItems: sepatu,
+      aksesorisItems: aksesoris,
+    };
+  }, [matrixItems]);
 
   const renderMatrixTable = (items: any[], title: string) => {
     if (items.length === 0) return null;

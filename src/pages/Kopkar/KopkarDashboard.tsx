@@ -18,7 +18,8 @@ const KopkarDashboard = () => {
       if (!silent) setLoading(true);
       const { data, error } = await supabase
         .from('orders')
-        .select('status, school_name, total_price_student, total_price_kopkar');
+        .select('status')
+        .in('status', ['pending', 'cancellation_requested']);
 
       if (!error && data) {
         setPendingOrders(data.filter((o: any) => o.status === 'pending').length);
@@ -38,7 +39,6 @@ const KopkarDashboard = () => {
     };
   }, []);
 
-
   return (
     <div className="kopkar-dashboard">
       <div className="kopkar-header-section">
@@ -50,20 +50,18 @@ const KopkarDashboard = () => {
         </div>
       </div>
 
-      {loading ? <p>Memuat dashboard...</p> : (
-        <>
-          {/* Operational Highlights */}
-          <div className="kopkar-stats operational-stats" style={{ marginBottom: '24px' }}>
-            <Link 
-              to="/kopkar/pesanan" 
-              className="kopkar-stat-card summary-card" 
-              style={{ textDecoration: 'none', cursor: 'pointer' }}
-              title="Klik untuk membuka Daftar Pesanan Berjalan"
-            >
-              <div className="stat-icon">📋</div>
-              <div className="stat-label">Menunggu Persetujuan</div>
-              <div className="stat-value warning">{pendingOrders}</div>
-            </Link>
+      {/* Operational Highlights */}
+      <div className="kopkar-stats operational-stats" style={{ marginBottom: '24px' }}>
+        <Link 
+          to="/kopkar/pesanan" 
+          className="kopkar-stat-card summary-card" 
+          style={{ textDecoration: 'none', cursor: 'pointer' }}
+          title="Klik untuk membuka Daftar Pesanan Berjalan"
+        >
+          <div className="stat-icon">📋</div>
+          <div className="stat-label">Menunggu Persetujuan</div>
+          <div className="stat-value warning">{loading ? '...' : pendingOrders}</div>
+        </Link>
         {cancelRequestsCount > 0 && (
           <div className="kopkar-stat-card alert-card">
             <div className="stat-icon">⚠️</div>
@@ -84,8 +82,6 @@ const KopkarDashboard = () => {
           </Link>
         )}
       </div>
-
-
 
       {/* Menu Utama Action Cards */}
       <div className="kopkar-main-menu" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
@@ -125,8 +121,6 @@ const KopkarDashboard = () => {
           <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Input barang masuk dan kontrol pembayaran/piutang ke vendor.</div>
         </Link>
       </div>
-      </>
-      )}
     </div>
   );
 };
