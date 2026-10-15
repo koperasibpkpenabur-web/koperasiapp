@@ -225,7 +225,7 @@ const VendorManagement = () => {
   const [showAddPlotting, setShowAddPlotting] = useState(false);
   const [editingPlotting, setEditingPlotting] = useState<Plotting | null>(null);
   const [plotLevelFilter, setPlotLevelFilter] = useState('ALL');
-  const [plotClothingType, setPlotClothingType] = useState('');
+  const [plotClothingTypes, setPlotClothingTypes] = useState<string[]>(['Semua Jenis Baju']);
 
   // Form Plotting (Add)
   const [plotVendorId, setPlotVendorId] = useState('');
@@ -237,7 +237,7 @@ const VendorManagement = () => {
   const [editPlotVendorId, setEditPlotVendorId] = useState('');
   const [editPlotSchoolId, setEditPlotSchoolId] = useState('');
   const [editPlotLevelFilter, setEditPlotLevelFilter] = useState('ALL');
-  const [editPlotClothingType, setEditPlotClothingType] = useState('');
+  const [editPlotClothingTypes, setEditPlotClothingTypes] = useState<string[]>([]);
 
   // Modals Stock
   const [showAddStock, setShowAddStock] = useState(false);
@@ -485,7 +485,7 @@ const VendorManagement = () => {
     setPlotSchoolIds([]);
     setPlotSchoolSearch('');
     setPlotLevelFilter('ALL');
-    setPlotClothingType('Semua Jenis Baju');
+    setPlotClothingTypes(['Semua Jenis Baju']);
     setShowAddPlotting(true);
   };
 
@@ -527,6 +527,40 @@ const VendorManagement = () => {
     }
   };
 
+  const toggleSelectClothingType = (type: string) => {
+    if (type === 'Semua Jenis Baju') {
+      setPlotClothingTypes(['Semua Jenis Baju']);
+      return;
+    }
+
+    setPlotClothingTypes((prev) => {
+      const clean = prev.filter((t) => t !== 'Semua Jenis Baju');
+      if (clean.includes(type)) {
+        const next = clean.filter((t) => t !== type);
+        return next.length === 0 ? ['Semua Jenis Baju'] : next;
+      } else {
+        return [...clean, type];
+      }
+    });
+  };
+
+  const toggleEditSelectClothingType = (type: string) => {
+    if (type === 'Semua Jenis Baju') {
+      setEditPlotClothingTypes(['Semua Jenis Baju']);
+      return;
+    }
+
+    setEditPlotClothingTypes((prev) => {
+      const clean = prev.filter((t) => t !== 'Semua Jenis Baju');
+      if (clean.includes(type)) {
+        const next = clean.filter((t) => t !== type);
+        return next.length === 0 ? ['Semua Jenis Baju'] : next;
+      } else {
+        return [...clean, type];
+      }
+    });
+  };
+
   const handleAddPlotting = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!plotVendorId) {
@@ -539,63 +573,82 @@ const VendorManagement = () => {
       return;
     }
 
-    if (!plotClothingType) {
-      alert('Pilih jenis baju yang diproduksi');
-      return;
-    }
-
-    // Filter penugasan yang belum terdaftar sebelumnya
-    const newSchoolIds = plotSchoolIds.filter(
-      (schId) =>
-        !plottings.some(
-          (p) =>
-            p.vendor_id === plotVendorId &&
-            p.school_user_id === schId &&
-            (p.clothing_type || 'Semua Jenis Baju') === plotClothingType
-        )
-    );
-
-    if (newSchoolIds.length === 0) {
-      alert('Semua sekolah yang dipilih sudah terdaftar untuk vendor dan jenis baju ini.');
+    if (plotClothingTypes.length === 0) {
+      alert('Pilih setidaknya satu jenis baju yang diproduksi');
       return;
     }
 
     setSubmitting(true);
 
-    const payload = newSchoolIds.map((schId) => ({
-      vendor_id: plotVendorId,
-      school_user_id: schId,
-      clothing_type: plotClothingType,
-    }));
+    const isAll = plotClothingTypes.includes('Semua Jenis Baju');
+    let insertedCount = 0;
+    let updatedCount = 0;
+    let anyError: any = null;
 
-    let { error } = await supabase.from('vendor_school_assignments').insert(payload);
+    for (const schId of plotSchoolIds) {
+      // Cek apakah penugasan vendor untuk sekolah ini sudah ada
+      const existing = plottings.find(
+        (p) => p.vendor_id === plotVendorId && p.school_user_id === schId
+      );
 
-    // Fallback jika database belum menambahkan kolom clothing_type
-    if (error && error.message.includes('clothing_type')) {
-      const fallbackPayload = newSchoolIds.map((schId) => ({
-        vendor_id: plotVendorId,
-        school_user_id: schId,
-      }));
-      const res = await supabase.from('vendor_school_assignments').insert(fallbackPayload);
-      error = res.error;
+      if (existing) {
+        // Jika sudah ada, gabungkan (merge) jenis baju secara cerdas tanpa melanggar unique constraint
+        let mergedClothingType = '';
+        if (isAll) {
+          mergedClothingType = 'Semua Jenis Baju';
+        } else {
+          const existingList = (existing.clothing_type || '')
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean);
+          const cleanExisting = existingList.filter((t) => t !== 'Semua Jenis Baju');
+          const mergedSet = new Set([...cleanExisting, ...plotClothingTypes]);
+          mergedClothingType = Array.from(mergedSet).join(', ');
+        }
+
+        const { error } = await supabase
+          .from('vendor_school_assignments')
+          .update({ clothing_type: mergedClothingType })
+          .eq('id', existing.id);
+
+        if (error) anyError = error;
+        else updatedCount++;
+      } else {
+        // Jika belum ada, lakukan insert penugasan baru
+        const finalClothingType = isAll ? 'Semua Jenis Baju' : plotClothingTypes.join(', ');
+        let { error } = await supabase.from('vendor_school_assignments').insert({
+          vendor_id: plotVendorId,
+          school_user_id: schId,
+          clothing_type: finalClothingType,
+        });
+
+        if (error && error.message.includes('clothing_type')) {
+          const res = await supabase.from('vendor_school_assignments').insert({
+            vendor_id: plotVendorId,
+            school_user_id: schId,
+          });
+          error = res.error;
+        }
+
+        if (error) anyError = error;
+        else insertedCount++;
+      }
     }
 
     setSubmitting(false);
 
-    if (!error) {
-      const skippedCount = plotSchoolIds.length - newSchoolIds.length;
-      let msg = `Plotting untuk ${newSchoolIds.length} sekolah berhasil disimpan!`;
-      if (skippedCount > 0) {
-        msg += ` (${skippedCount} sekolah dilewati karena sudah ada penugasan serupa).`;
-      }
-      alert(msg);
+    if (!anyError || insertedCount + updatedCount > 0) {
+      const parts = [];
+      if (insertedCount > 0) parts.push(`${insertedCount} sekolah baru ditambahkan`);
+      if (updatedCount > 0) parts.push(`${updatedCount} sekolah diperbarui/ditambahkan jenis seragamnya`);
+      alert(`Plotting berhasil disimpan! (${parts.join(', ')})`);
       setShowAddPlotting(false);
       setPlotSchoolIds([]);
       setPlotSchoolSearch('');
-      setPlotClothingType('');
+      setPlotClothingTypes(['Semua Jenis Baju']);
       fetchPlottings();
     } else {
-      alert('Gagal menyimpan plotting: ' + error.message);
+      alert('Gagal menyimpan plotting: ' + (anyError?.message || 'Terjadi kesalahan sistem'));
     }
   };
 
@@ -603,7 +656,9 @@ const VendorManagement = () => {
     setEditingPlotting(p);
     setEditPlotVendorId(p.vendor_id);
     setEditPlotSchoolId(p.school_user_id);
-    setEditPlotClothingType(p.clothing_type || 'Semua Jenis Baju');
+    const raw = p.clothing_type || 'Semua Jenis Baju';
+    const parsed = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    setEditPlotClothingTypes(parsed.length > 0 ? parsed : ['Semua Jenis Baju']);
     const sch = schools.find((s) => s.id === p.school_user_id);
     if (sch) {
       setEditPlotLevelFilter(sch.level.toUpperCase());
@@ -619,10 +674,14 @@ const VendorManagement = () => {
       alert('Pilih vendor dan sekolah');
       return;
     }
-    if (!editPlotClothingType) {
-      alert('Pilih jenis baju yang diproduksi');
+    if (editPlotClothingTypes.length === 0) {
+      alert('Pilih setidaknya satu jenis baju yang diproduksi');
       return;
     }
+
+    const finalClothingType = editPlotClothingTypes.includes('Semua Jenis Baju')
+      ? 'Semua Jenis Baju'
+      : editPlotClothingTypes.join(', ');
 
     setSubmitting(true);
     let { error } = await supabase
@@ -630,7 +689,7 @@ const VendorManagement = () => {
       .update({
         vendor_id: editPlotVendorId,
         school_user_id: editPlotSchoolId,
-        clothing_type: editPlotClothingType,
+        clothing_type: finalClothingType,
       })
       .eq('id', editingPlotting.id);
 
@@ -1437,20 +1496,31 @@ const VendorManagement = () => {
                                         </span>
                                       </td>
                                       <td>
-                                        <span
-                                          style={{
-                                            background: '#f0fdf4',
-                                            border: '1px solid #bbf7d0',
-                                            color: '#166534',
-                                            padding: '3px 8px',
-                                            borderRadius: '5px',
-                                            fontSize: '0.8rem',
-                                            fontWeight: 600,
-                                            display: 'inline-block',
-                                          }}
-                                        >
-                                          👔 {item.clothing_type || 'Semua Jenis Baju'}
-                                        </span>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                          {(item.clothing_type || 'Semua Jenis Baju')
+                                            .split(',')
+                                            .map((ct) => ct.trim())
+                                            .filter(Boolean)
+                                            .map((ct) => (
+                                              <span
+                                                key={ct}
+                                                style={{
+                                                  background: '#f0fdf4',
+                                                  border: '1px solid #bbf7d0',
+                                                  color: '#166534',
+                                                  padding: '2px 8px',
+                                                  borderRadius: '5px',
+                                                  fontSize: '0.8rem',
+                                                  fontWeight: 600,
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: '3px',
+                                                }}
+                                              >
+                                                👔 {ct}
+                                              </span>
+                                            ))}
+                                        </div>
                                       </td>
                                       <td style={{ textAlign: 'center' }}>
                                         <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
@@ -1803,20 +1873,31 @@ const VendorManagement = () => {
                             </span>
                           </td>
                           <td>
-                            <span
-                              style={{
-                                background: '#f0fdf4',
-                                border: '1px solid #bbf7d0',
-                                color: '#166534',
-                                padding: '4px 10px',
-                                borderRadius: '6px',
-                                fontSize: '0.85rem',
-                                fontWeight: 600,
-                                display: 'inline-block',
-                              }}
-                            >
-                              👔 {assign.clothing_type || 'Semua Jenis Baju'}
-                            </span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                              {(assign.clothing_type || 'Semua Jenis Baju')
+                                .split(',')
+                                .map((ct) => ct.trim())
+                                .filter(Boolean)
+                                .map((ct) => (
+                                  <span
+                                    key={ct}
+                                    style={{
+                                      background: '#f0fdf4',
+                                      border: '1px solid #bbf7d0',
+                                      color: '#166534',
+                                      padding: '2px 8px',
+                                      borderRadius: '5px',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 600,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                    }}
+                                  >
+                                    👔 {ct}
+                                  </span>
+                                ))}
+                            </div>
                           </td>
                           <td style={{ fontSize: '0.85rem', color: '#64748b' }}>
                             {assign.app_users?.username || '-'}
@@ -1881,20 +1962,31 @@ const VendorManagement = () => {
                           </span>
                         </td>
                         <td>
-                          <span
-                            style={{
-                              background: '#f0fdf4',
-                              border: '1px solid #bbf7d0',
-                              color: '#166534',
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontSize: '0.85rem',
-                              fontWeight: 600,
-                              display: 'inline-block',
-                            }}
-                          >
-                            👔 {p.clothing_type || 'Semua Jenis Baju'}
-                          </span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {(p.clothing_type || 'Semua Jenis Baju')
+                              .split(',')
+                              .map((ct) => ct.trim())
+                              .filter(Boolean)
+                              .map((ct) => (
+                                <span
+                                  key={ct}
+                                  style={{
+                                    background: '#f0fdf4',
+                                    border: '1px solid #bbf7d0',
+                                    color: '#166534',
+                                    padding: '2px 8px',
+                                    borderRadius: '5px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                  }}
+                                >
+                                  👔 {ct}
+                                </span>
+                              ))}
+                          </div>
                         </td>
                         <td style={{ fontSize: '0.85rem', color: '#64748b' }}>
                           <div>👤 {p.vendors?.contact_person || v?.contact_person || '-'}</div>
@@ -2444,22 +2536,113 @@ const VendorManagement = () => {
               </div>
 
               <div>
-                <label style={labelStyle}>Jenis Baju yang Diproduksi</label>
-                <select
-                  required
-                  value={plotClothingType}
-                  onChange={(e) => setPlotClothingType(e.target.value)}
-                  style={inputStyle}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={labelStyle}>
+                    Jenis Baju yang Diproduksi ({plotClothingTypes.length} Jenis Dipilih)
+                  </label>
+                  {availableClothingTypes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (availableClothingTypes.every((t) => plotClothingTypes.includes(t))) {
+                          setPlotClothingTypes(['Semua Jenis Baju']);
+                        } else {
+                          setPlotClothingTypes([...availableClothingTypes]);
+                        }
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0284c7',
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {availableClothingTypes.every((t) => plotClothingTypes.includes(t))
+                        ? 'Pilih Semua Baju'
+                        : 'Pilih Semua Item'}
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    background: '#fff',
+                    padding: '8px',
+                    maxHeight: '160px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
                 >
-                  <option value="Semua Jenis Baju">👕 Semua Jenis Baju (Full Seragam)</option>
-                  {availableClothingTypes.map((item) => (
-                    <option key={item} value={item}>
-                      👔 {item}
-                    </option>
-                  ))}
-                </select>
+                  {/* Pilihan Semua Jenis Baju */}
+                  <div
+                    onClick={() => toggleSelectClothingType('Semua Jenis Baju')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      background: plotClothingTypes.includes('Semua Jenis Baju') ? '#e0f2fe' : 'transparent',
+                      fontWeight: plotClothingTypes.includes('Semua Jenis Baju') ? 700 : 500,
+                      color: plotClothingTypes.includes('Semua Jenis Baju') ? '#0369a1' : '#334155',
+                      fontSize: '0.88rem',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={plotClothingTypes.includes('Semua Jenis Baju')}
+                      onChange={() => {}}
+                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                    />
+                    <span>👕 Semua Jenis Baju (Full Seragam Sekolah)</span>
+                  </div>
+
+                  {/* Pilihan Jenis Baju Spesifik */}
+                  {availableClothingTypes.map((item) => {
+                    const isChecked = plotClothingTypes.includes(item);
+                    return (
+                      <div
+                        key={item}
+                        onClick={() => toggleSelectClothingType(item)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          background: isChecked ? '#f0fdf4' : 'transparent',
+                          fontWeight: isChecked ? 600 : 400,
+                          color: isChecked ? '#166534' : '#475569',
+                          fontSize: '0.85rem',
+                        }}
+                        onMouseOver={(e) => {
+                          if (!isChecked) e.currentTarget.style.background = '#f8fafc';
+                        }}
+                        onMouseOut={(e) => {
+                          if (!isChecked) e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                        />
+                        <span>👔 {item}</span>
+                      </div>
+                    );
+                  })}
+                </div>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                  * Pilihan ini akan diterapkan ke {plotSchoolIds.length > 0 ? `${plotSchoolIds.length} sekolah yang dipilih di atas` : 'seluruh sekolah yang dipilih'}.
+                  * Anda dapat mencentang lebih dari 1 jenis baju (misal: Kotak-Kotak Putra dan Putri). Jika sekolah sudah memiliki penugasan, sistem akan otomatis menggabungkannya tanpa error duplikasi.
                 </p>
               </div>
 
@@ -2548,7 +2731,7 @@ const VendorManagement = () => {
                   value={editPlotSchoolId}
                   onChange={(e) => {
                     setEditPlotSchoolId(e.target.value);
-                    setEditPlotClothingType('');
+                    setEditPlotClothingTypes(['Semua Jenis Baju']);
                   }}
                   style={inputStyle}
                 >
@@ -2564,30 +2747,85 @@ const VendorManagement = () => {
               </div>
 
               <div>
-                <label style={labelStyle}>Jenis Baju yang Diproduksi</label>
-                <select
-                  required
-                  value={editPlotClothingType}
-                  onChange={(e) => setEditPlotClothingType(e.target.value)}
-                  style={inputStyle}
-                  disabled={!editPlotSchoolId}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={labelStyle}>
+                    Jenis Baju yang Diproduksi ({editPlotClothingTypes.length} Jenis Dipilih)
+                  </label>
+                </div>
+
+                <div
+                  style={{
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    background: '#fff',
+                    padding: '8px',
+                    maxHeight: '160px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
                 >
-                  {!editPlotSchoolId ? (
-                    <option value="">-- Pilih Sekolah Terlebih Dahulu --</option>
-                  ) : (
-                    <>
-                      <option value="">
-                        -- Pilih Jenis Baju ({editAvailableClothingTypes.length} Jenis di Jenjang {selectedEditPlotSchool?.level}) --
-                      </option>
-                      <option value="Semua Jenis Baju">👕 Semua Jenis Baju (Full Seragam)</option>
-                      {editAvailableClothingTypes.map((item) => (
-                        <option key={item} value={item}>
-                          👔 {item}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
+                  <div
+                    onClick={() => toggleEditSelectClothingType('Semua Jenis Baju')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      background: editPlotClothingTypes.includes('Semua Jenis Baju') ? '#e0f2fe' : 'transparent',
+                      fontWeight: editPlotClothingTypes.includes('Semua Jenis Baju') ? 700 : 500,
+                      color: editPlotClothingTypes.includes('Semua Jenis Baju') ? '#0369a1' : '#334155',
+                      fontSize: '0.88rem',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={editPlotClothingTypes.includes('Semua Jenis Baju')}
+                      onChange={() => {}}
+                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                    />
+                    <span>👕 Semua Jenis Baju (Full Seragam)</span>
+                  </div>
+
+                  {editAvailableClothingTypes.map((item) => {
+                    const isChecked = editPlotClothingTypes.includes(item);
+                    return (
+                      <div
+                        key={item}
+                        onClick={() => toggleEditSelectClothingType(item)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          background: isChecked ? '#f0fdf4' : 'transparent',
+                          fontWeight: isChecked ? 600 : 400,
+                          color: isChecked ? '#166534' : '#475569',
+                          fontSize: '0.85rem',
+                        }}
+                        onMouseOver={(e) => {
+                          if (!isChecked) e.currentTarget.style.background = '#f8fafc';
+                        }}
+                        onMouseOut={(e) => {
+                          if (!isChecked) e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                        />
+                        <span>👔 {item}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
