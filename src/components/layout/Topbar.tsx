@@ -17,12 +17,28 @@ const Topbar = () => {
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
       admin: 'Admin',
-      kopkar: 'Karyawan Kopkar',
+      kopkar: 'Karyawan',
       sekolah: 'Sekolah',
       pengurus: 'Pengurus',
-      guru_ots: 'Guru on the Spot',
+      guru_ots: 'Guru OTS',
     };
     return labels[role] || role;
+  };
+
+  const getHomeRoute = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return '/admin';
+      case 'kopkar':
+        return '/kopkar';
+      case 'sekolah':
+      case 'guru_ots':
+        return '/school';
+      case 'pengurus':
+        return '/pengurus';
+      default:
+        return '/';
+    }
   };
 
   return (
@@ -33,28 +49,29 @@ const Topbar = () => {
           className="hamburger-btn"
           onClick={toggleSidebar}
           aria-label="Buka / Tutup Sidebar"
-          title="Buka / Tutup Menu Sidebar (Strip 3)"
+          title="Buka / Tutup Menu Sidebar"
         >
           <span className="strip-line"></span>
           <span className="strip-line"></span>
           <span className="strip-line"></span>
         </button>
 
-        <div className="topbar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="topbar-brand">
           {isMaintenanceMode && (
             <span
               style={{
-                fontSize: '0.7rem',
+                fontSize: '0.68rem',
                 background: '#fef3c7',
                 color: '#b45309',
                 padding: '2px 8px',
                 borderRadius: '6px',
                 fontWeight: 700,
                 border: '1px solid #fde68a',
+                whiteSpace: 'nowrap',
               }}
               title="Sistem sedang dalam mode pemeliharaan"
             >
-              🛠️ MAINTENANCE AKTIF
+              🛠️ MAINTENANCE
             </span>
           )}
         </div>
@@ -63,7 +80,7 @@ const Topbar = () => {
       <div className="topbar-actions">
         {user && (
           <div className="user-section">
-            <span className="user-profile" title={user.name}>
+            <span className="user-profile" title={`${user.name} (${getRoleLabel(user.role)})`}>
               <span className="user-display-name">{user.name}</span>
               <span className="user-role-tag">{getRoleLabel(user.role)}</span>
               {user.schoolLevel && (
@@ -72,23 +89,12 @@ const Topbar = () => {
             </span>
             <div className="header-actions">
               <button 
-                onClick={() => navigate(user.role === 'admin' ? '/admin' : user.role === 'kopkar' ? '/kopkar' : user.role === 'sekolah' ? '/school' : '/pengurus')}
-                style={{
-                  background: '#F0F3FA',
-                  border: '1px solid #d5deef',
-                  borderRadius: '6px',
-                  padding: '6px 12px',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  color: '#395886',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
+                className="menu-utama-btn"
+                onClick={() => navigate(getHomeRoute(user.role))}
                 title="Kembali ke Dashboard / Menu Utama"
               >
-                🏠 Menu Utama
+                <span>🏠</span>
+                <span className="btn-text">Menu Utama</span>
               </button>
               {(user.role === 'sekolah' || user.role === 'guru_ots') && (
                 <button 

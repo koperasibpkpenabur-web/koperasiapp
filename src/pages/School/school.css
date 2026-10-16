@@ -1068,48 +1068,7 @@ html.force-mobile .btn-remove-item {
   background: var(--bg-danger, #fff1f2);
 }
 
-/* Header Cart Icon */
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
 
-.cart-icon-btn {
-  position: relative;
-  background: #ffffff;
-  border: 1px solid var(--border-subtle, #d5deef);
-  border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(57, 88, 134, 0.05);
-  transition: all 0.2s ease;
-  color: var(--primary-blue, #395886);
-}
-
-.cart-icon-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(57, 88, 134, 0.1);
-  border-color: var(--primary-blue, #395886);
-}
-
-.cart-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  background: var(--color-danger, #e11d48);
-  color: white;
-  font-size: 0.7rem;
-  font-weight: bold;
-  padding: 2px 6px;
-  border-radius: 12px;
-  border: 2px solid #ffffff;
-}
 
 /* Action Menu Dropdown */
 .action-menu-dropdown {

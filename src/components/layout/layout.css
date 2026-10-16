@@ -293,59 +293,61 @@
    TOPBAR (Warna #395886, Teks Putih)
    ============================================================ */
 .topbar {
-  min-height: 64px;
+  min-height: 56px;
+  height: 56px;
   background-color: #395886;
   border-bottom: 1px solid rgba(255, 255, 255, 0.14);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 20px;
   box-shadow: 0 2px 8px rgba(30, 45, 66, 0.12);
-  z-index: 10;
-  gap: 16px;
+  z-index: 40;
+  gap: 12px;
 }
 
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
+  flex-shrink: 0;
 }
 
-/* Strip 3 Hamburger Button */
+/* Strip 3 Hamburger Button (Compact & Clean) */
 .hamburger-btn {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 4px;
-  width: 38px;
-  height: 38px;
+  gap: 3px;
+  width: 28px;
+  height: 28px;
   background: #F0F3FA;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
   cursor: pointer;
-  padding: 7px;
+  padding: 5px;
   flex-shrink: 0;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .hamburger-btn:hover {
   background: #ffffff;
-  transform: scale(1.04);
+  transform: scale(1.05);
 }
 
 .hamburger-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 
 .strip-line {
   display: block;
-  width: 18px;
+  width: 14px;
   height: 2px;
   background-color: #395886;
-  border-radius: 2px;
+  border-radius: 1px;
   transition: all 0.2s;
 }
 
@@ -362,75 +364,174 @@
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .user-section {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .user-profile {
   font-weight: 600;
   color: #395886;
-  padding: 5px 12px;
+  height: 32px;
+  padding: 0 10px;
   background-color: #F0F3FA;
   border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 20px;
-  font-size: 0.82rem;
-  display: flex;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  max-width: 280px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  gap: 6px;
+  max-width: 260px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .user-display-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
 
 .user-role-tag {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   background: #395886;
   color: #ffffff;
-  padding: 2px 7px;
-  border-radius: 8px;
+  padding: 2px 6px;
+  border-radius: 6px;
   text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .user-level-tag {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   background: #243956;
   color: #ffffff;
-  padding: 2px 7px;
-  border-radius: 8px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.menu-utama-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  background: #F0F3FA;
+  color: #395886;
+  border: 1px solid #d5deef;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.menu-utama-btn:hover {
+  background: #ffffff;
+  color: #1e3a8a;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.menu-utama-btn:active {
+  transform: translateY(0);
+}
+
+.cart-icon-btn {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid #d5deef;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(57, 88, 134, 0.08);
+  transition: all 0.2s ease;
+  color: #395886;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.cart-icon-btn:hover {
+  transform: translateY(-1px);
+  background: #F0F3FA;
+}
+
+.cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #e11d48;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 1px 5px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .logout-btn {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
   background: #ffffff;
   color: #e11d48;
-  border: none;
-  border-radius: 18px;
+  border: 1px solid rgba(225, 29, 72, 0.25);
+  border-radius: 16px;
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
 }
 
 .logout-btn:hover {
   background: #fff1f2;
+  border-color: #e11d48;
   transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(225, 29, 72, 0.15);
+}
+
+.logout-btn:active {
+  transform: translateY(0);
 }
 
 /* ============================================================
@@ -490,11 +591,38 @@
   }
 
   .topbar {
-    padding: 0 14px;
+    padding: 0 12px;
+    height: 52px;
+    min-height: 52px;
   }
 
   .user-display-name {
     display: none;
+  }
+
+  .user-profile {
+    max-width: 140px;
+    padding: 0 8px;
+  }
+}
+
+@media (max-width: 600px) {
+  .menu-utama-btn span.btn-text {
+    display: none;
+  }
+
+  .menu-utama-btn {
+    padding: 0 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-role-tag {
+    display: none;
+  }
+
+  .user-profile {
+    padding: 0 6px;
   }
 }
 
