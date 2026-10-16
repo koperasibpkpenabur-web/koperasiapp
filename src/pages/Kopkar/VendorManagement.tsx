@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { useProducts } from '../../context/ProductContext';
 import KopkarKalkulatorKain from './KopkarKalkulatorKain';
+import KopkarPrediksiProduksi from './KopkarPrediksiProduksi';
 import './kopkar.css';
 
 interface Vendor {
@@ -203,7 +204,7 @@ const ActionMenu = ({
 
 const VendorManagement = () => {
   const { products } = useProducts();
-  const [activeTab, setActiveTab] = useState<'vendors' | 'plotting' | 'stock' | 'calculator'>('vendors');
+  const [activeTab, setActiveTab] = useState<'vendors' | 'plotting' | 'stock' | 'forecast' | 'calculator'>('vendors');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -285,7 +286,8 @@ const VendorManagement = () => {
   useEffect(() => {
     if (activeTab === 'vendors') {
       fetchVendors();
-    } else if (activeTab === 'plotting') {
+    } else if (activeTab === 'plotting' || activeTab === 'forecast') {
+      fetchVendors();
       fetchPlottings();
       if (!schoolsLoadedRef.current) {
         fetchSchools();
@@ -1198,6 +1200,22 @@ const VendorManagement = () => {
           📦 Stok Barang Jadi ({stocks.length})
         </button>
         <button
+          className={`btn-tab ${activeTab === 'forecast' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('forecast');
+            setSearchQuery('');
+          }}
+          style={{
+            fontWeight: activeTab === 'forecast' ? 'bold' : 'normal',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: activeTab === 'forecast' ? '#0284c7' : '#64748b',
+          }}
+        >
+          📊 Prediksi Produksi (27/28)
+        </button>
+        <button
           className={`btn-tab ${activeTab === 'calculator' ? 'active' : ''}`}
           onClick={() => setActiveTab('calculator')}
           style={{
@@ -1765,6 +1783,18 @@ const VendorManagement = () => {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* PREDIKSI PRODUKSI TAB */}
+      {activeTab === 'forecast' && (
+        <div style={{ marginTop: '-12px', marginBottom: '24px' }}>
+          <KopkarPrediksiProduksi
+            vendors={vendors}
+            plottings={plottings}
+            schools={schools}
+            products={products}
+          />
         </div>
       )}
 
