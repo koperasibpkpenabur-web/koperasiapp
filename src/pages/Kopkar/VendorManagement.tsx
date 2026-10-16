@@ -1108,29 +1108,21 @@ const VendorManagement = () => {
     const exportData = filteredPlottings.map((p, idx) => {
       const v = vendors.find((item) => item.id === p.vendor_id);
       return {
-        No: idx + 1,
-        'Nama Vendor (Penjahit)': p.vendors?.name || v?.name || '-',
-        'PIC Vendor': p.vendors?.contact_person || v?.contact_person || '-',
-        'No. Telepon Vendor': p.vendors?.phone || v?.phone || '-',
+        'No.': idx + 1,
+        'Nama Vendor': p.vendors?.name || v?.name || '-',
         'Sekolah yang Dikerjakan': p.app_users?.school_name || '-',
         Jenjang: p.app_users?.school_level || '-',
-        'Email Akun Sekolah': p.app_users?.username || '-',
         'Jenis Barang yang Dikerjakan': p.clothing_type || 'Semua Jenis Baju',
-        'Tanggal Plotting': p.created_at ? new Date(p.created_at).toLocaleDateString('id-ID') : '-',
       };
     });
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     worksheet['!cols'] = [
       { wch: 6 },
-      { wch: 28 },
-      { wch: 18 },
-      { wch: 20 },
-      { wch: 32 },
-      { wch: 12 },
-      { wch: 32 },
-      { wch: 28 },
-      { wch: 16 },
+      { wch: 30 },
+      { wch: 36 },
+      { wch: 14 },
+      { wch: 35 },
     ];
 
     const workbook = XLSX.utils.book_new();
