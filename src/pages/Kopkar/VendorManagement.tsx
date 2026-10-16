@@ -2355,13 +2355,25 @@ const VendorManagement = () => {
       {/* MODAL DETAIL PLOTTING SEKOLAH (KLIK SELENGKAPNYA) */}
       {activeDetailPlotGroup && (
         <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '850px', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div
+            className="modal"
+            style={{
+              maxWidth: '900px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              padding: '24px',
+            }}
+          >
+            {/* Header */}
             <div
               style={{
+                flexShrink: 0,
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'flex-start',
-                marginBottom: '16px',
+                marginBottom: '14px',
                 borderBottom: '1px solid #e2e8f0',
                 paddingBottom: '12px',
               }}
@@ -2395,14 +2407,15 @@ const VendorManagement = () => {
             {/* Vendor Profile Card */}
             <div
               style={{
+                flexShrink: 0,
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                 gap: '12px',
                 background: '#f8fafc',
-                padding: '14px 18px',
+                padding: '12px 18px',
                 borderRadius: '10px',
                 border: '1px solid #e2e8f0',
-                marginBottom: '20px',
+                marginBottom: '16px',
               }}
             >
               <div>
@@ -2436,16 +2449,36 @@ const VendorManagement = () => {
               </div>
             </div>
 
-            {/* Rincian Penugasan Sekolah */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
+            {/* Rincian Penugasan Sekolah (SCROLLABLE TABLE CONTAINER) */}
+            <div
+              style={{
+                flex: 1,
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                overflowY: 'auto',
+                minHeight: '220px',
+                maxHeight: '460px',
+                marginBottom: '16px',
+                background: '#ffffff',
+                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02)',
+              }}
+            >
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-                <thead style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
+                <thead
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10,
+                    background: '#f8fafc',
+                    borderBottom: '2px solid #e2e8f0',
+                  }}
+                >
                   <tr>
-                    <th style={{ width: '40px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem' }}>No</th>
-                    <th style={{ width: '220px', padding: '10px 12px', textAlign: 'left', color: '#475569', fontSize: '0.8rem' }}>Sekolah yang Dilayani</th>
-                    <th style={{ width: '80px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem' }}>Jenjang</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#475569', fontSize: '0.8rem' }}>Jenis Baju yang Diproduksi</th>
-                    <th style={{ width: '130px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem' }}>Aksi</th>
+                    <th style={{ width: '45px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>No</th>
+                    <th style={{ width: '220px', padding: '10px 12px', textAlign: 'left', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>Sekolah yang Dilayani</th>
+                    <th style={{ width: '80px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>Jenjang</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>Jenis Baju yang Diproduksi</th>
+                    <th style={{ width: '130px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2465,11 +2498,15 @@ const VendorManagement = () => {
 
                       return (
                         <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                          <td style={{ padding: '10px 12px', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
-                          <td style={{ padding: '10px 12px' }}>
-                            <strong style={{ color: '#0f172a' }}>{item.app_users?.school_name || 'Sekolah'}</strong>
+                          <td style={{ padding: '12px 10px', textAlign: 'center', color: '#64748b', fontWeight: 600, verticalAlign: 'top' }}>
+                            {idx + 1}
                           </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <td style={{ padding: '12px 12px', verticalAlign: 'top' }}>
+                            <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>
+                              {item.app_users?.school_name || 'Sekolah'}
+                            </strong>
+                          </td>
+                          <td style={{ padding: '12px 10px', textAlign: 'center', verticalAlign: 'top' }}>
                             <span
                               style={{
                                 background: '#f1f5f9',
@@ -2478,12 +2515,13 @@ const VendorManagement = () => {
                                 borderRadius: '4px',
                                 fontSize: '0.75rem',
                                 fontWeight: 700,
+                                display: 'inline-block',
                               }}
                             >
                               {item.app_users?.school_level || '-'}
                             </span>
                           </td>
-                          <td style={{ padding: '10px 12px' }}>
+                          <td style={{ padding: '12px 12px', verticalAlign: 'top' }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                               {isAllUniform ? (
                                 <span
@@ -2522,7 +2560,7 @@ const VendorManagement = () => {
                               )}
                             </div>
                           </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <td style={{ padding: '12px 10px', textAlign: 'center', verticalAlign: 'top' }}>
                             <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
                               <button
                                 type="button"
@@ -2568,8 +2606,19 @@ const VendorManagement = () => {
               </table>
             </div>
 
-            {/* Modal Actions */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            {/* Modal Actions (FIXED AT BOTTOM) */}
+            <div
+              style={{
+                flexShrink: 0,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '10px',
+                paddingTop: '14px',
+                borderTop: '1px solid #e2e8f0',
+              }}
+            >
               <button
                 type="button"
                 className="btn-primary"
