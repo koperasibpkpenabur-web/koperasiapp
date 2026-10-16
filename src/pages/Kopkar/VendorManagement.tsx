@@ -1414,7 +1414,7 @@ const VendorManagement = () => {
                 <th style={{ width: '260px' }}>Nama Vendor (Penjahit)</th>
                 <th>Sekolah yang Dilayani</th>
                 <th style={{ width: '140px', textAlign: 'center' }}>Total Sekolah</th>
-                <th style={{ width: '220px', textAlign: 'center' }}>Aksi</th>
+                <th style={{ width: '110px', textAlign: 'center' }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -1468,22 +1468,61 @@ const VendorManagement = () => {
                             🏫 {item.app_users?.school_name || 'Sekolah'}
                           </span>
                         ))}
-                        {g.items.length > 4 && (
+                        {g.items.length > 4 ? (
                           <span
                             onClick={() => setDetailPlotVendorId(g.vendorId)}
                             style={{
                               background: '#e0f2fe',
                               color: '#0284c7',
                               border: '1px solid #bae6fd',
-                              padding: '3px 8px',
+                              padding: '3px 9px',
                               borderRadius: '6px',
                               fontSize: '0.8rem',
                               fontWeight: 600,
                               cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              transition: 'all 0.15s ease',
                             }}
-                            title="Klik untuk melihat semua sekolah yang dilayani"
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.background = '#0284c7';
+                              e.currentTarget.style.color = '#ffffff';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.background = '#e0f2fe';
+                              e.currentTarget.style.color = '#0284c7';
+                            }}
+                            title="Klik untuk melihat semua sekolah dan rincian seragam"
                           >
-                            +{g.items.length - 4} sekolah lainnya...
+                            +{g.items.length - 4} sekolah lainnya (Klik Selengkapnya)
+                          </span>
+                        ) : (
+                          <span
+                            onClick={() => setDetailPlotVendorId(g.vendorId)}
+                            style={{
+                              background: '#f0f9ff',
+                              color: '#0284c7',
+                              border: '1px solid #bae6fd',
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.background = '#0284c7';
+                              e.currentTarget.style.color = '#ffffff';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.background = '#f0f9ff';
+                              e.currentTarget.style.color = '#0284c7';
+                            }}
+                            title="Klik untuk melihat rincian jenis baju seragam"
+                          >
+                            Klik Selengkapnya
                           </span>
                         )}
                       </div>
@@ -1505,50 +1544,35 @@ const VendorManagement = () => {
                       </span>
                     </td>
                     <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          type="button"
-                          onClick={() => setDetailPlotVendorId(g.vendorId)}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            border: '1px solid #0284c7',
-                            background: '#f0f9ff',
-                            color: '#0284c7',
-                            fontWeight: 600,
-                            fontSize: '0.82rem',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            transition: 'all 0.15s ease',
-                          }}
-                          title="Lihat rincian sekolah dan jenis baju seragam"
-                        >
-                          👁️ Klik Selengkapnya
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openAddPlottingModal(g.vendorId)}
-                          title="Tambah plotting sekolah untuk vendor ini"
-                          style={{
-                            padding: '6px 11px',
-                            borderRadius: '6px',
-                            border: '1px solid #16a34a',
-                            background: '#f0fdf4',
-                            color: '#16a34a',
-                            fontWeight: 600,
-                            fontSize: '0.82rem',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
-                          + Plot
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openAddPlottingModal(g.vendorId)}
+                        title="Tambah plotting sekolah untuk vendor ini"
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          border: '1px solid #16a34a',
+                          background: '#f0fdf4',
+                          color: '#16a34a',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.background = '#16a34a';
+                          e.currentTarget.style.color = '#ffffff';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.background = '#f0fdf4';
+                          e.currentTarget.style.color = '#16a34a';
+                        }}
+                      >
+                        + Plot
+                      </button>
                     </td>
                   </tr>
                 ))
