@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, Fragment } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { useProducts } from '../../context/ProductContext';
@@ -224,6 +224,7 @@ const VendorManagement = () => {
   // Modals Plotting
   const [showAddPlotting, setShowAddPlotting] = useState(false);
   const [editingPlotting, setEditingPlotting] = useState<Plotting | null>(null);
+  const [detailPlotVendorId, setDetailPlotVendorId] = useState<string | null>(null);
   const [plotLevelFilter, setPlotLevelFilter] = useState('ALL');
   const [plotClothingTypes, setPlotClothingTypes] = useState<string[]>(['Semua Jenis Baju']);
 
@@ -231,7 +232,6 @@ const VendorManagement = () => {
   const [plotVendorId, setPlotVendorId] = useState('');
   const [plotSchoolIds, setPlotSchoolIds] = useState<string[]>([]);
   const [plotSchoolSearch, setPlotSchoolSearch] = useState('');
-  const [expandedPlotVendors, setExpandedPlotVendors] = useState<Record<string, boolean>>({});
 
   // Form Plotting (Edit)
   const [editPlotVendorId, setEditPlotVendorId] = useState('');
@@ -497,28 +497,6 @@ const VendorManagement = () => {
     setPlotLevelFilter('ALL');
     setPlotClothingTypes(['Semua Jenis Baju']);
     setShowAddPlotting(true);
-  };
-
-  const togglePlotVendor = (vendorId: string) => {
-    setExpandedPlotVendors((prev) => ({
-      ...prev,
-      [vendorId]: !prev[vendorId],
-    }));
-  };
-
-  const expandAllPlotVendors = () => {
-    const all: Record<string, boolean> = {};
-    vendors.forEach((v) => {
-      all[v.id] = true;
-    });
-    plottings.forEach((p) => {
-      all[p.vendor_id] = true;
-    });
-    setExpandedPlotVendors(all);
-  };
-
-  const collapseAllPlotVendors = () => {
-    setExpandedPlotVendors({});
   };
 
   const toggleSelectSchool = (schoolId: string) => {
@@ -1048,6 +1026,12 @@ const VendorManagement = () => {
     return Array.from(map.values()).sort((a, b) => a.vendorName.localeCompare(b.vendorName));
   }, [filteredPlottings, vendors]);
 
+  // Data vendor yang dipilih untuk modal detail plotting ("Klik Selengkapnya")
+  const activeDetailPlotGroup = useMemo(() => {
+    if (!detailPlotVendorId) return null;
+    return groupedPlottings.find((g) => g.vendorId === detailPlotVendorId) || null;
+  }, [detailPlotVendorId, groupedPlottings]);
+
   // Deteksi sekolah terpilih di modal edit plotting
   const selectedEditPlotSchool = schools.find((s) => s.id === editPlotSchoolId);
 
@@ -1379,63 +1363,46 @@ const VendorManagement = () => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: '16px',
+              padding: '16px 20px',
+              borderBottom: '1px solid #e2e8f0',
               flexWrap: 'wrap',
               gap: '12px',
             }}
           >
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
               <input
                 type="text"
-                placeholder="Cari vendor, sekolah, jenis baju, atau email..."
+                placeholder="🔍 Cari vendor, sekolah, atau jenis baju..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
-                  padding: '8px 14px',
+                  padding: '9px 16px',
                   borderRadius: '8px',
                   border: '1px solid #cbd5e1',
                   fontSize: '0.9rem',
-                  minWidth: '260px',
+                  width: '100%',
+                  maxWidth: '380px',
+                  outline: 'none',
                 }}
               />
-              <button
-                type="button"
-                onClick={expandAllPlotVendors}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  background: '#f8fafc',
-                  color: '#334155',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-                title="Tampilkan seluruh rincian sekolah semua vendor"
-              >
-                📂 Buka Semua
-              </button>
-              <button
-                type="button"
-                onClick={collapseAllPlotVendors}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  background: '#f8fafc',
-                  color: '#334155',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-                title="Sembunyikan rincian sekolah semua vendor agar tabel lebih ringkas"
-              >
-                📁 Tutup Semua
-              </button>
             </div>
             <div>
-              <button className="btn-primary" onClick={() => openAddPlottingModal()}>
-                🔗 + Plot Sekolah
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => openAddPlottingModal()}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 18px',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                }}
+              >
+                ➕ Plot Sekolah
               </button>
             </div>
           </div>
@@ -1443,11 +1410,11 @@ const VendorManagement = () => {
           <table className="kopkar-table">
             <thead>
               <tr>
-                <th style={{ width: '45px', textAlign: 'center' }}>No</th>
-                <th style={{ width: '250px' }}>Nama Vendor (Penjahit)</th>
-                <th>Sekolah yang Dilayani & Jenis Baju</th>
-                <th style={{ width: '130px', textAlign: 'center' }}>Total Sekolah</th>
-                <th style={{ width: '180px', textAlign: 'center' }}>Aksi / Rincian</th>
+                <th style={{ width: '50px', textAlign: 'center' }}>No</th>
+                <th style={{ width: '260px' }}>Nama Vendor (Penjahit)</th>
+                <th>Sekolah yang Dilayani</th>
+                <th style={{ width: '140px', textAlign: 'center' }}>Total Sekolah</th>
+                <th style={{ width: '220px', textAlign: 'center' }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -1466,268 +1433,125 @@ const VendorManagement = () => {
                   </td>
                 </tr>
               ) : (
-                groupedPlottings.map((g, idx) => {
-                  const isExpanded = !!expandedPlotVendors[g.vendorId] || searchQuery.trim().length > 0;
-                  return (
-                    <Fragment key={g.vendorId}>
-                      <tr
-                        style={{
-                          background: isExpanded ? '#f8fafc' : '#ffffff',
-                          transition: 'background 0.15s ease',
-                        }}
-                      >
-                        <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '1.1rem' }}>🏢</span>
-                            <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>{g.vendorName}</strong>
-                          </div>
-                          <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '3px', marginLeft: '26px' }}>
-                            👤 PIC: <strong>{g.contactPerson}</strong> • 📞 <strong>{g.phone}</strong>
-                          </div>
-                        </td>
-                        <td>
-                          {/* Tampilan ringkas sekolah saat tersembunyi (hide) */}
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                            {g.items.slice(0, 3).map((item) => (
-                              <span
-                                key={item.id}
-                                style={{
-                                  background: '#e0f2fe',
-                                  color: '#0369a1',
-                                  padding: '3px 8px',
-                                  borderRadius: '5px',
-                                  fontSize: '0.8rem',
-                                  fontWeight: 600,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                }}
-                              >
-                                🏫 {item.app_users?.school_name || 'Sekolah'}
-                                <span style={{ opacity: 0.7, fontSize: '0.75rem', fontWeight: 400 }}>
-                                  ({item.clothing_type || 'Semua Baju'})
-                                </span>
-                              </span>
-                            ))}
-                            {g.items.length > 3 && (
-                              <span
-                                onClick={() => togglePlotVendor(g.vendorId)}
-                                style={{
-                                  background: '#f1f5f9',
-                                  color: '#0284c7',
-                                  padding: '3px 8px',
-                                  borderRadius: '5px',
-                                  fontSize: '0.8rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                +{g.items.length - 3} sekolah lainnya...
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
+                groupedPlottings.map((g, idx) => (
+                  <tr key={g.vendorId} style={{ transition: 'background 0.15s ease' }}>
+                    <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600, verticalAlign: 'middle' }}>
+                      {idx + 1}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '1.1rem' }}>🏢</span>
+                        <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>{g.vendorName}</strong>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '3px', marginLeft: '26px' }}>
+                        👤 PIC: <strong>{g.contactPerson}</strong> • 📞 <strong>{g.phone}</strong>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        {g.items.slice(0, 4).map((item) => (
                           <span
+                            key={item.id}
                             style={{
-                              background: '#f0fdf4',
-                              color: '#166534',
-                              border: '1px solid #bbf7d0',
-                              padding: '4px 10px',
-                              borderRadius: '999px',
-                              fontWeight: 700,
-                              fontSize: '0.82rem',
-                              display: 'inline-block',
+                              background: '#f1f5f9',
+                              color: '#334155',
+                              border: '1px solid #e2e8f0',
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
                             }}
                           >
-                            {g.items.length} Sekolah
+                            🏫 {item.app_users?.school_name || 'Sekolah'}
                           </span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
-                            <button
-                              type="button"
-                              onClick={() => togglePlotVendor(g.vendorId)}
-                              style={{
-                                padding: '5px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid #cbd5e1',
-                                background: isExpanded ? '#e2e8f0' : '#f1f5f9',
-                                color: '#334155',
-                                fontWeight: 600,
-                                fontSize: '0.8rem',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                              }}
-                            >
-                              {isExpanded ? '▲ Sembunyikan' : `▼ Buka (${g.items.length})`}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openAddPlottingModal(g.vendorId)}
-                              title="Tambah plotting sekolah untuk vendor ini"
-                              style={{
-                                padding: '5px 9px',
-                                borderRadius: '6px',
-                                border: '1px solid #bbf7d0',
-                                background: '#f0fdf4',
-                                color: '#166534',
-                                fontWeight: 600,
-                                fontSize: '0.8rem',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              + Plot
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* RINCIAN SEKOLAH (UNHIDE) */}
-                      {isExpanded && (
-                        <tr style={{ background: '#f8fafc' }}>
-                          <td colSpan={5} style={{ padding: '8px 16px 16px 45px', borderTop: 'none', borderBottom: '2px solid #e2e8f0' }}>
-                            <div
-                              style={{
-                                background: '#ffffff',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '8px',
-                                overflow: 'hidden',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                              }}
-                            >
-                              <div
-                                style={{
-                                  background: '#f1f5f9',
-                                  padding: '8px 14px',
-                                  borderBottom: '1px solid #e2e8f0',
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                  fontSize: '0.82rem',
-                                  fontWeight: 600,
-                                  color: '#475569',
-                                }}
-                              >
-                                <span>📋 Rincian Sekolah & Jenis Baju untuk {g.vendorName}</span>
-                                <span style={{ color: '#0369a1' }}>{g.items.length} Penugasan Terdaftar</span>
-                              </div>
-
-                              <table className="kopkar-table" style={{ margin: 0, fontSize: '0.85rem' }}>
-                                <thead>
-                                  <tr style={{ background: '#ffffff' }}>
-                                    <th style={{ width: '40px', textAlign: 'center' }}>No</th>
-                                    <th>Sekolah yang Dilayani (Google Penjualan)</th>
-                                    <th style={{ width: '80px', textAlign: 'center' }}>Jenjang</th>
-                                    <th>Jenis Baju yang Diproduksi</th>
-                                    <th style={{ width: '130px', textAlign: 'center' }}>Aksi</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {g.items.map((item, itemIdx) => (
-                                    <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                      <td style={{ textAlign: 'center', color: '#64748b' }}>{itemIdx + 1}</td>
-                                      <td>
-                                        <strong style={{ color: '#1e293b' }}>
-                                          {item.app_users?.school_name || 'Sekolah'}
-                                        </strong>
-                                        {item.app_users?.username && (
-                                          <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
-                                            ✉️ {item.app_users.username}
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td style={{ textAlign: 'center' }}>
-                                        <span
-                                          style={{
-                                            background: '#f1f5f9',
-                                            color: '#475569',
-                                            padding: '2px 7px',
-                                            borderRadius: '4px',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 600,
-                                          }}
-                                        >
-                                          {item.app_users?.school_level || '-'}
-                                        </span>
-                                      </td>
-                                      <td>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                          {(item.clothing_type || 'Semua Jenis Baju')
-                                            .split(',')
-                                            .map((ct) => ct.trim())
-                                            .filter(Boolean)
-                                            .map((ct) => (
-                                              <span
-                                                key={ct}
-                                                style={{
-                                                  background: '#f0fdf4',
-                                                  border: '1px solid #bbf7d0',
-                                                  color: '#166534',
-                                                  padding: '2px 8px',
-                                                  borderRadius: '5px',
-                                                  fontSize: '0.8rem',
-                                                  fontWeight: 600,
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                  gap: '3px',
-                                                }}
-                                              >
-                                                👔 {ct}
-                                              </span>
-                                            ))}
-                                        </div>
-                                      </td>
-                                      <td style={{ textAlign: 'center' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleOpenEditPlotting(item)}
-                                            title="Edit penugasan ini"
-                                            style={{
-                                              padding: '3px 8px',
-                                              background: '#f1f5f9',
-                                              border: '1px solid #cbd5e1',
-                                              borderRadius: '4px',
-                                              cursor: 'pointer',
-                                              fontSize: '0.78rem',
-                                              color: '#334155',
-                                            }}
-                                          >
-                                            ✏️ Edit
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDeletePlotting(item.id)}
-                                            title="Hapus penugasan ini"
-                                            style={{
-                                              padding: '3px 8px',
-                                              background: '#fef2f2',
-                                              border: '1px solid #fecaca',
-                                              borderRadius: '4px',
-                                              cursor: 'pointer',
-                                              color: '#b91c1c',
-                                              fontSize: '0.78rem',
-                                            }}
-                                          >
-                                            🗑️ Hapus
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })
+                        ))}
+                        {g.items.length > 4 && (
+                          <span
+                            onClick={() => setDetailPlotVendorId(g.vendorId)}
+                            style={{
+                              background: '#e0f2fe',
+                              color: '#0284c7',
+                              border: '1px solid #bae6fd',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                            title="Klik untuk melihat semua sekolah yang dilayani"
+                          >
+                            +{g.items.length - 4} sekolah lainnya...
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                      <span
+                        style={{
+                          background: '#f0fdf4',
+                          color: '#166534',
+                          border: '1px solid #bbf7d0',
+                          padding: '4px 12px',
+                          borderRadius: '999px',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          display: 'inline-block',
+                        }}
+                      >
+                        {g.items.length} Sekolah
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setDetailPlotVendorId(g.vendorId)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            border: '1px solid #0284c7',
+                            background: '#f0f9ff',
+                            color: '#0284c7',
+                            fontWeight: 600,
+                            fontSize: '0.82rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            transition: 'all 0.15s ease',
+                          }}
+                          title="Lihat rincian sekolah dan jenis baju seragam"
+                        >
+                          👁️ Klik Selengkapnya
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openAddPlottingModal(g.vendorId)}
+                          title="Tambah plotting sekolah untuk vendor ini"
+                          style={{
+                            padding: '6px 11px',
+                            borderRadius: '6px',
+                            border: '1px solid #16a34a',
+                            background: '#f0fdf4',
+                            color: '#16a34a',
+                            fontWeight: 600,
+                            fontSize: '0.82rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          + Plot
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -2497,6 +2321,254 @@ const VendorManagement = () => {
                 + Input Stok Untuk Vendor Ini
               </button>
               <button type="button" className="btn-secondary" onClick={() => setDetailVendor(null)}>
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETAIL PLOTTING SEKOLAH (KLIK SELENGKAPNYA) */}
+      {activeDetailPlotGroup && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '850px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                marginBottom: '16px',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: '12px',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🏢 Detail Plotting Sekolah: {activeDetailPlotGroup.vendorName}
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#64748b' }}>
+                  Rincian penugasan sekolah dan rincian seragam yang dikerjakan oleh vendor ini.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailPlotVendorId(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.4rem',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '0 4px',
+                  lineHeight: 1,
+                }}
+                title="Tutup"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Vendor Profile Card */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px',
+                background: '#f8fafc',
+                padding: '14px 18px',
+                borderRadius: '10px',
+                border: '1px solid #e2e8f0',
+                marginBottom: '20px',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Vendor</span>
+                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.98rem' }}>{activeDetailPlotGroup.vendorName}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>PIC & Kontak</span>
+                <div style={{ fontWeight: 600, color: '#334155', fontSize: '0.9rem' }}>
+                  👤 {activeDetailPlotGroup.contactPerson} • 📞 {activeDetailPlotGroup.phone}
+                </div>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Total Sekolah</span>
+                <div>
+                  <span
+                    style={{
+                      background: '#f0fdf4',
+                      color: '#166534',
+                      border: '1px solid #bbf7d0',
+                      padding: '2px 10px',
+                      borderRadius: '999px',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      display: 'inline-block',
+                    }}
+                  >
+                    {activeDetailPlotGroup.items.length} Sekolah Terdaftar
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Rincian Penugasan Sekolah */}
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                <thead style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
+                  <tr>
+                    <th style={{ width: '40px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem' }}>No</th>
+                    <th style={{ width: '220px', padding: '10px 12px', textAlign: 'left', color: '#475569', fontSize: '0.8rem' }}>Sekolah yang Dilayani</th>
+                    <th style={{ width: '80px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem' }}>Jenjang</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#475569', fontSize: '0.8rem' }}>Jenis Baju yang Diproduksi</th>
+                    <th style={{ width: '130px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem' }}>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeDetailPlotGroup.items.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
+                        Belum ada sekolah yang di-plot ke vendor ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    activeDetailPlotGroup.items.map((item, idx) => {
+                      const clothingList = (item.clothing_type || 'Semua Jenis Baju')
+                        .split(',')
+                        .map((ct) => ct.trim())
+                        .filter(Boolean);
+                      const isAllUniform = clothingList.includes('Semua Jenis Baju');
+
+                      return (
+                        <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                          <td style={{ padding: '10px 12px', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <strong style={{ color: '#0f172a' }}>{item.app_users?.school_name || 'Sekolah'}</strong>
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                            <span
+                              style={{
+                                background: '#f1f5f9',
+                                color: '#475569',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {item.app_users?.school_level || '-'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                              {isAllUniform ? (
+                                <span
+                                  style={{
+                                    background: '#e0f2fe',
+                                    border: '1px solid #bae6fd',
+                                    color: '#0284c7',
+                                    padding: '3px 9px',
+                                    borderRadius: '5px',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  👕 Semua Jenis Baju (Full Seragam)
+                                </span>
+                              ) : (
+                                clothingList.map((ct) => (
+                                  <span
+                                    key={ct}
+                                    style={{
+                                      background: '#f0fdf4',
+                                      border: '1px solid #bbf7d0',
+                                      color: '#166534',
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      fontSize: '0.78rem',
+                                      fontWeight: 500,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                    }}
+                                  >
+                                    👔 {ct}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditPlotting(item)}
+                                title="Edit penugasan ini"
+                                style={{
+                                  padding: '4px 8px',
+                                  background: '#f1f5f9',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '5px',
+                                  cursor: 'pointer',
+                                  fontSize: '0.78rem',
+                                  color: '#334155',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePlotting(item.id)}
+                                title="Hapus penugasan ini"
+                                style={{
+                                  padding: '4px 8px',
+                                  background: '#fef2f2',
+                                  border: '1px solid #fecaca',
+                                  borderRadius: '5px',
+                                  cursor: 'pointer',
+                                  color: '#b91c1c',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                🗑️ Hapus
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  const vId = activeDetailPlotGroup.vendorId;
+                  openAddPlottingModal(vId);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                }}
+              >
+                ➕ Tambah Sekolah untuk Vendor Ini
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setDetailPlotVendorId(null)}
+                style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+              >
                 Tutup
               </button>
             </div>
