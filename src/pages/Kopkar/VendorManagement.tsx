@@ -203,7 +203,7 @@ const ActionMenu = ({
 
 const VendorManagement = () => {
   const { products } = useProducts();
-  const [activeTab, setActiveTab] = useState<'vendors' | 'plotting' | 'vendor_sekolah' | 'stock' | 'calculator'>('vendors');
+  const [activeTab, setActiveTab] = useState<'vendors' | 'plotting' | 'stock' | 'calculator'>('vendors');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -215,6 +215,10 @@ const VendorManagement = () => {
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter khusus tab Plotting & Rekap Sekolah
+  const [plotVendorFilter, setPlotVendorFilter] = useState('ALL');
+  const [plotLevelFilterTable, setPlotLevelFilterTable] = useState('ALL');
 
   // Modals Vendor
   const [showAddVendor, setShowAddVendor] = useState(false);
@@ -281,7 +285,7 @@ const VendorManagement = () => {
   useEffect(() => {
     if (activeTab === 'vendors') {
       fetchVendors();
-    } else if (activeTab === 'plotting' || activeTab === 'vendor_sekolah') {
+    } else if (activeTab === 'plotting') {
       fetchPlottings();
       if (!schoolsLoadedRef.current) {
         fetchSchools();
@@ -919,14 +923,32 @@ const VendorManagement = () => {
       v.address?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredPlottings = plottings.filter(
-    (p) =>
-      p.vendors?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.app_users?.school_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.app_users?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.app_users?.school_level?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.clothing_type?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPlottings = useMemo(() => {
+    return plottings
+      .filter((p) => {
+        const matchesVendor = plotVendorFilter === 'ALL' || p.vendor_id === plotVendorFilter;
+        const matchesLevel =
+          plotLevelFilterTable === 'ALL' ||
+          (p.app_users?.school_level || '').toUpperCase() === plotLevelFilterTable.toUpperCase();
+        const q = searchQuery.toLowerCase().trim();
+        const matchesSearch =
+          !q ||
+          (p.vendors?.name || '').toLowerCase().includes(q) ||
+          (p.app_users?.school_name || '').toLowerCase().includes(q) ||
+          (p.clothing_type || '').toLowerCase().includes(q) ||
+          (p.app_users?.username || '').toLowerCase().includes(q) ||
+          (p.app_users?.school_level || '').toLowerCase().includes(q);
+
+        return matchesVendor && matchesLevel && matchesSearch;
+      })
+      .sort((a, b) =>
+        (a.app_users?.school_name || '').localeCompare(
+          b.app_users?.school_name || '',
+          'id',
+          { numeric: true, sensitivity: 'base' }
+        )
+      );
+  }, [plottings, plotVendorFilter, plotLevelFilterTable, searchQuery]);
 
   const filteredStocks = stocks.filter(
     (s) =>
@@ -1076,76 +1098,14 @@ const VendorManagement = () => {
     return findPlottingConflicts(editPlotVendorId, editPlotSchoolId, editPlotClothingTypes, editingPlotting.id);
   }, [editingPlotting, editPlotVendorId, editPlotSchoolId, editPlotClothingTypes, plottings, vendors, schools]);
 
-  // --- REKAP VENDOR SEKOLAH STATES & LOGIC ---
-  const [rekapVendorFilter, setRekapVendorFilter] = useState('ALL');
-  const [rekapLevelFilter, setRekapLevelFilter] = useState('ALL');
-  const [rekapSearchQuery, setRekapSearchQuery] = useState('');
-  const [rekapViewMode, setRekapViewMode] = useState<'grouped' | 'table'>('grouped');
-
-  // Filter data untuk tab Vendor Sekolah (urut natural nama sekolah)
-  const filteredRekapPlottings = useMemo(() => {
-    return plottings
-      .filter((p) => {
-        const matchesVendor = rekapVendorFilter === 'ALL' || p.vendor_id === rekapVendorFilter;
-        const matchesLevel =
-          rekapLevelFilter === 'ALL' ||
-          (p.app_users?.school_level || '').toUpperCase() === rekapLevelFilter.toUpperCase();
-        const q = rekapSearchQuery.toLowerCase().trim();
-        const matchesSearch =
-          !q ||
-          (p.vendors?.name || '').toLowerCase().includes(q) ||
-          (p.app_users?.school_name || '').toLowerCase().includes(q) ||
-          (p.clothing_type || '').toLowerCase().includes(q) ||
-          (p.app_users?.username || '').toLowerCase().includes(q) ||
-          (p.app_users?.school_level || '').toLowerCase().includes(q);
-
-        return matchesVendor && matchesLevel && matchesSearch;
-      })
-      .sort((a, b) =>
-        (a.app_users?.school_name || '').localeCompare(b.app_users?.school_name || '', 'id', { numeric: true, sensitivity: 'base' })
-      );
-  }, [plottings, rekapVendorFilter, rekapLevelFilter, rekapSearchQuery]);
-
-  // Kelompokkan per vendor untuk tampilan rekap
-  const groupedByVendor = useMemo(() => {
-    const map = new Map<
-      string,
-      { vendor: Vendor | undefined; vendorName: string; contactPerson?: string; phone?: string; assignments: Plotting[] }
-    >();
-
-    filteredRekapPlottings.forEach((p) => {
-      let entry = map.get(p.vendor_id);
-      if (!entry) {
-        const v = vendors.find((vend) => vend.id === p.vendor_id);
-        entry = {
-          vendor: v,
-          vendorName: p.vendors?.name || v?.name || 'Vendor Tidak Dikenal',
-          contactPerson: p.vendors?.contact_person || v?.contact_person || '-',
-          phone: p.vendors?.phone || v?.phone || '-',
-          assignments: [],
-        };
-        map.set(p.vendor_id, entry);
-      }
-      entry.assignments.push(p);
-    });
-
-    map.forEach((entry) => {
-      entry.assignments.sort((a, b) =>
-        (a.app_users?.school_name || '').localeCompare(b.app_users?.school_name || '', 'id', { numeric: true, sensitivity: 'base' })
-      );
-    });
-
-    return Array.from(map.values()).sort((a, b) => a.vendorName.localeCompare(b.vendorName));
-  }, [filteredRekapPlottings, vendors]);
-
-  // Export Excel untuk Rekap Vendor Sekolah
+  // Export Excel untuk Plotting & Rekap Sekolah
   const handleExportExcelVendorSekolah = () => {
-    if (filteredRekapPlottings.length === 0) {
-      alert('Tidak ada data penugasan vendor sekolah untuk diekspor.');
+    if (filteredPlottings.length === 0) {
+      alert('Tidak ada data penugasan plotting sekolah untuk diekspor.');
       return;
     }
 
-    const exportData = filteredRekapPlottings.map((p, idx) => {
+    const exportData = filteredPlottings.map((p, idx) => {
       const v = vendors.find((item) => item.id === p.vendor_id);
       return {
         No: idx + 1,
@@ -1174,8 +1134,8 @@ const VendorManagement = () => {
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap_Vendor_Sekolah');
-    XLSX.writeFile(workbook, `Rekap_Vendor_Sekolah_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Plotting_Rekap_Sekolah');
+    XLSX.writeFile(workbook, `Plotting_Rekap_Sekolah_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   return (
@@ -1227,23 +1187,7 @@ const VendorManagement = () => {
             color: activeTab === 'plotting' ? '#0284c7' : '#64748b',
           }}
         >
-          🔗 Plotting Sekolah ({plottings.length})
-        </button>
-        <button
-          className={`btn-tab ${activeTab === 'vendor_sekolah' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTab('vendor_sekolah');
-            setRekapSearchQuery('');
-          }}
-          style={{
-            fontWeight: activeTab === 'vendor_sekolah' ? 'bold' : 'normal',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: activeTab === 'vendor_sekolah' ? '#0284c7' : '#64748b',
-          }}
-        >
-          🏫 Vendor Sekolah ({plottings.length})
+          🔗 Plotting & Rekap Sekolah ({plottings.length})
         </button>
         <button
           className={`btn-tab ${activeTab === 'stock' ? 'active' : ''}`}
@@ -1355,57 +1299,202 @@ const VendorManagement = () => {
         </div>
       )}
 
-      {/* PLOTTING TAB */}
+      {/* PLOTTING & REKAP TAB */}
       {activeTab === 'plotting' && (
-        <div className="kopkar-table-container">
+        <div>
+          {/* STATS SUMMARY CARDS */}
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '16px 20px',
-              borderBottom: '1px solid #e2e8f0',
-              flexWrap: 'wrap',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
               gap: '12px',
+              marginBottom: '16px',
             }}
           >
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
-              <input
-                type="text"
-                placeholder="🔍 Cari vendor, sekolah, atau jenis baju..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  padding: '9px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '0.9rem',
-                  width: '100%',
-                  maxWidth: '380px',
-                  outline: 'none',
-                }}
-              />
+            <div
+              style={{
+                background: '#fff',
+                padding: '12px 18px',
+                borderRadius: '10px',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Total Vendor Terplot</div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#0284c7', marginTop: '2px' }}>
+                  {new Set(filteredPlottings.map((p) => p.vendor_id)).size}{' '}
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400 }}>vendor</span>
+                </div>
+              </div>
+              <span style={{ fontSize: '1.6rem', opacity: 0.85 }}>🏢</span>
             </div>
-            <div>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => openAddPlottingModal()}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '9px 18px',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                }}
-              >
-                ➕ Plot Sekolah
-              </button>
+
+            <div
+              style={{
+                background: '#fff',
+                padding: '12px 18px',
+                borderRadius: '10px',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Total Sekolah Terlayani</div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#059669', marginTop: '2px' }}>
+                  {new Set(filteredPlottings.map((p) => p.school_user_id)).size}{' '}
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400 }}>sekolah</span>
+                </div>
+              </div>
+              <span style={{ fontSize: '1.6rem', opacity: 0.85 }}>🏫</span>
+            </div>
+
+            <div
+              style={{
+                background: '#fff',
+                padding: '12px 18px',
+                borderRadius: '10px',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Total Penugasan Seragam</div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#3b82f6', marginTop: '2px' }}>
+                  {filteredPlottings.length}{' '}
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400 }}>penugasan</span>
+                </div>
+              </div>
+              <span style={{ fontSize: '1.6rem', opacity: 0.85 }}>👔</span>
             </div>
           </div>
+
+          <div className="kopkar-table-container">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '14px 18px',
+                borderBottom: '1px solid #e2e8f0',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Cari vendor, sekolah, jenis baju..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.88rem',
+                    minWidth: '220px',
+                    maxWidth: '300px',
+                    outline: 'none',
+                  }}
+                />
+
+                <select
+                  value={plotVendorFilter}
+                  onChange={(e) => setPlotVendorFilter(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.88rem',
+                    background: '#fff',
+                    color: '#1e293b',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="ALL">Semua Vendor ({vendors.length})</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={plotLevelFilterTable}
+                  onChange={(e) => setPlotLevelFilterTable(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.88rem',
+                    background: '#fff',
+                    color: '#1e293b',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="ALL">Semua Jenjang</option>
+                  <option value="TK">TK</option>
+                  <option value="SD">SD</option>
+                  <option value="SMP">SMP</option>
+                  <option value="SMA">SMA</option>
+                  <option value="SPK-SD">SPK-SD</option>
+                  <option value="SPK-SMP">SPK-SMP</option>
+                  <option value="SPK-SMA">SPK-SMA</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleExportExcelVendorSekolah}
+                  disabled={filteredPlottings.length === 0}
+                  style={{
+                    background: filteredPlottings.length === 0 ? '#94a3b8' : '#10b981',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: filteredPlottings.length === 0 ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                  }}
+                  title="Ekspor seluruh penugasan seragam sekolah ke file Excel (.xlsx)"
+                >
+                  <span>📥</span> Export Excel
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => openAddPlottingModal()}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ➕ Plot Sekolah
+                </button>
+              </div>
+            </div>
 
           <table className="kopkar-table">
             <thead>
@@ -1580,433 +1669,7 @@ const VendorManagement = () => {
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* VENDOR SEKOLAH TAB */}
-      {activeTab === 'vendor_sekolah' && (
-        <div>
-          {/* STATS SUMMARY CARDS */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '16px',
-              marginBottom: '20px',
-            }}
-          >
-            <div
-              style={{
-                background: '#fff',
-                padding: '16px 20px',
-                borderRadius: '12px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>🏢 Total Vendor Terplot</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#0284c7', marginTop: '4px' }}>
-                {new Set(filteredRekapPlottings.map((p) => p.vendor_id)).size}
-                <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 400, marginLeft: '6px' }}>vendor</span>
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: '#fff',
-                padding: '16px 20px',
-                borderRadius: '12px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>🏫 Total Sekolah Terlayani</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#059669', marginTop: '4px' }}>
-                {new Set(filteredRekapPlottings.map((p) => p.school_user_id)).size}
-                <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 400, marginLeft: '6px' }}>sekolah</span>
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: '#fff',
-                padding: '16px 20px',
-                borderRadius: '12px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>👔 Total Penugasan Barang</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#3b82f6', marginTop: '4px' }}>
-                {filteredRekapPlottings.length}
-                <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 400, marginLeft: '6px' }}>penugasan</span>
-              </div>
-            </div>
-          </div>
-
-          {/* TOOLBAR & FILTERS */}
-          <div className="kopkar-table-container" style={{ marginBottom: '20px' }}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '12px',
-              }}
-            >
-              {/* Filter inputs */}
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
-                <input
-                  type="text"
-                  placeholder="Cari vendor, sekolah, jenis barang..."
-                  value={rekapSearchQuery}
-                  onChange={(e) => setRekapSearchQuery(e.target.value)}
-                  style={{
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '0.9rem',
-                    minWidth: '240px',
-                  }}
-                />
-
-                <select
-                  value={rekapVendorFilter}
-                  onChange={(e) => setRekapVendorFilter(e.target.value)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '0.9rem',
-                    background: '#fff',
-                    color: '#1e293b',
-                  }}
-                >
-                  <option value="ALL">Semua Vendor ({vendors.length})</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={rekapLevelFilter}
-                  onChange={(e) => setRekapLevelFilter(e.target.value)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '0.9rem',
-                    background: '#fff',
-                    color: '#1e293b',
-                  }}
-                >
-                  <option value="ALL">Semua Jenjang</option>
-                  <option value="TK">TK</option>
-                  <option value="SD">SD</option>
-                  <option value="SMP">SMP</option>
-                  <option value="SMA">SMA</option>
-                  <option value="SPK-SD">SPK-SD</option>
-                  <option value="SPK-SMP">SPK-SMP</option>
-                  <option value="SPK-SMA">SPK-SMA</option>
-                </select>
-
-                {/* View Mode Toggle */}
-                <div
-                  style={{
-                    display: 'flex',
-                    background: '#f1f5f9',
-                    borderRadius: '8px',
-                    padding: '2px',
-                    border: '1px solid #e2e8f0',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setRekapViewMode('grouped')}
-                    style={{
-                      border: 'none',
-                      background: rekapViewMode === 'grouped' ? '#fff' : 'transparent',
-                      color: rekapViewMode === 'grouped' ? '#0284c7' : '#64748b',
-                      fontWeight: rekapViewMode === 'grouped' ? 600 : 400,
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      boxShadow: rekapViewMode === 'grouped' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                    }}
-                  >
-                    🏢 Per Vendor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRekapViewMode('table')}
-                    style={{
-                      border: 'none',
-                      background: rekapViewMode === 'table' ? '#fff' : 'transparent',
-                      color: rekapViewMode === 'table' ? '#0284c7' : '#64748b',
-                      fontWeight: rekapViewMode === 'table' ? 600 : 400,
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      boxShadow: rekapViewMode === 'table' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                    }}
-                  >
-                    📋 Tabel Lengkap
-                  </button>
-                </div>
-              </div>
-
-              {/* Export Excel Button */}
-              <button
-                type="button"
-                onClick={handleExportExcelVendorSekolah}
-                disabled={filteredRekapPlottings.length === 0}
-                style={{
-                  background: filteredRekapPlottings.length === 0 ? '#94a3b8' : '#10b981',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '9px 16px',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: filteredRekapPlottings.length === 0 ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                }}
-              >
-                <span>📥</span> Export Excel (.xlsx)
-              </button>
-            </div>
-          </div>
-
-          {/* DATA PRESENTATION */}
-          {loading ? (
-            <div className="kopkar-table-container" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-              Memuat data rekap vendor sekolah...
-            </div>
-          ) : filteredRekapPlottings.length === 0 ? (
-            <div className="kopkar-table-container" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-              {plottings.length === 0
-                ? 'Belum ada data penugasan vendor sekolah. Silakan lakukan plotting di tab "Plotting Sekolah".'
-                : 'Tidak ada data penugasan yang sesuai dengan filter pencarian.'}
-            </div>
-          ) : rekapViewMode === 'grouped' ? (
-            /* GROUPED BY VENDOR CARDS */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {groupedByVendor.map((group) => (
-                <div
-                  key={group.vendorName}
-                  style={{
-                    background: '#fff',
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
-                    overflow: 'hidden',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
-                  }}
-                >
-                  {/* Vendor Card Header */}
-                  <div
-                    style={{
-                      background: '#f8fafc',
-                      borderBottom: '1px solid #e2e8f0',
-                      padding: '14px 20px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: '10px',
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '1.3rem' }}>🏢</span>
-                        <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>{group.vendorName}</strong>
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px', marginLeft: '32px' }}>
-                        👤 PIC: <strong>{group.contactPerson || '-'}</strong> • 📞 Telp: <strong>{group.phone || '-'}</strong>
-                      </div>
-                    </div>
-                    <span
-                      style={{
-                        background: '#e0f2fe',
-                        color: '#0369a1',
-                        padding: '4px 12px',
-                        borderRadius: '999px',
-                        fontSize: '0.85rem',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {group.assignments.length} Penugasan Sekolah
-                    </span>
-                  </div>
-
-                  {/* Inner Table */}
-                  <table className="kopkar-table" style={{ margin: 0, border: 'none' }}>
-                    <thead>
-                      <tr style={{ background: '#ffffff' }}>
-                        <th style={{ width: '50px', textAlign: 'center' }}>No</th>
-                        <th>Sekolah yang Dikerjakan</th>
-                        <th>Jenjang</th>
-                        <th>Jenis Barang yang Dikerjakan</th>
-                        <th>Akun Sekolah</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.assignments.map((assign, idx) => (
-                        <tr key={assign.id}>
-                          <td style={{ textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
-                          <td>
-                            <strong style={{ color: '#1e293b' }}>
-                              {assign.app_users?.school_name || 'Sekolah'}
-                            </strong>
-                          </td>
-                          <td>
-                            <span
-                              style={{
-                                background: '#f1f5f9',
-                                color: '#475569',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                fontSize: '0.8rem',
-                                fontWeight: 600,
-                              }}
-                            >
-                              {assign.app_users?.school_level || '-'}
-                            </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                              {(assign.clothing_type || 'Semua Jenis Baju')
-                                .split(',')
-                                .map((ct) => ct.trim())
-                                .filter(Boolean)
-                                .map((ct) => (
-                                  <span
-                                    key={ct}
-                                    style={{
-                                      background: '#f0fdf4',
-                                      border: '1px solid #bbf7d0',
-                                      color: '#166534',
-                                      padding: '2px 8px',
-                                      borderRadius: '5px',
-                                      fontSize: '0.8rem',
-                                      fontWeight: 600,
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '3px',
-                                    }}
-                                  >
-                                    👔 {ct}
-                                  </span>
-                                ))}
-                            </div>
-                          </td>
-                          <td style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                            {assign.app_users?.username || '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* FLAT TABLE VIEW */
-            <div className="kopkar-table-container">
-              <table className="kopkar-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '50px', textAlign: 'center' }}>No</th>
-                    <th>Nama Vendor (Penjahit)</th>
-                    <th>Sekolah yang Dikerjakan</th>
-                    <th>Jenjang</th>
-                    <th>Jenis Barang yang Dikerjakan</th>
-                    <th>Kontak Vendor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRekapPlottings.map((p, idx) => {
-                    const v = vendors.find((item) => item.id === p.vendor_id);
-                    return (
-                      <tr key={p.id}>
-                        <td style={{ textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
-                        <td>
-                          <strong>{p.vendors?.name || v?.name || 'Vendor'}</strong>
-                        </td>
-                        <td>
-                          <span
-                            style={{
-                              background: '#e0f2fe',
-                              color: '#0369a1',
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontWeight: 600,
-                              fontSize: '0.85rem',
-                              display: 'inline-block',
-                            }}
-                          >
-                            🏫 {p.app_users?.school_name || 'Sekolah'}
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            style={{
-                              background: '#f1f5f9',
-                              color: '#475569',
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              fontSize: '0.8rem',
-                              fontWeight: 600,
-                            }}
-                          >
-                            {p.app_users?.school_level || '-'}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                            {(p.clothing_type || 'Semua Jenis Baju')
-                              .split(',')
-                              .map((ct) => ct.trim())
-                              .filter(Boolean)
-                              .map((ct) => (
-                                <span
-                                  key={ct}
-                                  style={{
-                                    background: '#f0fdf4',
-                                    border: '1px solid #bbf7d0',
-                                    color: '#166534',
-                                    padding: '2px 8px',
-                                    borderRadius: '5px',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 600,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '3px',
-                                  }}
-                                >
-                                  👔 {ct}
-                                </span>
-                              ))}
-                          </div>
-                        </td>
-                        <td style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                          <div>👤 {p.vendors?.contact_person || v?.contact_person || '-'}</div>
-                          <div>📞 {p.vendors?.phone || v?.phone || '-'}</div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      </div>
       )}
 
       {/* STOCK TAB */}
