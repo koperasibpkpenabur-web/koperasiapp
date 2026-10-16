@@ -124,7 +124,7 @@ const AdminDashboard = () => {
           returnCount: val.returnCount,
           accountTypes: accTypes,
         };
-      }).sort((a, b) => a.schoolName.localeCompare(b.schoolName));
+      }).sort((a, b) => a.schoolName.localeCompare(b.schoolName, 'id', { numeric: true, sensitivity: 'base' }));
 
       setSchoolOptions(parsedOptions);
     } catch (err) {

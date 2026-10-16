@@ -106,8 +106,8 @@ const SchoolRekap = () => {
     });
 
     rows.sort((a, b) => {
-      if (a.phase !== b.phase) return a.phase.localeCompare(b.phase);
-      return a.itemName.localeCompare(b.itemName);
+      if (a.phase !== b.phase) return a.phase.localeCompare(b.phase, 'id', { numeric: true, sensitivity: 'base' });
+      return a.itemName.localeCompare(b.itemName, 'id', { numeric: true, sensitivity: 'base' });
     });
 
     return rows;
@@ -169,8 +169,8 @@ const SchoolRekap = () => {
     });
     
     rows.sort((a, b) => {
-      if (a.phase !== b.phase) return a.phase.localeCompare(b.phase);
-      return a.itemName.localeCompare(b.itemName);
+      if (a.phase !== b.phase) return a.phase.localeCompare(b.phase, 'id', { numeric: true, sensitivity: 'base' });
+      return a.itemName.localeCompare(b.itemName, 'id', { numeric: true, sensitivity: 'base' });
     });
     
     return rows;

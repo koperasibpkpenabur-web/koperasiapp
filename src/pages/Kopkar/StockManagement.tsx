@@ -244,7 +244,7 @@ const StockManagement = () => {
       const stockA = a.stock || 0;
       const stockB = b.stock || 0;
 
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'name') return a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' });
       if (sortBy === 'stock-asc') return stockA - stockB; // Tampilkan yang menipis lebih dulu
       if (sortBy === 'stock-desc') return stockB - stockA;
       if (sortBy === 'level') return a.level.localeCompare(b.level);
@@ -828,7 +828,7 @@ const StockManagement = () => {
                   <option value="" disabled>-- Pilih Barang --</option>
                   {products
                     .filter(p => p.level === addLevel || addLevel === 'SEMUA' || p.level === 'SEMUA')
-                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }))
                     .map(p => (
                       <option key={p.id} value={p.id}>
                         {p.name} {p.size ? `(${p.size})` : ''} - (Sisa Stock: {p.stock || 0})

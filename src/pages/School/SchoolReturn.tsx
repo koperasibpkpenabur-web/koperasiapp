@@ -42,7 +42,7 @@ const SchoolReturn = () => {
   const uniqueProducts = useMemo(() => {
     return Array.from(
       new Map(availableCatalog.map(p => [p.name, { name: p.name, code: p.code }])).values()
-    ).sort((a, b) => a.code.localeCompare(b.code));
+    ).sort((a, b) => a.code.localeCompare(b.code, 'id', { numeric: true, sensitivity: 'base' }));
   }, [availableCatalog]);
 
   const productMap = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);

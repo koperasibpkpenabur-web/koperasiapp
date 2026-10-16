@@ -71,6 +71,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       supplierName: d.supplier_name,
       schoolName: d.school_name
     }));
+    mapped.sort((a, b) => (a.code || '').localeCompare(b.code || '', 'id', { numeric: true, sensitivity: 'base' }));
     setProducts(mapped);
   }, []);
 

@@ -50,7 +50,7 @@ function groupByCatalog(catalog: any[]) {
     }
     acc[prod.name].variants.push(prod);
   }
-  return Object.values(acc).sort((a, b) => a.firstCode.localeCompare(b.firstCode));
+  return Object.values(acc).sort((a, b) => a.firstCode.localeCompare(b.firstCode, 'id', { numeric: true, sensitivity: 'base' }));
 }
 
 const SchoolPemesanan = () => {

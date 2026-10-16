@@ -19,6 +19,7 @@
 }
 .matrix-table-wrapper input[type="number"] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* Scrollbar & hover enhancements for sticky matrix tables */

@@ -49,7 +49,10 @@ const KopkarNotifikasi = () => {
       .select('id, name')
       .eq('role', 'sekolah');
     
-    if (data) setSchools(data);
+    if (data) {
+      data.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'id', { numeric: true, sensitivity: 'base' }));
+      setSchools(data);
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {

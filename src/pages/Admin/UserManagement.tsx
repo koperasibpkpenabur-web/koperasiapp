@@ -253,6 +253,13 @@ const UserManagement = () => {
       return;
     }
 
+    if (sortField === 'schoolName') {
+      data.sort((a: any, b: any) => {
+        const comp = (a.school_name || '').localeCompare(b.school_name || '', 'id', { numeric: true, sensitivity: 'base' });
+        return sortOrder === 'asc' ? comp : -comp;
+      });
+    }
+
     const exportData = data.map((u: any) => ({
       'Nama PIC': u.name,
       'Username': u.username,

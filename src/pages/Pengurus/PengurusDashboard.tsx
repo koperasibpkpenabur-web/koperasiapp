@@ -99,7 +99,10 @@ const PengurusDashboard = () => {
     });
     return Array.from(map.entries())
       .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.omzet - a.omzet);
+      .sort((a, b) => {
+        if (b.omzet !== a.omzet) return b.omzet - a.omzet;
+        return a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' });
+      });
   }, [validOrders]);
 
   // Chart Data

@@ -85,9 +85,9 @@ const KopkarRekap = () => {
     });
 
     rows.sort((a, b) => {
-      if (a.schoolName !== b.schoolName) return a.schoolName.localeCompare(b.schoolName);
-      if (a.phase !== b.phase) return a.phase.localeCompare(b.phase);
-      return a.itemName.localeCompare(b.itemName);
+      if (a.schoolName !== b.schoolName) return a.schoolName.localeCompare(b.schoolName, 'id', { numeric: true, sensitivity: 'base' });
+      if (a.phase !== b.phase) return a.phase.localeCompare(b.phase, 'id', { numeric: true, sensitivity: 'base' });
+      return a.itemName.localeCompare(b.itemName, 'id', { numeric: true, sensitivity: 'base' });
     });
 
     return rows;

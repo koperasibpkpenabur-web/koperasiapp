@@ -370,8 +370,8 @@ const VendorManagement = () => {
         }
       }
 
-      // Urutkan berdasarkan nama sekolah secara alfabetis
-      list.sort((a, b) => a.school_name.localeCompare(b.school_name));
+      // Urutkan berdasarkan nama sekolah secara natural (angka kecil ke besar, misal SDK 1 sebelum SDK 10)
+      list.sort((a, b) => a.school_name.localeCompare(b.school_name, 'id', { numeric: true, sensitivity: 'base' }));
       setSchools(list);
       schoolsLoadedRef.current = true;
     } catch (err) {
@@ -385,7 +385,12 @@ const VendorManagement = () => {
       .from('vendor_school_assignments')
       .select('*, vendors(name, contact_person, phone), app_users(school_name, username, school_level)');
 
-    if (!error && data) setPlottings(data);
+    if (!error && data) {
+      data.sort((a, b) =>
+        (a.app_users?.school_name || '').localeCompare(b.app_users?.school_name || '', 'id', { numeric: true, sensitivity: 'base' })
+      );
+      setPlottings(data);
+    }
     setLoading(false);
   };
 
@@ -566,6 +571,69 @@ const VendorManagement = () => {
     });
   };
 
+  // Fungsi pengecekan bentrok penugasan seragam antar-vendor
+  const findPlottingConflicts = (
+    targetVendorId: string,
+    targetSchoolId: string,
+    targetClothingTypes: string[],
+    excludePlottingId?: string
+  ): Array<{ schoolName: string; conflictingTypes: string[]; assignedVendorName: string }> => {
+    // Cari penugasan yang ada untuk sekolah ini dengan vendor BERBEDA
+    const otherVendorPlottings = plottings.filter(
+      (p) =>
+        p.school_user_id === targetSchoolId &&
+        p.vendor_id !== targetVendorId &&
+        (!excludePlottingId || p.id !== excludePlottingId)
+    );
+
+    if (otherVendorPlottings.length === 0) return [];
+
+    const conflicts: Array<{ schoolName: string; conflictingTypes: string[]; assignedVendorName: string }> = [];
+    const targetIsAll = targetClothingTypes.includes('Semua Jenis Baju');
+
+    for (const p of otherVendorPlottings) {
+      const assignedVendor = vendors.find((v) => v.id === p.vendor_id);
+      const assignedVendorName = p.vendors?.name || assignedVendor?.name || 'Vendor Lain';
+      const sch = schools.find((s) => s.id === targetSchoolId);
+      const schoolName = p.app_users?.school_name || sch?.school_name || 'Sekolah Terpilih';
+
+      const existingTypesRaw = (p.clothing_type || 'Semua Jenis Baju')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const existingIsAll = existingTypesRaw.some((t) => t.toLowerCase() === 'semua jenis baju');
+      const existingTypesLower = existingTypesRaw.map((t) => t.toLowerCase());
+
+      const matchedConflicts: string[] = [];
+
+      if (targetIsAll) {
+        // Jika target memilih 'Semua Jenis Baju', tapi vendor lain sudah pegang barang apa pun
+        matchedConflicts.push(p.clothing_type || 'Semua Jenis Baju');
+      } else if (existingIsAll) {
+        // Jika vendor lain sudah memegang 'Semua Jenis Baju' untuk sekolah ini
+        matchedConflicts.push('Semua Jenis Baju');
+      } else {
+        // Jika keduanya memegang jenis baju spesifik, cari kesamaan (irisan) jenis baju
+        for (const t of targetClothingTypes) {
+          if (existingTypesLower.includes(t.trim().toLowerCase())) {
+            matchedConflicts.push(t);
+          }
+        }
+      }
+
+      if (matchedConflicts.length > 0) {
+        conflicts.push({
+          schoolName,
+          conflictingTypes: Array.from(new Set(matchedConflicts)),
+          assignedVendorName,
+        });
+      }
+    }
+
+    return conflicts;
+  };
+
   const handleAddPlotting = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!plotVendorId) {
@@ -580,6 +648,29 @@ const VendorManagement = () => {
 
     if (plotClothingTypes.length === 0) {
       alert('Pilih setidaknya satu jenis baju yang diproduksi');
+      return;
+    }
+
+    // Validasi pencegahan bentrok: pastikan tidak ada vendor lain yang memegang jenis baju yang sama di sekolah terpilih
+    const allConflicts: Array<{ schoolName: string; conflictingTypes: string[]; assignedVendorName: string }> = [];
+
+    for (const schId of plotSchoolIds) {
+      const confs = findPlottingConflicts(plotVendorId, schId, plotClothingTypes);
+      allConflicts.push(...confs);
+    }
+
+    if (allConflicts.length > 0) {
+      const details = allConflicts
+        .map(
+          (c) => `• ${c.conflictingTypes.join(', ')} untuk ${c.schoolName} sudah dikerjakan oleh ${c.assignedVendorName}`
+        )
+        .join('\n');
+
+      alert(
+        `⚠️ Tidak dapat menyimpan plotting!\n\n` +
+        `Terdapat jenis seragam yang sudah dikerjakan oleh vendor lain:\n${details}\n\n` +
+        `Satu jenis seragam di sekolah yang sama tidak dapat dikerjakan oleh lebih dari satu vendor.`
+      );
       return;
     }
 
@@ -684,6 +775,29 @@ const VendorManagement = () => {
     }
     if (editPlotClothingTypes.length === 0) {
       alert('Pilih setidaknya satu jenis baju yang diproduksi');
+      return;
+    }
+
+    // Validasi pencegahan bentrok saat update
+    const editConflicts = findPlottingConflicts(
+      editPlotVendorId,
+      editPlotSchoolId,
+      editPlotClothingTypes,
+      editingPlotting.id
+    );
+
+    if (editConflicts.length > 0) {
+      const details = editConflicts
+        .map(
+          (c) => `• ${c.conflictingTypes.join(', ')} untuk ${c.schoolName} sudah dikerjakan oleh ${c.assignedVendorName}`
+        )
+        .join('\n');
+
+      alert(
+        `⚠️ Tidak dapat memperbarui plotting!\n\n` +
+        `Terdapat jenis seragam yang sudah dikerjakan oleh vendor lain:\n${details}\n\n` +
+        `Satu jenis seragam di sekolah yang sama tidak dapat dikerjakan oleh lebih dari satu vendor.`
+      );
       return;
     }
 
@@ -893,7 +1007,7 @@ const VendorManagement = () => {
           )
           .map((p) => p.name.trim())
       )
-    ).sort();
+    ).sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
   }, [products, selectedPlotLevels]);
 
   // Kelompokkan plottings per vendor untuk tampilan ringkas dengan hide/unhide
@@ -925,6 +1039,12 @@ const VendorManagement = () => {
       entry.items.push(p);
     });
 
+    map.forEach((entry) => {
+      entry.items.sort((a, b) =>
+        (a.app_users?.school_name || '').localeCompare(b.app_users?.school_name || '', 'id', { numeric: true, sensitivity: 'base' })
+      );
+    });
+
     return Array.from(map.values()).sort((a, b) => a.vendorName.localeCompare(b.vendorName));
   }, [filteredPlottings, vendors]);
 
@@ -943,7 +1063,7 @@ const VendorManagement = () => {
         )
         .map((p) => p.name.trim())
     )
-  ).sort();
+  ).sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
 
   // Filter sekolah di modal edit plotting
   const filteredEditModalSchools =
@@ -951,30 +1071,55 @@ const VendorManagement = () => {
       ? schools
       : schools.filter((s) => s.level.toUpperCase() === editPlotLevelFilter);
 
+  // Deteksi bentrok realtime untuk modal Add Plotting
+  const addPlottingConflicts = useMemo(() => {
+    if (!plotVendorId || plotSchoolIds.length === 0 || plotClothingTypes.length === 0) {
+      return [];
+    }
+    const list: Array<{ schoolName: string; conflictingTypes: string[]; assignedVendorName: string }> = [];
+    for (const schId of plotSchoolIds) {
+      const confs = findPlottingConflicts(plotVendorId, schId, plotClothingTypes);
+      list.push(...confs);
+    }
+    return list;
+  }, [plotVendorId, plotSchoolIds, plotClothingTypes, plottings, vendors, schools]);
+
+  // Deteksi bentrok realtime untuk modal Edit Plotting
+  const editPlottingConflicts = useMemo(() => {
+    if (!editingPlotting || !editPlotVendorId || !editPlotSchoolId || editPlotClothingTypes.length === 0) {
+      return [];
+    }
+    return findPlottingConflicts(editPlotVendorId, editPlotSchoolId, editPlotClothingTypes, editingPlotting.id);
+  }, [editingPlotting, editPlotVendorId, editPlotSchoolId, editPlotClothingTypes, plottings, vendors, schools]);
+
   // --- REKAP VENDOR SEKOLAH STATES & LOGIC ---
   const [rekapVendorFilter, setRekapVendorFilter] = useState('ALL');
   const [rekapLevelFilter, setRekapLevelFilter] = useState('ALL');
   const [rekapSearchQuery, setRekapSearchQuery] = useState('');
   const [rekapViewMode, setRekapViewMode] = useState<'grouped' | 'table'>('grouped');
 
-  // Filter data untuk tab Vendor Sekolah
+  // Filter data untuk tab Vendor Sekolah (urut natural nama sekolah)
   const filteredRekapPlottings = useMemo(() => {
-    return plottings.filter((p) => {
-      const matchesVendor = rekapVendorFilter === 'ALL' || p.vendor_id === rekapVendorFilter;
-      const matchesLevel =
-        rekapLevelFilter === 'ALL' ||
-        (p.app_users?.school_level || '').toUpperCase() === rekapLevelFilter.toUpperCase();
-      const q = rekapSearchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !q ||
-        (p.vendors?.name || '').toLowerCase().includes(q) ||
-        (p.app_users?.school_name || '').toLowerCase().includes(q) ||
-        (p.clothing_type || '').toLowerCase().includes(q) ||
-        (p.app_users?.username || '').toLowerCase().includes(q) ||
-        (p.app_users?.school_level || '').toLowerCase().includes(q);
+    return plottings
+      .filter((p) => {
+        const matchesVendor = rekapVendorFilter === 'ALL' || p.vendor_id === rekapVendorFilter;
+        const matchesLevel =
+          rekapLevelFilter === 'ALL' ||
+          (p.app_users?.school_level || '').toUpperCase() === rekapLevelFilter.toUpperCase();
+        const q = rekapSearchQuery.toLowerCase().trim();
+        const matchesSearch =
+          !q ||
+          (p.vendors?.name || '').toLowerCase().includes(q) ||
+          (p.app_users?.school_name || '').toLowerCase().includes(q) ||
+          (p.clothing_type || '').toLowerCase().includes(q) ||
+          (p.app_users?.username || '').toLowerCase().includes(q) ||
+          (p.app_users?.school_level || '').toLowerCase().includes(q);
 
-      return matchesVendor && matchesLevel && matchesSearch;
-    });
+        return matchesVendor && matchesLevel && matchesSearch;
+      })
+      .sort((a, b) =>
+        (a.app_users?.school_name || '').localeCompare(b.app_users?.school_name || '', 'id', { numeric: true, sensitivity: 'base' })
+      );
   }, [plottings, rekapVendorFilter, rekapLevelFilter, rekapSearchQuery]);
 
   // Kelompokkan per vendor untuk tampilan rekap
@@ -998,6 +1143,12 @@ const VendorManagement = () => {
         map.set(p.vendor_id, entry);
       }
       entry.assignments.push(p);
+    });
+
+    map.forEach((entry) => {
+      entry.assignments.sort((a, b) =>
+        (a.app_users?.school_name || '').localeCompare(b.app_users?.school_name || '', 'id', { numeric: true, sensitivity: 'base' })
+      );
     });
 
     return Array.from(map.values()).sort((a, b) => a.vendorName.localeCompare(b.vendorName));
@@ -2511,6 +2662,35 @@ const VendorManagement = () => {
                             <div style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {s.email}
                             </div>
+                            {/* Tampilkan info vendor yang sedang memegang sekolah ini */}
+                            {(() => {
+                              const existingForSchool = plottings.filter((p) => p.school_user_id === s.id);
+                              if (existingForSchool.length === 0) return null;
+                              return (
+                                <div style={{ fontSize: '0.72rem', marginTop: '3px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                  {existingForSchool.map((p, idx) => {
+                                    const vName = p.vendors?.name || vendors.find((v) => v.id === p.vendor_id)?.name || 'Vendor';
+                                    const isCurrentVendor = p.vendor_id === plotVendorId;
+                                    return (
+                                      <span
+                                        key={idx}
+                                        style={{
+                                          background: isCurrentVendor ? '#dcfce7' : '#f1f5f9',
+                                          color: isCurrentVendor ? '#166534' : '#475569',
+                                          border: `1px solid ${isCurrentVendor ? '#bbf7d0' : '#e2e8f0'}`,
+                                          borderRadius: '4px',
+                                          padding: '1px 5px',
+                                          fontSize: '0.7rem',
+                                          fontWeight: 500,
+                                        }}
+                                      >
+                                        🧵 {vName}: <strong>{p.clothing_type || 'Semua Baju'}</strong>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       );
@@ -2654,12 +2834,43 @@ const VendorManagement = () => {
                 </p>
               </div>
 
+              {/* Alert Bentrok Penugasan Vendor */}
+              {addPlottingConflicts.length > 0 && (
+                <div
+                  style={{
+                    background: '#fef2f2',
+                    border: '1px solid #f87171',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    color: '#991b1b',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+                    <span>⚠️ Terdeteksi Bentrok Penugasan:</span>
+                  </div>
+                  <ul style={{ margin: '4px 0 0 0', paddingLeft: '18px', lineHeight: 1.4 }}>
+                    {addPlottingConflicts.map((c, idx) => (
+                      <li key={idx}>
+                        <strong>{c.conflictingTypes.join(', ')}</strong> untuk <strong>{c.schoolName}</strong> sudah dikerjakan oleh <strong>{c.assignedVendorName}</strong>.
+                      </li>
+                    ))}
+                  </ul>
+                  <div style={{ fontSize: '0.78rem', color: '#b91c1c', marginTop: '2px' }}>
+                    * Mohon batalkan pilihan sekolah/jenis baju yang bentrok, atau edit penugasan vendor sebelumnya.
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
                 <button
                   type="submit"
                   className="btn-primary"
                   style={{ flex: 1 }}
-                  disabled={submitting || plotSchoolIds.length === 0}
+                  disabled={submitting || plotSchoolIds.length === 0 || addPlottingConflicts.length > 0}
                 >
                   {submitting
                     ? 'Menyimpan...'
@@ -2836,8 +3047,44 @@ const VendorManagement = () => {
                 </div>
               </div>
 
+              {/* Alert Bentrok Penugasan Vendor saat Edit */}
+              {editPlottingConflicts.length > 0 && (
+                <div
+                  style={{
+                    background: '#fef2f2',
+                    border: '1px solid #f87171',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    color: '#991b1b',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
+                    <span>⚠️ Terdeteksi Bentrok Penugasan:</span>
+                  </div>
+                  <ul style={{ margin: '4px 0 0 0', paddingLeft: '18px', lineHeight: 1.4 }}>
+                    {editPlottingConflicts.map((c, idx) => (
+                      <li key={idx}>
+                        <strong>{c.conflictingTypes.join(', ')}</strong> untuk <strong>{c.schoolName}</strong> sudah dikerjakan oleh <strong>{c.assignedVendorName}</strong>.
+                      </li>
+                    ))}
+                  </ul>
+                  <div style={{ fontSize: '0.78rem', color: '#b91c1c', marginTop: '2px' }}>
+                    * Mohon sesuaikan jenis baju atau vendor agar tidak bentrok.
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={submitting}>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ flex: 1 }}
+                  disabled={submitting || editPlottingConflicts.length > 0}
+                >
                   {submitting ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </button>
                 <button
