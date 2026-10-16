@@ -2507,7 +2507,7 @@ const VendorManagement = () => {
       {/* MODAL TAMBAH PLOTTING SEKOLAH */}
       {showAddPlotting && (
         <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '620px' }}>
+          <div className="modal" style={{ maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3>🔗 Plotting Vendor ke Sekolah</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
               Tentukan vendor konveksi dan pilih satu atau beberapa sekolah yang akan dikerjakan secara bersamaan.
@@ -2563,7 +2563,7 @@ const VendorManagement = () => {
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                   <input
                     type="text"
-                    placeholder="🔍 Cari nama sekolah atau email..."
+                    placeholder="🔍 Cari nama sekolah..."
                     value={plotSchoolSearch}
                     onChange={(e) => setPlotSchoolSearch(e.target.value)}
                     style={{
@@ -2655,43 +2655,19 @@ const VendorManagement = () => {
                           >
                             {s.level}
                           </span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {s.school_name}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {s.email}
-                            </div>
-                            {/* Tampilkan info vendor yang sedang memegang sekolah ini */}
-                            {(() => {
-                              const existingForSchool = plottings.filter((p) => p.school_user_id === s.id);
-                              if (existingForSchool.length === 0) return null;
-                              return (
-                                <div style={{ fontSize: '0.72rem', marginTop: '3px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                  {existingForSchool.map((p, idx) => {
-                                    const vName = p.vendors?.name || vendors.find((v) => v.id === p.vendor_id)?.name || 'Vendor';
-                                    const isCurrentVendor = p.vendor_id === plotVendorId;
-                                    return (
-                                      <span
-                                        key={idx}
-                                        style={{
-                                          background: isCurrentVendor ? '#dcfce7' : '#f1f5f9',
-                                          color: isCurrentVendor ? '#166534' : '#475569',
-                                          border: `1px solid ${isCurrentVendor ? '#bbf7d0' : '#e2e8f0'}`,
-                                          borderRadius: '4px',
-                                          padding: '1px 5px',
-                                          fontSize: '0.7rem',
-                                          fontWeight: 500,
-                                        }}
-                                      >
-                                        🧵 {vName}: <strong>{p.clothing_type || 'Semua Baju'}</strong>
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()}
-                          </div>
+                          <span
+                            style={{
+                              flex: 1,
+                              fontSize: '0.88rem',
+                              fontWeight: isChecked ? 700 : 500,
+                              color: isChecked ? '#0369a1' : '#1e293b',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {s.school_name}
+                          </span>
                         </div>
                       );
                     })
@@ -2865,7 +2841,19 @@ const VendorManagement = () => {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+              <div
+                style={{
+                  position: 'sticky',
+                  bottom: 0,
+                  background: '#ffffff',
+                  paddingTop: '12px',
+                  marginTop: '12px',
+                  borderTop: '1px solid #e2e8f0',
+                  display: 'flex',
+                  gap: '12px',
+                  zIndex: 20,
+                }}
+              >
                 <button
                   type="submit"
                   className="btn-primary"
@@ -2894,7 +2882,7 @@ const VendorManagement = () => {
       {/* MODAL EDIT PLOTTING SEKOLAH */}
       {editingPlotting && (
         <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '560px' }}>
+          <div className="modal" style={{ maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3>✏️ Edit Plotting Vendor ke Sekolah</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
               Ubah vendor konveksi, sekolah yang dilayani, atau jenis baju yang diproduksi.
@@ -2959,7 +2947,7 @@ const VendorManagement = () => {
                   </option>
                   {filteredEditModalSchools.map((s) => (
                     <option key={s.id} value={s.id}>
-                      [{s.level}] {s.school_name} — ({s.email})
+                      [{s.level}] {s.school_name}
                     </option>
                   ))}
                 </select>
@@ -3078,7 +3066,19 @@ const VendorManagement = () => {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+              <div
+                style={{
+                  position: 'sticky',
+                  bottom: 0,
+                  background: '#ffffff',
+                  paddingTop: '12px',
+                  marginTop: '12px',
+                  borderTop: '1px solid #e2e8f0',
+                  display: 'flex',
+                  gap: '12px',
+                  zIndex: 20,
+                }}
+              >
                 <button
                   type="submit"
                   className="btn-primary"
