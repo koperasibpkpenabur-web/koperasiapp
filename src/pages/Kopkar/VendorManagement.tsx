@@ -299,8 +299,11 @@ const VendorManagement = () => {
 
   const fetchVendors = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('vendors').select('*').order('created_at', { ascending: false });
-    if (!error && data) setVendors(data);
+    const { data, error } = await supabase.from('vendors').select('*').order('name', { ascending: true });
+    if (!error && data) {
+      data.sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }));
+      setVendors(data);
+    }
     setLoading(false);
   };
 
@@ -916,14 +919,16 @@ const VendorManagement = () => {
     }
   };
 
-  // Filtered lists for search query
-  const filteredVendors = vendors.filter(
-    (v) =>
-      v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.contact_person?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.address?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filtered lists for search query (selalu urut alfabetis)
+  const filteredVendors = vendors
+    .filter(
+      (v) =>
+        v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.contact_person?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.address?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }));
 
   const filteredPlottings = useMemo(() => {
     return plottings
@@ -1047,7 +1052,9 @@ const VendorManagement = () => {
       );
     });
 
-    return Array.from(map.values()).sort((a, b) => a.vendorName.localeCompare(b.vendorName));
+    return Array.from(map.values()).sort((a, b) =>
+      a.vendorName.localeCompare(b.vendorName, 'id', { numeric: true, sensitivity: 'base' })
+    );
   }, [filteredPlottings, vendors]);
 
   // Data vendor yang dipilih untuk modal detail plotting ("Klik Selengkapnya")
@@ -1431,11 +1438,13 @@ const VendorManagement = () => {
                   }}
                 >
                   <option value="ALL">Semua Vendor ({vendors.length})</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
+                  {[...vendors]
+                    .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }))
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
                 </select>
 
                 <select
@@ -2352,11 +2361,13 @@ const VendorManagement = () => {
                   style={inputStyle}
                 >
                   <option value="">-- Pilih Vendor ({vendors.length} Vendor Tersedia) --</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} {v.contact_person ? `(PIC: ${v.contact_person})` : ''}
-                    </option>
-                  ))}
+                  {[...vendors]
+                    .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }))
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} {v.contact_person ? `(PIC: ${v.contact_person})` : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -2727,11 +2738,13 @@ const VendorManagement = () => {
                   style={inputStyle}
                 >
                   <option value="">-- Pilih Vendor --</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
+                  {[...vendors]
+                    .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }))
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -2950,11 +2963,13 @@ const VendorManagement = () => {
                   style={inputStyle}
                 >
                   <option value="">-- Pilih Vendor --</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
+                  {[...vendors]
+                    .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }))
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
                 </select>
               </div>
 

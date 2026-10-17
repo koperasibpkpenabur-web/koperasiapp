@@ -293,7 +293,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       });
     });
 
-    return Array.from(allocationByVendor.values()).filter((a) => a.items.length > 0 || a.schoolNames.length > 0);
+    return Array.from(allocationByVendor.values())
+      .filter((a) => a.items.length > 0 || a.schoolNames.length > 0)
+      .sort((a, b) => a.vendorName.localeCompare(b.vendorName, 'id', { numeric: true, sensitivity: 'base' }));
   }, [forecastItems, vendors, plottings, schools]);
 
   // =========================================================================
