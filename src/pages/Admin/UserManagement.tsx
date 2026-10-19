@@ -72,7 +72,7 @@ const UserManagement = () => {
       setServerUsers(data.map(u => ({
         id: u.id,
         username: u.username,
-        password: u.password,
+        password: u.password || '',
         name: u.name,
         role: u.role,
         schoolName: u.school_name,
@@ -263,7 +263,7 @@ const UserManagement = () => {
     const exportData = data.map((u: any) => ({
       'Nama PIC': u.name,
       'Username': u.username,
-      'Password': u.password || '-',
+      'Password': u.password || 'Terenkripsi (Auth)',
       'Role': getRoleLabel(u.role),
       'Nama Sekolah': u.school_name || '-',
       'Jenjang': u.school_level || '-',
@@ -361,7 +361,7 @@ const UserManagement = () => {
                 <tr key={u.id}>
                   <td><strong>{u.name}</strong></td>
                   <td><code>{u.username}</code></td>
-                  <td><code>{u.password || '-'}</code></td>
+                  <td>{u.password ? <code>{u.password}</code> : <span style={{ color: '#64748b', fontSize: '12px' }}>•••••••• (Aman)</span>}</td>
                   <td>
                     <span className={`role-badge ${u.role}`}>{getRoleLabel(u.role)}</span>
                   </td>

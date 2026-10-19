@@ -44,7 +44,7 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
   });
 
   const shippedItems = order.shippingInfo?.shippedItems || [];
-  
+
   const kopkarItems: any[] = [];
   const vendorItems: any[] = [];
   let totalKopkar = 0;
@@ -167,7 +167,7 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
   return (
     <div className="print-only print-surat-jalan" style={{ margin: '0', padding: '0', width: '190mm', boxSizing: 'border-box' }}>
       <style>{pageStyle}</style>
-      
+
       {/* Header / Kop Kwitansi (Sama persis dengan Surat Jalan) */}
       <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
@@ -268,7 +268,7 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
               </tbody>
             </table>
           </div>
-          
+
           <div style={{ fontSize: '13px', fontWeight: 'bold', textAlign: 'right', marginBottom: '8px', padding: '4px', border: '1px solid #000' }}>
             TOTAL KESELURUHAN (A + B): {formatRupiah(grandTotal)}
           </div>

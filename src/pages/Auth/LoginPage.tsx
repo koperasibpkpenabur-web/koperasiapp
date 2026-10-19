@@ -26,7 +26,8 @@ const LoginPage = () => {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user?.email) {
+      const provider = session?.user?.app_metadata?.provider;
+      if (event === 'SIGNED_IN' && session?.user?.email && provider === 'google') {
         setIsGoogleLoading(true);
         const result = await loginWithGoogleData(session.user.email, session.user.id);
         if (result.success) {
