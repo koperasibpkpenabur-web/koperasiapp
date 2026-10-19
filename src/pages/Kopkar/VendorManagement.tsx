@@ -237,12 +237,14 @@ const VendorManagement = () => {
   const [plotVendorId, setPlotVendorId] = useState('');
   const [plotSchoolIds, setPlotSchoolIds] = useState<string[]>([]);
   const [plotSchoolSearch, setPlotSchoolSearch] = useState('');
+  const [plotClothingSearch, setPlotClothingSearch] = useState('');
 
   // Form Plotting (Edit)
   const [editPlotVendorId, setEditPlotVendorId] = useState('');
   const [editPlotSchoolId, setEditPlotSchoolId] = useState('');
   const [editPlotLevelFilter, setEditPlotLevelFilter] = useState('ALL');
   const [editPlotClothingTypes, setEditPlotClothingTypes] = useState<string[]>([]);
+  const [editPlotClothingSearch, setEditPlotClothingSearch] = useState('');
 
   // Modals Stock
   const [showAddStock, setShowAddStock] = useState(false);
@@ -503,6 +505,7 @@ const VendorManagement = () => {
     }
     setPlotSchoolIds([]);
     setPlotSchoolSearch('');
+    setPlotClothingSearch('');
     setPlotLevelFilter('ALL');
     setPlotClothingTypes(['Semua Jenis Baju']);
     setShowAddPlotting(true);
@@ -742,6 +745,7 @@ const VendorManagement = () => {
     setEditingPlotting(p);
     setEditPlotVendorId(p.vendor_id);
     setEditPlotSchoolId(p.school_user_id);
+    setEditPlotClothingSearch('');
     const raw = p.clothing_type || 'Semua Jenis Baju';
     const parsed = raw.split(',').map((s) => s.trim()).filter(Boolean);
     setEditPlotClothingTypes(parsed.length > 0 ? parsed : ['Semua Jenis Baju']);
@@ -1017,6 +1021,13 @@ const VendorManagement = () => {
     ).sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
   }, [products, selectedPlotLevels]);
 
+  // Jenis baju terfilter berdasarkan search di modal tambah plotting
+  const filteredAvailableClothingTypes = useMemo(() => {
+    const q = plotClothingSearch.toLowerCase().trim();
+    if (!q) return availableClothingTypes;
+    return availableClothingTypes.filter((item) => item.toLowerCase().includes(q));
+  }, [availableClothingTypes, plotClothingSearch]);
+
   // Kelompokkan plottings per vendor untuk tampilan ringkas dengan hide/unhide
   const groupedPlottings = useMemo(() => {
     const map = new Map<
@@ -1079,6 +1090,13 @@ const VendorManagement = () => {
         .map((p) => p.name.trim())
     )
   ).sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
+
+  // Jenis baju terfilter berdasarkan search di modal edit plotting
+  const filteredEditAvailableClothingTypes = useMemo(() => {
+    const q = editPlotClothingSearch.toLowerCase().trim();
+    if (!q) return editAvailableClothingTypes;
+    return editAvailableClothingTypes.filter((item) => item.toLowerCase().includes(q));
+  }, [editAvailableClothingTypes, editPlotClothingSearch]);
 
   // Filter sekolah di modal edit plotting
   const filteredEditModalSchools =
@@ -2571,6 +2589,77 @@ const VendorManagement = () => {
                   )}
                 </div>
 
+                {/* Search Bar Jenis Baju (seperti fitur cari sekolah) */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Cari jenis baju / seragam..."
+                    value={plotClothingSearch}
+                    onChange={(e) => setPlotClothingSearch(e.target.value)}
+                    style={{
+                      ...inputStyle,
+                      padding: '7px 12px',
+                      fontSize: '0.85rem',
+                      flex: 1,
+                    }}
+                  />
+                  {plotClothingSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setPlotClothingSearch('')}
+                      style={{
+                        padding: '7px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f1f5f9',
+                        color: '#475569',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      title="Bersihkan kata kunci pencarian"
+                    >
+                      ✕ Reset
+                    </button>
+                  )}
+                  {filteredAvailableClothingTypes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetList = filteredAvailableClothingTypes;
+                        const allChecked = targetList.every((t) => plotClothingTypes.includes(t));
+                        if (allChecked) {
+                          setPlotClothingTypes((prev) => {
+                            const next = prev.filter((t) => !targetList.includes(t));
+                            return next.length === 0 ? ['Semua Jenis Baju'] : next;
+                          });
+                        } else {
+                          setPlotClothingTypes((prev) => {
+                            const clean = prev.filter((t) => t !== 'Semua Jenis Baju');
+                            return Array.from(new Set([...clean, ...targetList]));
+                          });
+                        }
+                      }}
+                      style={{
+                        whiteSpace: 'nowrap',
+                        padding: '7px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f1f5f9',
+                        color: '#0f172a',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {filteredAvailableClothingTypes.length > 0 &&
+                      filteredAvailableClothingTypes.every((t) => plotClothingTypes.includes(t))
+                        ? '✓ Batal Pilih'
+                        : `☑ Pilih (${filteredAvailableClothingTypes.length})`}
+                    </button>
+                  )}
+                </div>
+
                 <div
                   style={{
                     border: '1px solid #cbd5e1',
@@ -2585,66 +2674,74 @@ const VendorManagement = () => {
                   }}
                 >
                   {/* Pilihan Semua Jenis Baju */}
-                  <div
-                    onClick={() => toggleSelectClothingType('Semua Jenis Baju')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '6px 10px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      background: plotClothingTypes.includes('Semua Jenis Baju') ? '#e0f2fe' : 'transparent',
-                      fontWeight: plotClothingTypes.includes('Semua Jenis Baju') ? 700 : 500,
-                      color: plotClothingTypes.includes('Semua Jenis Baju') ? '#0369a1' : '#334155',
-                      fontSize: '0.88rem',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={plotClothingTypes.includes('Semua Jenis Baju')}
-                      onChange={() => {}}
-                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                    />
-                    <span>👕 Semua Jenis Baju (Full Seragam Sekolah)</span>
-                  </div>
+                  {(!plotClothingSearch || 'semua jenis baju full seragam sekolah'.includes(plotClothingSearch.toLowerCase().trim())) && (
+                    <div
+                      onClick={() => toggleSelectClothingType('Semua Jenis Baju')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        background: plotClothingTypes.includes('Semua Jenis Baju') ? '#e0f2fe' : 'transparent',
+                        fontWeight: plotClothingTypes.includes('Semua Jenis Baju') ? 700 : 500,
+                        color: plotClothingTypes.includes('Semua Jenis Baju') ? '#0369a1' : '#334155',
+                        fontSize: '0.88rem',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={plotClothingTypes.includes('Semua Jenis Baju')}
+                        onChange={() => {}}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      <span>👕 Semua Jenis Baju (Full Seragam Sekolah)</span>
+                    </div>
+                  )}
 
                   {/* Pilihan Jenis Baju Spesifik */}
-                  {availableClothingTypes.map((item) => {
-                    const isChecked = plotClothingTypes.includes(item);
-                    return (
-                      <div
-                        key={item}
-                        onClick={() => toggleSelectClothingType(item)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '5px 10px',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          background: isChecked ? '#f0fdf4' : 'transparent',
-                          fontWeight: isChecked ? 600 : 400,
-                          color: isChecked ? '#166534' : '#475569',
-                          fontSize: '0.85rem',
-                        }}
-                        onMouseOver={(e) => {
-                          if (!isChecked) e.currentTarget.style.background = '#f8fafc';
-                        }}
-                        onMouseOut={(e) => {
-                          if (!isChecked) e.currentTarget.style.background = 'transparent';
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {}}
-                          style={{ cursor: 'pointer', width: '15px', height: '15px' }}
-                        />
-                        <span>👔 {item}</span>
-                      </div>
-                    );
-                  })}
+                  {filteredAvailableClothingTypes.length === 0 && plotClothingSearch && !'semua jenis baju full seragam sekolah'.includes(plotClothingSearch.toLowerCase().trim()) ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
+                      Tidak ada jenis baju yang cocok dengan pencarian "{plotClothingSearch}".
+                    </div>
+                  ) : (
+                    filteredAvailableClothingTypes.map((item) => {
+                      const isChecked = plotClothingTypes.includes(item);
+                      return (
+                        <div
+                          key={item}
+                          onClick={() => toggleSelectClothingType(item)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            background: isChecked ? '#f0fdf4' : 'transparent',
+                            fontWeight: isChecked ? 600 : 400,
+                            color: isChecked ? '#166534' : '#475569',
+                            fontSize: '0.85rem',
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isChecked) e.currentTarget.style.background = '#f8fafc';
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isChecked) e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                          />
+                          <span>👔 {item}</span>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
                   * Anda dapat mencentang lebih dari 1 jenis baju (misal: Kotak-Kotak Putra dan Putri). Jika sekolah sudah memiliki penugasan, sistem akan otomatis menggabungkannya tanpa error duplikasi.
@@ -2801,6 +2898,65 @@ const VendorManagement = () => {
                   <label style={labelStyle}>
                     Jenis Baju yang Diproduksi ({editPlotClothingTypes.length} Jenis Dipilih)
                   </label>
+                  {editAvailableClothingTypes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editAvailableClothingTypes.every((t) => editPlotClothingTypes.includes(t))) {
+                          setEditPlotClothingTypes(['Semua Jenis Baju']);
+                        } else {
+                          setEditPlotClothingTypes([...editAvailableClothingTypes]);
+                        }
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0284c7',
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {editAvailableClothingTypes.every((t) => editPlotClothingTypes.includes(t))
+                        ? 'Pilih Semua Baju'
+                        : 'Pilih Semua Item'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Search Bar Jenis Baju di Edit Modal */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Cari jenis baju / seragam..."
+                    value={editPlotClothingSearch}
+                    onChange={(e) => setEditPlotClothingSearch(e.target.value)}
+                    style={{
+                      ...inputStyle,
+                      padding: '7px 12px',
+                      fontSize: '0.85rem',
+                      flex: 1,
+                    }}
+                  />
+                  {editPlotClothingSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setEditPlotClothingSearch('')}
+                      style={{
+                        padding: '7px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f1f5f9',
+                        color: '#475569',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      title="Bersihkan kata kunci pencarian"
+                    >
+                      ✕ Reset
+                    </button>
+                  )}
                 </div>
 
                 <div
@@ -2816,65 +2972,73 @@ const VendorManagement = () => {
                     gap: '4px',
                   }}
                 >
-                  <div
-                    onClick={() => toggleEditSelectClothingType('Semua Jenis Baju')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '6px 10px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      background: editPlotClothingTypes.includes('Semua Jenis Baju') ? '#e0f2fe' : 'transparent',
-                      fontWeight: editPlotClothingTypes.includes('Semua Jenis Baju') ? 700 : 500,
-                      color: editPlotClothingTypes.includes('Semua Jenis Baju') ? '#0369a1' : '#334155',
-                      fontSize: '0.88rem',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={editPlotClothingTypes.includes('Semua Jenis Baju')}
-                      onChange={() => {}}
-                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                    />
-                    <span>👕 Semua Jenis Baju (Full Seragam)</span>
-                  </div>
+                  {(!editPlotClothingSearch || 'semua jenis baju full seragam'.includes(editPlotClothingSearch.toLowerCase().trim())) && (
+                    <div
+                      onClick={() => toggleEditSelectClothingType('Semua Jenis Baju')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        background: editPlotClothingTypes.includes('Semua Jenis Baju') ? '#e0f2fe' : 'transparent',
+                        fontWeight: editPlotClothingTypes.includes('Semua Jenis Baju') ? 700 : 500,
+                        color: editPlotClothingTypes.includes('Semua Jenis Baju') ? '#0369a1' : '#334155',
+                        fontSize: '0.88rem',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editPlotClothingTypes.includes('Semua Jenis Baju')}
+                        onChange={() => {}}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      <span>👕 Semua Jenis Baju (Full Seragam)</span>
+                    </div>
+                  )}
 
-                  {editAvailableClothingTypes.map((item) => {
-                    const isChecked = editPlotClothingTypes.includes(item);
-                    return (
-                      <div
-                        key={item}
-                        onClick={() => toggleEditSelectClothingType(item)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '5px 10px',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          background: isChecked ? '#f0fdf4' : 'transparent',
-                          fontWeight: isChecked ? 600 : 400,
-                          color: isChecked ? '#166534' : '#475569',
-                          fontSize: '0.85rem',
-                        }}
-                        onMouseOver={(e) => {
-                          if (!isChecked) e.currentTarget.style.background = '#f8fafc';
-                        }}
-                        onMouseOut={(e) => {
-                          if (!isChecked) e.currentTarget.style.background = 'transparent';
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {}}
-                          style={{ cursor: 'pointer', width: '15px', height: '15px' }}
-                        />
-                        <span>👔 {item}</span>
-                      </div>
-                    );
-                  })}
+                  {filteredEditAvailableClothingTypes.length === 0 && editPlotClothingSearch && !'semua jenis baju full seragam'.includes(editPlotClothingSearch.toLowerCase().trim()) ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
+                      Tidak ada jenis baju yang cocok dengan pencarian "{editPlotClothingSearch}".
+                    </div>
+                  ) : (
+                    filteredEditAvailableClothingTypes.map((item) => {
+                      const isChecked = editPlotClothingTypes.includes(item);
+                      return (
+                        <div
+                          key={item}
+                          onClick={() => toggleEditSelectClothingType(item)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            background: isChecked ? '#f0fdf4' : 'transparent',
+                            fontWeight: isChecked ? 600 : 400,
+                            color: isChecked ? '#166534' : '#475569',
+                            fontSize: '0.85rem',
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isChecked) e.currentTarget.style.background = '#f8fafc';
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isChecked) e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            style={{ cursor: 'pointer', width: '15px', height: '15px' }}
+                          />
+                          <span>👔 {item}</span>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
