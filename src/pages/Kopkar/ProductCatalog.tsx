@@ -364,7 +364,28 @@ const ProductCatalog = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>{editingId ? 'Edit Barang & Struktur Harga' : 'Tambah Barang Baru'}</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <h3 style={{ margin: 0 }}>{editingId ? 'Edit Barang & Struktur Harga' : 'Tambah Barang Baru'}</h3>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.25rem',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Tutup"
+              >
+                ✕
+              </button>
+            </div>
 
             <form className="modal-form" onSubmit={handleSubmit}>
               {formError && <div className="modal-error">{formError}</div>}

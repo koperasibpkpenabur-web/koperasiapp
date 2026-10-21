@@ -48,31 +48,59 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<ProductItem[]>([]);
 
   const fetchProducts = useCallback(async () => {
-    const { data, error } = await supabase.from('products').select('*').order('code', { ascending: true });
-    if (error) {
-      console.error('Error fetching products:', error);
-      return;
+    try {
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let from = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('code', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error) {
+          console.error('Error fetching products:', error);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allData = allData.concat(data);
+          if (data.length < PAGE_SIZE) {
+            hasMore = false;
+          } else {
+            from += PAGE_SIZE;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const mapped = allData.map(d => ({
+        id: d.id,
+        code: d.code,
+        name: d.name,
+        category: d.category as any,
+        level: d.level as any,
+        priceKopkar: d.price_kopkar,
+        feeSchool: d.fee_school,
+        priceStudent: d.price_student,
+        stock: d.stock,
+        stockRusak: d.stock_rusak || 0,
+        stockVendor: d.stock_vendor || 0,
+        minStock: d.min_stock,
+        size: d.size,
+        storageLocation: d.storage_location,
+        supplierName: d.supplier_name,
+        schoolName: d.school_name
+      }));
+      mapped.sort((a, b) => (a.code || '').localeCompare(b.code || '', 'id', { numeric: true, sensitivity: 'base' }));
+      setProducts(mapped);
+    } catch (err) {
+      console.error('Exception in fetchProducts:', err);
     }
-    const mapped = data.map(d => ({
-      id: d.id,
-      code: d.code,
-      name: d.name,
-      category: d.category as any,
-      level: d.level as any,
-      priceKopkar: d.price_kopkar,
-      feeSchool: d.fee_school,
-      priceStudent: d.price_student,
-      stock: d.stock,
-      stockRusak: d.stock_rusak || 0,
-      stockVendor: d.stock_vendor || 0,
-      minStock: d.min_stock,
-      size: d.size,
-      storageLocation: d.storage_location,
-      supplierName: d.supplier_name,
-      schoolName: d.school_name
-    }));
-    mapped.sort((a, b) => (a.code || '').localeCompare(b.code || '', 'id', { numeric: true, sensitivity: 'base' }));
-    setProducts(mapped);
   }, []);
 
   useEffect(() => {

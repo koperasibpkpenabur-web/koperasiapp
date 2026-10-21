@@ -19,7 +19,7 @@ const StockManagement = () => {
   // Search, Filters & Sorting
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'safe' | 'low' | 'empty'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'low' | 'empty'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'stock-desc' | 'stock-asc' | 'level' | 'value-desc'>('stock-asc');
 
   // Pagination
@@ -234,8 +234,7 @@ const StockManagement = () => {
 
       const currentStock = p.stock || 0;
       let matchesStatus = true;
-      if (statusFilter === 'safe') matchesStatus = currentStock > 20;
-      else if (statusFilter === 'low') matchesStatus = currentStock > 0 && currentStock <= 20;
+      if (statusFilter === 'low') matchesStatus = currentStock > 0 && currentStock <= 20;
       else if (statusFilter === 'empty') matchesStatus = currentStock === 0;
 
       return matchesSearch && matchesLevel && matchesStatus;
@@ -265,7 +264,6 @@ const StockManagement = () => {
   const totalBarangJenis = products.length;
   const totalUnitStock = products.reduce((acc, p) => acc + (p.stock || 0), 0);
   const totalNilaiModal = products.reduce((acc, p) => acc + ((p.stock || 0) * p.priceKopkar), 0);
-  const countStockAman = products.filter((p) => (p.stock || 0) > 20).length;
   const countStockMenipis = products.filter((p) => (p.stock || 0) > 0 && (p.stock || 0) <= 20).length;
   const countStockHabis = products.filter((p) => (p.stock || 0) === 0).length;
 
@@ -347,7 +345,7 @@ const StockManagement = () => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
           gap: '14px',
           marginBottom: '22px',
         }}
@@ -411,28 +409,7 @@ const StockManagement = () => {
           </div>
         </div>
 
-        <div
-          onClick={() => {
-            setStatusFilter('safe');
-            setSortBy('stock-desc');
-          }}
-          style={{
-            background: '#ffffff',
-            border: '1px solid #d5deef',
-            borderRadius: '14px',
-            padding: '16px 18px',
-            boxShadow: '0 2px 6px rgba(57, 88, 134, 0.05)',
-            cursor: 'pointer',
-          }}
-        >
-          <div style={{ fontSize: '1.2rem', marginBottom: '6px' }}>🟢</div>
-          <div style={{ fontSize: '0.74rem', color: '#586b84', fontWeight: 600, textTransform: 'uppercase' }}>
-            Stock Aman (&gt;20 pcs)
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0d9488' }}>
-            {countStockAman} <span style={{ fontSize: '0.82rem', fontWeight: 500, color: '#586b84' }}>barang</span>
-          </div>
-        </div>
+
 
         <div
           onClick={() => {
@@ -527,7 +504,6 @@ const StockManagement = () => {
           {/* Filter Status Stock */}
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
             <option value="all">Semua Status Stock</option>
-            <option value="safe">🟢 Stock Aman (&gt;20 pcs)</option>
             <option value="low">🟡 Stock Menipis (1-20 pcs)</option>
             <option value="empty">🔴 Stock Habis (0 pcs)</option>
           </select>
