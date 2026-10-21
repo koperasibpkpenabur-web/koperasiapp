@@ -8,6 +8,7 @@ export interface ForecastItem {
   uniformName: string; // e.g. Kemeja Putih, Celana Merah, dll.
   sizes: Record<string, number>; // e.g. { SS: 500, S: 750, M: 1250, ... }
   total: number;
+  schoolBreakdown?: Record<string, Record<string, number>>; // schoolName -> { size: qty }
 }
 
 export interface VendorAllocatedItem {
@@ -220,13 +221,18 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       const activeVendorsForLevel: Array<{
         vendorId: string;
         schoolCount: number;
+        schoolNames: Set<string>;
       }> = [];
 
       vendors.forEach((v) => {
         const vSchools = vendorLevelSchools.get(v.id)?.get(itemLevel);
         const count = vSchools ? vSchools.size : 0;
         if (count > 0) {
-          activeVendorsForLevel.push({ vendorId: v.id, schoolCount: count });
+          activeVendorsForLevel.push({
+            vendorId: v.id,
+            schoolCount: count,
+            schoolNames: vendorSchoolNames.get(v.id) || new Set(),
+          });
         }
       });
 
@@ -239,42 +245,72 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       }
 
       // Distribusikan tiap ukuran ke masing-masing vendor
-      // Kita hitung per ukuran dan lakukan perataan sisa pembulatan (remainder balancing)
       const allocatedSizesByVendor = new Map<string, Record<string, number>>();
       activeVendorsForLevel.forEach((av) => {
         allocatedSizesByVendor.set(av.vendorId, {});
       });
 
-      Object.entries(fcItem.sizes).forEach(([sizeName, totalQtyForSize]) => {
-        if (totalQtyForSize <= 0) return;
+      // Cek apakah data ini memiliki rincian per sekolah (schoolBreakdown)
+      const hasBreakdown = fcItem.schoolBreakdown && Object.keys(fcItem.schoolBreakdown).length > 0;
+      let matchedBySchool = false;
 
-        let allocatedSum = 0;
-        let maxVendorId = activeVendorsForLevel[0]?.vendorId || '';
-        let maxVendorCount = -1;
+      if (hasBreakdown) {
+        // Alokasikan langsung ke vendor yang menaungi sekolah tersebut
+        Object.entries(fcItem.schoolBreakdown!).forEach(([schoolName, schoolSizes]) => {
+          const sClean = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const targetVendor = activeVendorsForLevel.find((av) =>
+            Array.from(av.schoolNames).some((sn) => {
+              const snClean = sn.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return snClean === sClean || snClean.includes(sClean) || sClean.includes(snClean);
+            })
+          );
 
-        activeVendorsForLevel.forEach((av) => {
-          const ratio = av.schoolCount / totalSchoolsInLevel;
-          const qty = Math.round(totalQtyForSize * ratio);
-          allocatedSizesByVendor.get(av.vendorId)![sizeName] = qty;
-          allocatedSum += qty;
-
-          if (av.schoolCount > maxVendorCount) {
-            maxVendorCount = av.schoolCount;
-            maxVendorId = av.vendorId;
+          if (targetVendor) {
+            matchedBySchool = true;
+            const vSizes = allocatedSizesByVendor.get(targetVendor.vendorId)!;
+            Object.entries(schoolSizes).forEach(([sz, qty]) => {
+              vSizes[sz] = (vSizes[sz] || 0) + qty;
+            });
           }
         });
+      }
 
-        // Remainder adjustment agar total alokasi per ukuran persis sama dengan total input
-        const diff = totalQtyForSize - allocatedSum;
-        if (diff !== 0 && maxVendorId) {
-          allocatedSizesByVendor.get(maxVendorId)![sizeName] += diff;
-        }
-      });
+      // Jika tidak ada data per sekolah atau sekolah tidak ada yang cocok dengan plotting,
+      // fallback ke perhitungan proporsi rasio jumlah sekolah per vendor
+      if (!matchedBySchool) {
+        Object.entries(fcItem.sizes).forEach(([sizeName, totalQtyForSize]) => {
+          if (totalQtyForSize <= 0) return;
+
+          let allocatedSum = 0;
+          let maxVendorId = activeVendorsForLevel[0]?.vendorId || '';
+          let maxVendorCount = -1;
+
+          activeVendorsForLevel.forEach((av) => {
+            const ratio = av.schoolCount / totalSchoolsInLevel;
+            const qty = Math.round(totalQtyForSize * ratio);
+            allocatedSizesByVendor.get(av.vendorId)![sizeName] = qty;
+            allocatedSum += qty;
+
+            if (av.schoolCount > maxVendorCount) {
+              maxVendorCount = av.schoolCount;
+              maxVendorId = av.vendorId;
+            }
+          });
+
+          // Remainder adjustment agar total alokasi per ukuran persis sama dengan total input
+          const diff = totalQtyForSize - allocatedSum;
+          if (diff !== 0 && maxVendorId) {
+            allocatedSizesByVendor.get(maxVendorId)![sizeName] += diff;
+          }
+        });
+      }
 
       // Masukkan ke struktur alokasi masing-masing vendor
       activeVendorsForLevel.forEach((av) => {
         const vendorSizes = allocatedSizesByVendor.get(av.vendorId) || {};
         const itemTotal = Object.values(vendorSizes).reduce((a, b) => a + b, 0);
+        if (itemTotal === 0 && !matchedBySchool) return;
+
         const sharePct = (av.schoolCount / totalSchoolsInLevel) * 100;
 
         const alloc = allocationByVendor.get(av.vendorId);
@@ -309,94 +345,183 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       try {
         const buffer = e.target?.result as ArrayBuffer;
         const workbook = XLSX.read(buffer, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
 
-        // Konversi ke format JSON array of objects
-        const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
-
-        if (rawRows.length === 0) {
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
           alert('File Excel kosong atau format tabel tidak terbaca.');
           setLoading(false);
           return;
         }
 
-        const parsedItems: ForecastItem[] = [];
+        // Map unik: `${level}___${uniformName}` -> ForecastItem
+        const itemMap = new Map<string, ForecastItem>();
 
-        rawRows.forEach((row, idx) => {
-          // Deteksi kolom jenjang
-          const levelRaw =
-            row['Jenjang'] ||
-            row['jenjang'] ||
-            row['Level'] ||
-            row['level'] ||
-            row['Tingkat'] ||
-            'SEMUA';
-          const level = String(levelRaw).toUpperCase().trim();
+        workbook.SheetNames.forEach((sheetName) => {
+          const sheet = workbook.Sheets[sheetName];
+          if (!sheet) return;
 
-          // Deteksi kolom nama barang
-          const nameRaw =
-            row['Nama Seragam'] ||
-            row['nama seragam'] ||
-            row['Jenis Baju'] ||
-            row['Nama Barang'] ||
-            row['Barang'] ||
-            row['Item'] ||
-            '';
-          const uniformName = String(nameRaw).trim();
+          // Deteksi jenjang dari nama sheet (contoh: "SD", "SMP", "SMA", "TK")
+          let defaultLevel = 'SD';
+          const cleanSheet = sheetName.toUpperCase().trim();
+          if (cleanSheet.includes('SD') && !cleanSheet.includes('SMP') && !cleanSheet.includes('SMA')) {
+            defaultLevel = 'SD';
+          } else if (cleanSheet.includes('SMP')) {
+            defaultLevel = 'SMP';
+          } else if (cleanSheet.includes('SMA') || cleanSheet.includes('SMK')) {
+            defaultLevel = 'SMA';
+          } else if (cleanSheet.includes('TK')) {
+            defaultLevel = 'TK';
+          } else {
+            defaultLevel = cleanSheet || 'SEMUA';
+          }
 
-          if (!uniformName) return; // Lewati baris tanpa nama seragam
+          const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
+          if (rawRows.length === 0) return;
 
-          // Kumpulkan kolom ukuran
-          const sizes: Record<string, number> = {};
-          let rowTotal = 0;
+          // Cek apakah sheet ini memakai FORMAT BARU (kolom SIZE/Ukuran, kolom-kolomnya adalah Sekolah)
+          // atau FORMAT LAMA (kolomnya adalah Ukuran seperti SS, S, M, L)
+          const firstRow = rawRows[0];
+          const hasSizeCol = Object.keys(firstRow).some((k) =>
+            ['size', 'ukuran'].includes(k.trim().toLowerCase())
+          );
 
-          Object.entries(row).forEach(([colKey, val]) => {
-            const cleanKey = colKey.trim();
-            // Abaikan kolom non-ukuran
-            if (
-              [
-                'no',
-                'no.',
-                'nomor',
-                'jenjang',
-                'level',
-                'tingkat',
-                'nama seragam',
-                'jenis baju',
-                'nama barang',
-                'barang',
-                'item',
-                'total',
-                'total pcs',
-                'total rencana',
-                'keterangan',
-                'tipe ukuran',
-              ].includes(cleanKey.toLowerCase())
-            ) {
-              return;
-            }
+          if (hasSizeCol) {
+            // ========================================================
+            // FORMAT BARU: Baris = Barang + Ukuran, Kolom = Sekolah
+            // ========================================================
+            rawRows.forEach((row) => {
+              const nameRaw =
+                row['Nama Barang'] ||
+                row['NAMA BARANG'] ||
+                row['Nama Seragam'] ||
+                row['Jenis Baju'] ||
+                row['Item'] ||
+                row['Barang'] ||
+                '';
+              const uniformName = String(nameRaw).trim();
+              if (!uniformName) return;
 
-            const numVal = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
-            if (!isNaN(numVal) && numVal > 0) {
-              sizes[cleanKey] = numVal;
-              rowTotal += numVal;
-            }
-          });
+              const sizeRaw =
+                row['Size'] ||
+                row['SIZE'] ||
+                row['Ukuran'] ||
+                row['UKURAN'] ||
+                'ALL SIZE';
+              const size = String(sizeRaw).trim().toUpperCase();
 
-          if (rowTotal > 0) {
-            parsedItems.push({
-              id: `fc-${Date.now()}-${idx}`,
-              level,
-              uniformName,
-              sizes,
-              total: rowTotal,
+              const levelRaw = row['Jenjang'] || row['Level'] || defaultLevel;
+              const level = String(levelRaw).toUpperCase().trim();
+
+              const key = `${level}___${uniformName.toUpperCase()}`;
+              if (!itemMap.has(key)) {
+                itemMap.set(key, {
+                  id: `fc-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+                  level,
+                  uniformName,
+                  sizes: {},
+                  total: 0,
+                  schoolBreakdown: {},
+                });
+              }
+
+              const item = itemMap.get(key)!;
+              if (!item.sizes[size]) item.sizes[size] = 0;
+              if (!item.schoolBreakdown) item.schoolBreakdown = {};
+
+              // Kolom selain nama barang, ukuran, dan total dianggap nama sekolah
+              Object.entries(row).forEach(([colKey, val]) => {
+                const cleanKey = colKey.trim();
+                const lowerKey = cleanKey.toLowerCase();
+                if (
+                  [
+                    'no', 'no.', 'nomor',
+                    'jenjang', 'level', 'tingkat',
+                    'nama seragam', 'jenis baju', 'nama barang', 'barang', 'item',
+                    'size', 'ukuran',
+                    'total', 'total (pcs)', 'total pcs', 'total rencana', 'keterangan'
+                  ].includes(lowerKey)
+                ) {
+                  return;
+                }
+
+                const numVal = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
+                if (!isNaN(numVal) && numVal > 0) {
+                  item.sizes[size] = (item.sizes[size] || 0) + numVal;
+                  item.total += numVal;
+
+                  if (!item.schoolBreakdown![cleanKey]) {
+                    item.schoolBreakdown![cleanKey] = {};
+                  }
+                  item.schoolBreakdown![cleanKey][size] =
+                    (item.schoolBreakdown![cleanKey][size] || 0) + numVal;
+                }
+              });
+            });
+          } else {
+            // ========================================================
+            // FORMAT LAMA: Baris = Nama Seragam, Kolom = Ukuran (SS, S, M...)
+            // ========================================================
+            rawRows.forEach((row, idx) => {
+              const levelRaw = row['Jenjang'] || row['Level'] || defaultLevel;
+              const level = String(levelRaw).toUpperCase().trim();
+
+              const nameRaw =
+                row['Nama Seragam'] ||
+                row['Nama Barang'] ||
+                row['Jenis Baju'] ||
+                row['Item'] ||
+                '';
+              const uniformName = String(nameRaw).trim();
+              if (!uniformName) return;
+
+              const sizes: Record<string, number> = {};
+              let rowTotal = 0;
+
+              Object.entries(row).forEach(([colKey, val]) => {
+                const cleanKey = colKey.trim();
+                if (
+                  [
+                    'no', 'no.', 'nomor',
+                    'jenjang', 'level', 'tingkat',
+                    'nama seragam', 'jenis baju', 'nama barang', 'barang', 'item',
+                    'total', 'total (pcs)', 'total pcs', 'total rencana', 'keterangan', 'tipe ukuran'
+                  ].includes(cleanKey.toLowerCase())
+                ) {
+                  return;
+                }
+
+                const numVal = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
+                if (!isNaN(numVal) && numVal > 0) {
+                  sizes[cleanKey] = numVal;
+                  rowTotal += numVal;
+                }
+              });
+
+              if (rowTotal > 0) {
+                const key = `${level}___${uniformName.toUpperCase()}`;
+                if (itemMap.has(key)) {
+                  const existing = itemMap.get(key)!;
+                  Object.entries(sizes).forEach(([sz, q]) => {
+                    existing.sizes[sz] = (existing.sizes[sz] || 0) + q;
+                  });
+                  existing.total += rowTotal;
+                } else {
+                  itemMap.set(key, {
+                    id: `fc-${Date.now()}-${idx}`,
+                    level,
+                    uniformName,
+                    sizes,
+                    total: rowTotal,
+                  });
+                }
+              }
             });
           }
         });
 
+        const parsedItems = Array.from(itemMap.values()).filter((it) => it.total > 0);
+
         if (parsedItems.length === 0) {
-          alert('Tidak ada angka ukuran seragam yang valid (> 0) dalam file Excel tersebut.');
+          alert('Tidak ada angka perkiraan seragam yang valid (> 0) dalam file Excel tersebut.');
         } else {
           setForecastItems(parsedItems);
           handleSaveForecast(parsedItems);
@@ -405,7 +530,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         }
       } catch (err: any) {
         console.error('Error parsing Excel:', err);
-        alert('Gagal membaca file Excel. Pastikan format kolom sesuai template: ' + (err.message || ''));
+        alert('Gagal membaca file Excel: ' + (err.message || ''));
       } finally {
         setLoading(false);
       }
@@ -454,93 +579,185 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   };
 
   // =========================================================================
-  // 3. GENERATOR TEMPLATE EXCEL RESMI DENGAN DAFTAR SERAGAM DATABASE
+  // 3. GENERATOR TEMPLATE EXCEL RESMI MULTI-SHEET (SD, SMP, SMA, TK)
+  //    Format: Baris = Item per Ukuran, Kolom = Nama Sekolah
   // =========================================================================
   const handleDownloadTemplate = () => {
-    // Ambil semua seragam unik dari produk database
+    // 1. Ambil daftar sekolah unik per jenjang dari database (props schools)
+    const getSchoolsForLevel = (levelKey: string, fallbackList: string[]): string[] => {
+      const filtered = schools.filter((s) => {
+        const lvl = (s.level || '').toUpperCase().trim();
+        const sName = (s.school_name || '').toUpperCase().trim();
+
+        if (levelKey === 'SD') {
+          return lvl === 'SD' || lvl.includes('SD') || lvl.includes('PRIMARY') || sName.includes('SDK ') || sName.includes('SD ');
+        }
+        if (levelKey === 'SMP') {
+          return lvl === 'SMP' || lvl.includes('SMP') || lvl.includes('LOWER') || sName.includes('SMPK ') || sName.includes('SMP ');
+        }
+        if (levelKey === 'SMA') {
+          return lvl === 'SMA' || lvl.includes('SMA') || lvl.includes('SMK') || lvl.includes('UPPER') || sName.includes('SMAK ') || sName.includes('SMA ') || sName.includes('SMK ');
+        }
+        if (levelKey === 'TK') {
+          return lvl === 'TK' || lvl.includes('TK') || lvl.includes('KINDER') || lvl.includes('EARLY') || sName.includes('TKK ') || sName.includes('TK ');
+        }
+        return lvl === levelKey;
+      });
+
+      if (filtered.length > 0) {
+        // Urutkan secara natural (angka kecil ke besar, misal SDK 1 sebelum SDK 2 dst)
+        const uniqueNames = Array.from(new Set(filtered.map((s) => s.school_name.trim())));
+        return uniqueNames.sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
+      }
+      return fallbackList;
+    };
+
+    // Sekolah fallback jika database sekolah belum terisi
+    const fallbackSchools: Record<string, string[]> = {
+      SD: [
+        'SDK 1 PENABUR', 'SDK 2 PENABUR', 'SDK 3 PENABUR', 'SDK 4 PENABUR', 'SDK 6 PENABUR',
+        'SDK 8 PENABUR', 'SDK 9 PENABUR', 'SDK 10 PENABUR', 'SDK 11 PENABUR',
+        'SDK PENABUR Depok', 'SDK PENABUR Bintaro Jaya', 'SDK PENABUR Gading Serpong',
+        'SDK PENABUR Kota Modern', 'SDK PENABUR Kota Wisata', 'SDK PENABUR Harapan Indah',
+        'SDK PENABUR Summarecon Bekasi', 'SDK PENABUR Agus Salim', 'SDK PENABUR Kota Jababeka'
+      ],
+      SMP: [
+        'SMPK 1 PENABUR Jakarta', 'SMPK 2 PENABUR Jakarta', 'SMPK 3 PENABUR Jakarta',
+        'SMPK 4 PENABUR Jakarta', 'SMPK 5 PENABUR Jakarta', 'SMPK 6 PENABUR Jakarta',
+        'SMPK 7 PENABUR Jakarta', 'SMPK PENABUR Bintaro Jaya', 'SMPK PENABUR Gading Serpong',
+        'SMPK PENABUR Kota Modern', 'SMPK PENABUR Harapan Indah', 'SMPK PENABUR Kota Wisata',
+        'SMPK PENABUR Kota Depok', 'SMPK PENABUR Kota Jababeka', 'SMPK PENABUR Summarecon Bekasi'
+      ],
+      SMA: [
+        'SMAK 1 PENABUR', 'SMAK 2 PENABUR', 'SMAK 3 PENABUR', 'SMAK 4 PENABUR',
+        'SMAK 5 PENABUR', 'SMAK 6 PENABUR', 'SMAK 7 PENABUR', 'SMAK SUMMARECON BEKASI',
+        'SMAK KOTA JABABEKA', 'SMAK HARAPAN INDAH', 'SMAK KOTA TANGERANG',
+        'SMAK BINTARO JAYA', 'SMAK GADING SERPONG', 'SMAK KOTA WISATA', 'SMK FARMASI PENABUR'
+      ],
+      TK: [
+        'TKK 1 PENABUR', 'TKK 2 PENABUR', 'TKK 3 PENABUR', 'TKK 5 PENABUR',
+        'TKK 6 PENABUR', 'TKK 7 PENABUR', 'TKK 8 PENABUR', 'TKK 9 PENABUR',
+        'TKK 10 PENABUR', 'TKK 11 PENABUR', 'TKK PENABUR Bintaro Jaya',
+        'TKK PENABUR Gading Serpong', 'TKK PENABUR Kota Modern', 'TKK PENABUR Kota Jababeka',
+        'TKK PENABUR Harapan Indah', 'TKK PENABUR Bekasi Agus Salim', 'TKK PENABUR Kota Wisata',
+        'TKK PENABUR Summarecon Bekasi', 'TKK PENABUR Depok'
+      ]
+    };
+
+    // 2. Daftar seragam dan rentang ukuran standar per jenjang
+    const standardLetterSizes = ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', '4L', '5L', '6L', 'KHUSUS'];
+    const standardPantsSizes = ['25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'];
+
+    const uniformDefinitions: Record<string, Array<{ name: string; sizes: string[] }>> = {
+      SD: [
+        { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
+        { name: 'CELANA MERAH', sizes: standardLetterSizes },
+        { name: 'KULOT MERAH', sizes: standardLetterSizes },
+        { name: 'ROMPI KOTAK', sizes: standardLetterSizes },
+        { name: 'KEMEJA PRAMUKA SD', sizes: standardLetterSizes },
+        { name: 'CELANA PRAMUKA SD', sizes: standardLetterSizes },
+        { name: 'KULOT PRAMUKA SD', sizes: standardLetterSizes },
+        { name: 'KAOS OLAHRAGA SD', sizes: standardLetterSizes },
+      ],
+      SMP: [
+        { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
+        { name: 'CELANA BIRU', sizes: standardPantsSizes },
+        { name: 'ROK BIRU', sizes: standardLetterSizes },
+        { name: 'KEMEJA PRAMUKA SMP', sizes: standardLetterSizes },
+        { name: 'CELANA PRAMUKA SMP', sizes: standardPantsSizes },
+        { name: 'ROK PRAMUKA SMP', sizes: standardLetterSizes },
+        { name: 'KAOS OLAHRAGA SMP', sizes: standardLetterSizes },
+      ],
+      SMA: [
+        { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
+        { name: 'CELANA ABU', sizes: ['27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'] },
+        { name: 'ROK ABU', sizes: standardLetterSizes },
+        { name: 'KEMEJA PRAMUKA SMA', sizes: standardLetterSizes },
+        { name: 'CELANA PRAMUKA SMA', sizes: ['27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'] },
+        { name: 'ROK PRAMUKA SMA', sizes: standardLetterSizes },
+        { name: 'KAOS OLAHRAGA SMA', sizes: standardLetterSizes },
+      ],
+      TK: [
+        { name: 'KOTAK-KOTAK PUTRA', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
+        { name: 'KOTAK-KOTAK PUTRI', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
+        { name: 'KAOS OLAHRAGA TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
+        { name: 'BAJU RENANG TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
+      ],
+    };
+
+    // Gabungkan seragam dari database produk jika ada yang belum terdaftar
     const seragamProducts = products.filter((p) => p.category === 'seragam');
-
-    // Buat peta unik: level + name -> daftar ukuran yang terdaftar
-    const uniformMap = new Map<string, { level: string; name: string; registeredSizes: Set<string> }>();
-
     seragamProducts.forEach((p) => {
-      const lvl = (p.level || 'SEMUA').toUpperCase().trim();
-      const name = p.name.trim();
-      const key = `${lvl}___${name}`;
-
-      if (!uniformMap.has(key)) {
-        uniformMap.set(key, { level: lvl, name, registeredSizes: new Set() });
+      const lvl = (p.level || 'SD').toUpperCase().trim();
+      const targetLvl = lvl.includes('TK') ? 'TK' : lvl.includes('SMP') ? 'SMP' : lvl.includes('SMA') ? 'SMA' : 'SD';
+      if (uniformDefinitions[targetLvl]) {
+        const pName = p.name.toUpperCase().trim();
+        const exists = uniformDefinitions[targetLvl].find((u) => u.name === pName);
+        if (!exists && pName) {
+          uniformDefinitions[targetLvl].push({
+            name: pName,
+            sizes: standardLetterSizes,
+          });
+        }
       }
-      if (p.size) uniformMap.get(key)!.registeredSizes.add(p.size.trim());
     });
-
-    // Jika database kosong, sediakan daftar seragam standar Penabur
-    const uniformList = Array.from(uniformMap.values());
-    if (uniformList.length === 0) {
-      const defaultSamples = [
-        { level: 'TK', name: 'Kotak-Kotak Putra', registeredSizes: new Set(['SS', 'S', 'M', 'L', 'XL', '3L']) },
-        { level: 'TK', name: 'Kotak-Kotak Putri', registeredSizes: new Set(['SS', 'S', 'M', 'L', 'XL', '3L']) },
-        { level: 'SD', name: 'Kemeja Putih', registeredSizes: new Set(['SS', 'S', 'M', 'L', 'XL', '3L', '4L']) },
-        { level: 'SD', name: 'Celana Merah', registeredSizes: new Set(['SS', 'S', 'M', 'L', 'XL', '3L', '4L']) },
-        { level: 'SD', name: 'Kulot Merah', registeredSizes: new Set(['SS', 'S', 'M', 'L', 'XL', '3L', '4L']) },
-        { level: 'SD', name: 'Rompi Kotak', registeredSizes: new Set(['SS', 'S', 'M', 'L', 'XL', '3L', '4L']) },
-        { level: 'SMP', name: 'Kemeja Putih', registeredSizes: new Set(['SS', 'S', 'M', 'L', 'XL', '3L', '4L']) },
-        { level: 'SMP', name: 'Celana Biru', registeredSizes: new Set(['25', '26', '27', '28', '29', '30', '31', '32', '33', '34']) },
-        { level: 'SMA', name: 'Kemeja Putih', registeredSizes: new Set(['SS', 'S', 'M', 'L', 'XL', '3L', '4L']) },
-        { level: 'SMA', name: 'Celana Abu', registeredSizes: new Set(['27', '28', '29', '30', '31', '32', '33', '34', '35', '36']) },
-      ];
-      uniformList.push(...defaultSamples);
-    }
-
-    // Urutkan berdasarkan jenjang: TK -> SD -> SMP -> SMA -> SPK
-    const levelOrder = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA', 'SEMUA'];
-    uniformList.sort((a, b) => {
-      const idxA = levelOrder.indexOf(a.level);
-      const idxB = levelOrder.indexOf(b.level);
-      if (idxA !== idxB) return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
-      return a.name.localeCompare(b.name, 'id', { numeric: true });
-    });
-
-    // Susun baris template
-    const templateRows = uniformList.map((u, idx) => {
-      const row: Record<string, any> = {
-        No: idx + 1,
-        Jenjang: u.level,
-        'Nama Seragam': u.name,
-      };
-
-      // Tentukan apakah seragam ini cenderung ukuran angka (celana SMP/SMA) atau ukuran huruf
-      const isNumberSized = Array.from(u.registeredSizes).some((s) => /^\d+$/.test(s));
-
-      if (isNumberSized) {
-        // Kolom ukuran celana nomor
-        const numSizes = ['25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'];
-        numSizes.forEach((sz) => {
-          row[sz] = '';
-        });
-      } else {
-        // Kolom ukuran huruf
-        const letterSizes = ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', '4L', '5L', '6L', 'KHUSUS'];
-        letterSizes.forEach((sz) => {
-          row[sz] = '';
-        });
-      }
-
-      return row;
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(templateRows);
-
-    // Styling lebar kolom
-    worksheet['!cols'] = [
-      { wch: 6 }, // No
-      { wch: 12 }, // Jenjang
-      { wch: 34 }, // Nama Seragam
-      ...Array(20).fill({ wch: 8 }), // Kolom-kolom ukuran
-    ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rencana_Produksi');
+
+    // Buat sheet terurut: SD, SMP, SMA, TK
+    const sheetOrder = ['SD', 'SMP', 'SMA', 'TK'];
+
+    sheetOrder.forEach((lvl) => {
+      const schoolList = getSchoolsForLevel(lvl, fallbackSchools[lvl]);
+      const uniformList = uniformDefinitions[lvl] || [];
+
+      const rows: any[] = [];
+
+      uniformList.forEach((item) => {
+        item.sizes.forEach((sz) => {
+          const rowObj: Record<string, any> = {
+            'NAMA BARANG': item.name,
+            SIZE: sz,
+          };
+          schoolList.forEach((sName) => {
+            rowObj[sName] = '';
+          });
+          rowObj['TOTAL (PCS)'] = '';
+          rows.push(rowObj);
+        });
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+
+      // Tambahkan formula penjumlahan SUM otomatis ke kolom TOTAL (PCS)
+      // Kolom A = 0 (NAMA BARANG), Kolom B = 1 (SIZE)
+      // Kolom C = 2 (Sekolah pertama)
+      // Kolom terakhir sekolah = schoolList.length + 1
+      // Kolom TOTAL = schoolList.length + 2
+      const firstSchoolCol = 'C';
+      const lastSchoolCol = XLSX.utils.encode_col(schoolList.length + 1);
+      const totalCol = XLSX.utils.encode_col(schoolList.length + 2);
+
+      rows.forEach((_, idx) => {
+        const rowNum = idx + 2; // Row data mulai dari baris 2 (baris 1 header)
+        const cellRef = `${totalCol}${rowNum}`;
+        worksheet[cellRef] = {
+          t: 'n',
+          f: `SUM(${firstSchoolCol}${rowNum}:${lastSchoolCol}${rowNum})`,
+        };
+      });
+
+      // Atur lebar kolom agar rapi dan teks sekolah tidak terpotong
+      worksheet['!cols'] = [
+        { wch: 28 }, // NAMA BARANG
+        { wch: 10 }, // SIZE
+        ...schoolList.map(() => ({ wch: 24 })), // Kolom sekolah-sekolah
+        { wch: 15 }, // TOTAL (PCS)
+      ];
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, lvl);
+    });
+
     XLSX.writeFile(workbook, `Template_Prediksi_Produksi_${targetYear.replace('/', '_')}.xlsx`);
   };
 

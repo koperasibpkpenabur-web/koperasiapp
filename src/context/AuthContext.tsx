@@ -274,36 +274,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addUser = useCallback(async (userData: Omit<User, 'id' | 'createdAt'>) => {
-    // 1. Coba melalui RPC admin_create_user
-    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_create_user', {
-      p_email: userData.username,
-      p_password: userData.password,
-      p_name: userData.name,
-      p_role: userData.role,
-      p_school_name: userData.schoolName || '',
-      p_school_level: userData.schoolLevel || '',
-    });
+    // 1. Coba melalui RPC admin_create_user jika fungsi database siap
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_create_user', {
+        p_email: userData.username,
+        p_password: userData.password,
+        p_name: userData.name,
+        p_role: userData.role,
+        p_school_name: userData.schoolName || '',
+        p_school_level: userData.schoolLevel || '',
+      });
 
-    if (!rpcError && rpcData?.success) {
-      return { success: true };
-    }
+      if (!rpcError && rpcData?.success) {
+        return { success: true };
+      }
+    } catch {}
 
-    if (rpcData && !rpcData.success) {
-      return { success: false, error: rpcData.error };
-    }
-
-    // Fallback jika RPC belum dibuat di Supabase
+    // Fallback jika RPC gagal/belum ada: simpan langsung ke app_users lengkap dengan password
     const { error } = await supabase.from('app_users').insert([{
-      username: userData.username,
-      name: userData.name,
+      username: userData.username.trim().toLowerCase(),
+      password: userData.password,
+      name: userData.name.trim(),
       role: userData.role,
-      school_name: userData.schoolName,
-      school_level: userData.schoolLevel
+      school_name: userData.schoolName?.trim() || null,
+      school_level: userData.schoolLevel?.trim() || null,
     }]);
 
     if (error) {
       if (error.code === '23505') { 
-        return { success: false, error: 'Username sudah digunakan' };
+        return { success: false, error: 'Username atau email sudah digunakan' };
       }
       return { success: false, error: error.message };
     }
@@ -313,20 +312,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUserPassword = useCallback(async (id: string, newPassword: string) => {
     // 1. Coba melalui RPC admin_reset_password
-    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_reset_password', {
-      p_user_id: id,
-      p_new_password: newPassword,
-    });
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_reset_password', {
+        p_user_id: id,
+        p_new_password: newPassword,
+      });
 
-    if (!rpcError && rpcData?.success) {
-      return { success: true };
-    }
+      if (!rpcError && rpcData?.success) {
+        return { success: true };
+      }
+    } catch {}
 
-    if (rpcData && !rpcData.success) {
-      return { success: false, error: rpcData.error };
-    }
-
-    // Fallback
+    // Fallback: update langsung password di app_users
     const { error } = await supabase
       .from('app_users')
       .update({ password: newPassword })

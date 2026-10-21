@@ -314,35 +314,33 @@ const VendorManagement = () => {
       // 1. Ambil data sekolah dari whitelist dan app_users secara paralel
       const [wlRes, appUsersRes] = await Promise.all([
         supabase.from('school_whitelist').select('*').order('nama_sekolah', { ascending: true }),
-        supabase.from('app_users').select('id, username, school_name, school_level').ilike('username', '%@%'),
+        supabase.from('app_users').select('id, username, school_name, school_level, role').eq('role', 'sekolah'),
       ]);
 
-      const whitelistData = wlRes.data;
-      if (wlRes.error || !whitelistData) {
-        console.error('Error fetching school_whitelist:', wlRes.error);
-        return;
-      }
+      const whitelistData = wlRes.data || [];
+      const appUsersData = appUsersRes.data || [];
 
-      const appUsersData = appUsersRes.data;
       const userMap = new Map<string, { id: string; school_name: string; school_level: string }>();
-      if (appUsersData) {
-        appUsersData.forEach((u) => {
+      appUsersData.forEach((u) => {
+        if (u.username) {
           userMap.set(u.username.toLowerCase().trim(), {
             id: u.id,
             school_name: u.school_name || '',
             school_level: u.school_level || '',
           });
-        });
-      }
+        }
+      });
 
       const list: SchoolItem[] = [];
+      const addedSchoolKeys = new Set<string>();
 
+      // A. Ambil dari whitelist (sekolah resmi / Google SSO)
       for (const w of whitelistData) {
         const emailClean = (w.email || '').toLowerCase().trim();
         if (!emailClean) continue;
 
         let appUser = userMap.get(emailClean);
-        const rawJenjang = w.Jenjang || w.jenjang || appUser?.school_level || 'SMP';
+        const rawJenjang = w.Jenjang || w.jenjang || appUser?.school_level || 'SD';
         const cleanJenjang = typeof rawJenjang === 'string' ? rawJenjang.trim() : rawJenjang;
         const schoolName = (w.nama_sekolah || w.Nama_Sekolah || appUser?.school_name || emailClean).trim();
 
@@ -378,6 +376,23 @@ const VendorManagement = () => {
             school_name: schoolName,
             level: cleanJenjang,
           });
+          addedSchoolKeys.add(schoolName.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        }
+      }
+
+      // B. Ambil juga dari app_users yang dibuat secara manual (misal username tanpa email resmi)
+      for (const u of appUsersData) {
+        const schoolName = (u.school_name || u.name || '').trim();
+        if (!schoolName) continue;
+        const key = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!addedSchoolKeys.has(key)) {
+          list.push({
+            id: u.id,
+            email: u.username || '',
+            school_name: schoolName,
+            level: (u.school_level || 'SD').trim(),
+          });
+          addedSchoolKeys.add(key);
         }
       }
 
@@ -386,7 +401,7 @@ const VendorManagement = () => {
       setSchools(list);
       schoolsLoadedRef.current = true;
     } catch (err) {
-      console.error('Error fetching schools from whitelist:', err);
+      console.error('Error fetching schools:', err);
     }
   };
 
