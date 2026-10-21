@@ -101,7 +101,7 @@ CREATE OR REPLACE FUNCTION public.admin_create_user(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, extensions
 AS $$
 DECLARE
   v_user_id uuid := gen_random_uuid();
@@ -137,7 +137,7 @@ BEGIN
     'authenticated',
     'authenticated',
     v_clean_email,
-    crypt(p_password, gen_salt('bf')),
+    extensions.crypt(p_password, extensions.gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
     jsonb_build_object('name', p_name, 'role', p_role, 'username', v_raw_username),
@@ -195,11 +195,11 @@ CREATE OR REPLACE FUNCTION public.admin_reset_password(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, extensions
 AS $$
 BEGIN
   UPDATE auth.users
-  SET encrypted_password = crypt(p_new_password, gen_salt('bf')),
+  SET encrypted_password = extensions.crypt(p_new_password, extensions.gen_salt('bf')),
       updated_at = now()
   WHERE id = p_user_id;
 
@@ -216,7 +216,7 @@ CREATE OR REPLACE FUNCTION public.admin_delete_user(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, extensions
 AS $$
 BEGIN
   -- Hapus identitas & akun dari auth

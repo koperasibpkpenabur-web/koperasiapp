@@ -477,7 +477,7 @@ const UserManagement = () => {
       {/* Add User Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={handleCloseModal}>
-          <div className="modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal" style={{ maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <h3>{editMode ? 'Edit Akun Pengguna' : 'Tambah Akun Pengguna Baru'}</h3>
             <form className="modal-form" onSubmit={handleSubmit}>
               {formError && <div className="modal-error">{formError}</div>}

@@ -32,7 +32,7 @@ CREATE OR REPLACE FUNCTION public.admin_create_user(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, extensions
 AS $$
 DECLARE
   v_user_id uuid := gen_random_uuid();
@@ -76,7 +76,7 @@ BEGIN
     'authenticated',
     'authenticated',
     v_clean_email,
-    crypt(p_password, gen_salt('bf')),
+    extensions.crypt(p_password, extensions.gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
     jsonb_build_object('name', p_name, 'role', p_role, 'username', v_raw_username),

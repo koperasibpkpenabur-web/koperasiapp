@@ -288,12 +288,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!rpcError && rpcData?.success) {
         return { success: true };
       }
-    } catch {}
+      if (rpcData && !rpcData.success) {
+        console.warn('RPC admin_create_user failed:', rpcData.error);
+      }
+    } catch (e) {
+      console.warn('RPC admin_create_user exception:', e);
+    }
 
-    // Fallback jika RPC gagal/belum ada: simpan langsung ke app_users lengkap dengan password
+    // Fallback jika RPC gagal/belum ada: simpan langsung profil ke app_users (tanpa kolom password karena password ada di auth.users)
     const { error } = await supabase.from('app_users').insert([{
       username: userData.username.trim().toLowerCase(),
-      password: userData.password,
       name: userData.name.trim(),
       role: userData.role,
       school_name: userData.schoolName?.trim() || null,
@@ -321,18 +325,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!rpcError && rpcData?.success) {
         return { success: true };
       }
+      if (rpcData && !rpcData.success) {
+        return { success: false, error: rpcData.error };
+      }
     } catch {}
 
-    // Fallback: update langsung password di app_users
-    const { error } = await supabase
-      .from('app_users')
-      .update({ password: newPassword })
-      .eq('id', id);
-      
-    if (error) {
-      return { success: false, error: error.message };
-    }
-    
     return { success: true };
   }, []);
 
