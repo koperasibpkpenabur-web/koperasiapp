@@ -428,6 +428,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
               if (!item.schoolBreakdown) item.schoolBreakdown = {};
 
               // Kolom selain nama barang, ukuran, dan total dianggap nama sekolah
+              let schoolSum = 0;
               Object.entries(row).forEach(([colKey, val]) => {
                 const cleanKey = colKey.trim();
                 const lowerKey = cleanKey.toLowerCase();
@@ -445,6 +446,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
                 const numVal = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
                 if (!isNaN(numVal) && numVal > 0) {
+                  schoolSum += numVal;
                   item.sizes[size] = (item.sizes[size] || 0) + numVal;
                   item.total += numVal;
 
@@ -455,6 +457,24 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                     (item.schoolBreakdown![cleanKey][size] || 0) + numVal;
                 }
               });
+
+              // Jika kolom-kolom sekolah kosong, cek apakah user langsung menginput angka di kolom TOTAL:
+              if (schoolSum === 0) {
+                const totalRaw =
+                  row['TOTAL (PCS)'] ||
+                  row['TOTAL'] ||
+                  row['Total'] ||
+                  row['Total (Pcs)'] ||
+                  row['Total Pcs'] ||
+                  row['TOTAL RENCANA'] ||
+                  row['Total Rencana'] ||
+                  '';
+                const totalNum = parseInt(String(totalRaw).replace(/[^0-9]/g, ''), 10);
+                if (!isNaN(totalNum) && totalNum > 0) {
+                  item.sizes[size] = (item.sizes[size] || 0) + totalNum;
+                  item.total += totalNum;
+                }
+              }
             });
           } else {
             // ========================================================
