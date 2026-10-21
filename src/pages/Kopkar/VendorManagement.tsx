@@ -314,7 +314,7 @@ const VendorManagement = () => {
       // 1. Ambil data sekolah dari whitelist dan app_users secara paralel
       const [wlRes, appUsersRes] = await Promise.all([
         supabase.from('school_whitelist').select('*').order('nama_sekolah', { ascending: true }),
-        supabase.from('app_users').select('id, username, school_name, school_level, role').eq('role', 'sekolah'),
+        supabase.from('app_users').select('id, username, name, school_name, school_level, role').eq('role', 'sekolah'),
       ]);
 
       const whitelistData = wlRes.data || [];
