@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import { supabase } from '../../lib/supabase';
 
 export interface ForecastItem {
@@ -64,6 +66,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   const [selectedVendorFilter, setSelectedVendorFilter] = useState('ALL');
   const [selectedLevelFilter, setSelectedLevelFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
@@ -1129,6 +1133,234 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     XLSX.writeFile(workbook, `Master_Alokasi_Produksi_Semua_Vendor_${targetYear.replace('/', '_')}.xlsx`);
   };
 
+  // =========================================================================
+  // 5. EKSPOR MATRIKS ALOKASI SUPPLIER (FORMAT PERSIS SESUAI GAMBAR STANDAR)
+  //    Header: JENIS SERAGAM | UKURAN | SUPPLIER (Vendor1, Vendor2...) | TOTAL
+  //    Baris: Nama Seragam di-merge vertikal, ukuran di kolom 2, porsi vendor
+  // =========================================================================
+  const handleExportSupplierMatrixExcel = async () => {
+    if (forecastItems.length === 0) {
+      alert('Belum ada data rencana produksi untuk diekspor.');
+      return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Koperasi Konsumen Karyawan BPK PENABUR Jakarta';
+    workbook.created = new Date();
+
+    const LEVEL_ORDER = ['SD', 'SMP', 'SMA', 'TK', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
+
+    const availableLevels = Array.from(new Set(forecastItems.map((it) => it.level.toUpperCase().trim())));
+    availableLevels.sort((a, b) => {
+      const idxA = LEVEL_ORDER.indexOf(a);
+      const idxB = LEVEL_ORDER.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+    const thinBorder: Partial<ExcelJS.Borders> = {
+      top: { style: 'thin', color: { argb: 'FF000000' } },
+      left: { style: 'thin', color: { argb: 'FF000000' } },
+      bottom: { style: 'thin', color: { argb: 'FF000000' } },
+      right: { style: 'thin', color: { argb: 'FF000000' } },
+    };
+
+    const headerFill: ExcelJS.Fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF8FAFC' },
+    };
+
+    const totalFill: ExcelJS.Fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF1F5F9' },
+    };
+
+    availableLevels.forEach((level) => {
+      const levelItems = forecastItems.filter((it) => it.level.toUpperCase().trim() === level);
+      if (levelItems.length === 0) return;
+
+      // Ambil vendor aktif yang memiliki alokasi pada jenjang ini
+      const activeVendors = vendorAllocations.filter((va) =>
+        va.items.some((it) => it.level.toUpperCase().trim() === level)
+      );
+
+      const vendorsToDisplay = activeVendors.length > 0 ? activeVendors : vendorAllocations;
+      const numVendors = vendorsToDisplay.length;
+
+      const safeSheetName = level.replace(/[\\/?*[\]:]/g, '').slice(0, 31);
+      const worksheet = workbook.addWorksheet(safeSheetName, {
+        views: [{ showGridLines: true }],
+      });
+
+      const totalColIdx = 3 + numVendors;
+
+      // Header Baris 1 & 2
+      worksheet.getCell(1, 1).value = 'JENIS SERAGAM';
+      worksheet.mergeCells(1, 1, 2, 1);
+
+      worksheet.getCell(1, 2).value = 'UKURAN';
+      worksheet.mergeCells(1, 2, 2, 2);
+
+      if (numVendors > 0) {
+        worksheet.getCell(1, 3).value = 'SUPPLIER';
+        if (numVendors > 1) {
+          worksheet.mergeCells(1, 3, 1, 2 + numVendors);
+        }
+        vendorsToDisplay.forEach((va, vIdx) => {
+          worksheet.getCell(2, 3 + vIdx).value = va.vendorName.toUpperCase();
+        });
+      }
+
+      worksheet.getCell(1, totalColIdx).value = 'TOTAL';
+      worksheet.mergeCells(1, totalColIdx, 2, totalColIdx);
+
+      // Styling Header (Baris 1 & 2)
+      for (let r = 1; r <= 2; r++) {
+        worksheet.getRow(r).height = 24;
+        for (let c = 1; c <= totalColIdx; c++) {
+          const cell = worksheet.getCell(r, c);
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.border = thinBorder;
+          cell.fill = headerFill;
+        }
+      }
+
+      let currentRow = 3;
+
+      levelItems.forEach((item) => {
+        const rawSizes = Object.keys(item.sizes).filter((s) => s && s.trim() !== '' && s !== 'TOTAL');
+        const sortedSizes = rawSizes.sort((a, b) => {
+          const idxA = STANDARD_SIZE_ORDER.indexOf(a);
+          const idxB = STANDARD_SIZE_ORDER.indexOf(b);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.localeCompare(b, undefined, { numeric: true });
+        });
+
+        const sizesToRender = sortedSizes.length > 0 ? sortedSizes : ['ALL SIZE'];
+        const startRow = currentRow;
+
+        sizesToRender.forEach((sz) => {
+          const row = worksheet.getRow(currentRow);
+          row.height = 20;
+
+          // Kolom 1: Nama Seragam
+          const cellA = worksheet.getCell(currentRow, 1);
+          cellA.value = item.uniformName;
+          cellA.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+          cellA.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cellA.border = thinBorder;
+
+          // Kolom 2: Ukuran
+          const cellB = worksheet.getCell(currentRow, 2);
+          cellB.value = sz;
+          cellB.font = { name: 'Calibri', size: 10, color: { argb: 'FF000000' } };
+          cellB.alignment = { vertical: 'middle', horizontal: 'center' };
+          cellB.border = thinBorder;
+
+          // Kolom Vendor Supplier
+          let rowVendorSum = 0;
+          vendorsToDisplay.forEach((va, vIdx) => {
+            const colIdx = 3 + vIdx;
+            const vaItem = va.items.find(
+              (it) =>
+                it.level.toUpperCase().trim() === level &&
+                it.uniformName.toUpperCase().trim() === item.uniformName.toUpperCase().trim()
+            );
+            const qty = vaItem?.sizes[sz] || 0;
+            rowVendorSum += qty;
+
+            const cellV = worksheet.getCell(currentRow, colIdx);
+            cellV.value = qty > 0 ? qty : '';
+            cellV.font = { name: 'Calibri', size: 10, color: { argb: 'FF000000' } };
+            cellV.alignment = { vertical: 'middle', horizontal: 'right' };
+            cellV.border = thinBorder;
+            if (qty > 0) cellV.numFmt = '#,##0';
+          });
+
+          // Kolom TOTAL
+          const finalSizeTotal = rowVendorSum > 0 ? rowVendorSum : (item.sizes[sz] || 0);
+          const cellTot = worksheet.getCell(currentRow, totalColIdx);
+          cellTot.value = finalSizeTotal > 0 ? finalSizeTotal : '';
+          cellTot.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+          cellTot.alignment = { vertical: 'middle', horizontal: 'right' };
+          cellTot.border = thinBorder;
+          if (finalSizeTotal > 0) cellTot.numFmt = '#,##0';
+
+          currentRow++;
+        });
+
+        // Merge Kolom 1 (JENIS SERAGAM) secara vertikal di seluruh baris ukuran barang ini
+        const endRow = currentRow - 1;
+        if (endRow > startRow) {
+          worksheet.mergeCells(startRow, 1, endRow, 1);
+          const mergedCell = worksheet.getCell(startRow, 1);
+          mergedCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        }
+      });
+
+      // Baris TOTAL KESELURUHAN di bawah tabel
+      const grandRow = currentRow;
+      worksheet.getRow(grandRow).height = 22;
+      worksheet.getCell(grandRow, 1).value = 'TOTAL KESELURUHAN';
+      worksheet.mergeCells(grandRow, 1, grandRow, 2);
+
+      let levelGrandTotal = 0;
+      vendorsToDisplay.forEach((va, vIdx) => {
+        const colIdx = 3 + vIdx;
+        const vendorTotal = va.items
+          .filter((it) => it.level.toUpperCase().trim() === level)
+          .reduce((sum, it) => sum + (it.total || 0), 0);
+        levelGrandTotal += vendorTotal;
+
+        const cellV = worksheet.getCell(grandRow, colIdx);
+        cellV.value = vendorTotal > 0 ? vendorTotal : '';
+        cellV.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+        cellV.alignment = { vertical: 'middle', horizontal: 'right' };
+        cellV.border = thinBorder;
+        cellV.fill = totalFill;
+        if (vendorTotal > 0) cellV.numFmt = '#,##0';
+      });
+
+      const finalGrandTotal = levelGrandTotal > 0 ? levelGrandTotal : levelItems.reduce((s, it) => s + (it.total || 0), 0);
+      const cellGrandTot = worksheet.getCell(grandRow, totalColIdx);
+      cellGrandTot.value = finalGrandTotal > 0 ? finalGrandTotal : '';
+      cellGrandTot.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+      cellGrandTot.alignment = { vertical: 'middle', horizontal: 'right' };
+      cellGrandTot.border = thinBorder;
+      cellGrandTot.fill = totalFill;
+      if (finalGrandTotal > 0) cellGrandTot.numFmt = '#,##0';
+
+      const grandLabelCell = worksheet.getCell(grandRow, 1);
+      grandLabelCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+      grandLabelCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      grandLabelCell.border = thinBorder;
+      grandLabelCell.fill = totalFill;
+      worksheet.getCell(grandRow, 2).border = thinBorder;
+      worksheet.getCell(grandRow, 2).fill = totalFill;
+
+      // Lebar kolom
+      worksheet.getColumn(1).width = 28;
+      worksheet.getColumn(2).width = 12;
+      for (let c = 3; c <= 2 + numVendors; c++) {
+        worksheet.getColumn(c).width = 16;
+      }
+      worksheet.getColumn(totalColIdx).width = 14;
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(
+      new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `Matriks_Alokasi_Supplier_Produksi_${targetYear.replace(/[/\\?*[\]:]/g, '_')}.xlsx`
+    );
+  };
+
   // Filter items untuk tampilan
   const filteredForecastItems = useMemo(() => {
     return forecastItems.filter((it) => {
@@ -1138,6 +1370,26 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return matchesLevel && matchesSearch;
     });
   }, [forecastItems, selectedLevelFilter, searchQuery]);
+
+  // Pagination untuk Tab 1 (Rencana Global & Skala)
+  const totalPages = Math.ceil(filteredForecastItems.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const paginatedForecastItems = useMemo(() => {
+    return filteredForecastItems.slice(indexOfFirstItem, indexOfLastItem);
+  }, [filteredForecastItems, indexOfFirstItem, indexOfLastItem]);
+
+  // Reset halaman saat filter / search / tahun berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedLevelFilter, searchQuery, targetYear]);
+
+  // Cegah currentPage out of bounds
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
 
   const filteredAllocations = useMemo(() => {
     if (selectedVendorFilter === 'ALL') return vendorAllocations;
@@ -1544,6 +1796,29 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
                 <button
                   type="button"
+                  onClick={handleExportSupplierMatrixExcel}
+                  disabled={vendorAllocations.length === 0}
+                  style={{
+                    background: vendorAllocations.length === 0 ? '#94a3b8' : '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '0.86rem',
+                    fontWeight: 600,
+                    cursor: vendorAllocations.length === 0 ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                  }}
+                  title="Ekspor matriks pembagian alokasi supplier per ukuran dalam format tabel Excel resmi (.xlsx)"
+                >
+                  <span>📊</span> Ekspor Matriks Supplier (.xlsx)
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleExportAllVendors}
                   disabled={vendorAllocations.length === 0}
                   style={{
@@ -1571,81 +1846,173 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
         {/* ISI TAB 1: RENCANA GLOBAL & SKALA UKURAN */}
         {activeSubTab === 'input' && (
-          <div style={{ overflowX: 'auto' }}>
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                Memuat data rencana produksi...
-              </div>
-            ) : filteredForecastItems.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
-                <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#334155' }}>
-                  Belum ada data rencana produksi untuk tahun {targetYear}.
-                </p>
-                <p style={{ margin: '6px 0 0 0', fontSize: '0.86rem' }}>
-                  Silakan unduh template Excel di atas, isi angka per ukuran, lalu tarik & lepas (drag-and-drop) file Excel ke kotak di atas.
-                </p>
-              </div>
-            ) : (
-              <table className="kopkar-table" style={{ margin: 0, fontSize: '0.86rem' }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '45px', textAlign: 'center' }}>No</th>
-                    <th style={{ width: '85px', textAlign: 'center' }}>Jenjang</th>
-                    <th style={{ minWidth: '220px' }}>Nama Jenis Seragam</th>
-                    <th style={{ width: '100px', textAlign: 'center', background: '#f0f9ff', color: '#0369a1' }}>Total (Pcs)</th>
-                    {detectedSizes.map((sz) => (
-                      <th key={sz} style={{ width: '65px', textAlign: 'center' }}>
-                        {sz}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredForecastItems.map((item, idx) => (
-                    <tr key={item.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span
-                          style={{
-                            background: '#f1f5f9',
-                            color: '#334155',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontWeight: 700,
-                            fontSize: '0.78rem',
-                          }}
-                        >
-                          {item.level}
-                        </span>
-                      </td>
-                      <td>
-                        <strong style={{ color: '#0f172a' }}>{item.uniformName}</strong>
-                      </td>
-                      <td style={{ textAlign: 'center', background: '#f0f9ff', fontWeight: 700, color: '#0369a1' }}>
-                        {item.total.toLocaleString('id-ID')}
-                      </td>
-                      {detectedSizes.map((sz) => {
-                        const qty = item.sizes[sz] || 0;
-                        const pct = item.total > 0 && qty > 0 ? Math.round((qty / item.total) * 100) : 0;
-                        return (
-                          <td key={sz} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                            {qty > 0 ? (
-                              <div>
-                                <span style={{ fontWeight: 700, color: '#1e293b' }}>{qty}</span>
-                                <div style={{ fontSize: '0.7rem', color: '#0284c7', fontWeight: 600 }}>
-                                  {pct}%
-                                </div>
-                              </div>
-                            ) : (
-                              <span style={{ color: '#cbd5e1' }}>-</span>
-                            )}
-                          </td>
-                        );
-                      })}
+          <div>
+            <div style={{ overflowX: 'auto' }}>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                  Memuat data rencana produksi...
+                </div>
+              ) : filteredForecastItems.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+                  <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#334155' }}>
+                    Belum ada data rencana produksi untuk tahun {targetYear}.
+                  </p>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '0.86rem' }}>
+                    Silakan unduh template Excel di atas, isi angka per ukuran, lalu tarik & lepas (drag-and-drop) file Excel ke kotak di atas.
+                  </p>
+                </div>
+              ) : (
+                <table className="kopkar-table" style={{ margin: 0, fontSize: '0.86rem' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '45px', textAlign: 'center' }}>No</th>
+                      <th style={{ width: '85px', textAlign: 'center' }}>Jenjang</th>
+                      <th style={{ minWidth: '220px' }}>Nama Jenis Seragam</th>
+                      <th style={{ width: '100px', textAlign: 'center', background: '#f0f9ff', color: '#0369a1' }}>Total (Pcs)</th>
+                      {detectedSizes.map((sz) => (
+                        <th key={sz} style={{ width: '65px', textAlign: 'center' }}>
+                          {sz}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {paginatedForecastItems.map((item, idx) => {
+                      const rowNumber = indexOfFirstItem + idx + 1;
+                      return (
+                        <tr key={item.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                          <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600 }}>{rowNumber}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span
+                              style={{
+                                background: '#f1f5f9',
+                                color: '#334155',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 700,
+                                fontSize: '0.78rem',
+                              }}
+                            >
+                              {item.level}
+                            </span>
+                          </td>
+                          <td>
+                            <strong style={{ color: '#0f172a' }}>{item.uniformName}</strong>
+                          </td>
+                          <td style={{ textAlign: 'center', background: '#f0f9ff', fontWeight: 700, color: '#0369a1' }}>
+                            {item.total.toLocaleString('id-ID')}
+                          </td>
+                          {detectedSizes.map((sz) => {
+                            const qty = item.sizes[sz] || 0;
+                            const pct = item.total > 0 && qty > 0 ? Math.round((qty / item.total) * 100) : 0;
+                            return (
+                              <td key={sz} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                                {qty > 0 ? (
+                                  <div>
+                                    <span style={{ fontWeight: 700, color: '#1e293b' }}>{qty}</span>
+                                    <div style={{ fontSize: '0.7rem', color: '#0284c7', fontWeight: 600 }}>
+                                      {pct}%
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: '#cbd5e1' }}>-</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Kontrol Pagination untuk Tab Rencana Global */}
+            {filteredForecastItems.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '14px 18px',
+                  borderTop: '1px solid #e2e8f0',
+                  background: '#ffffff',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  Menampilkan {indexOfFirstItem + 1}-
+                  {Math.min(indexOfLastItem, filteredForecastItems.length)} dari{' '}
+                  {filteredForecastItems.length} jenis seragam
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#64748b', marginRight: '6px' }}>
+                    Baris per halaman:
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      style={{
+                        marginLeft: '8px',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: '#fff',
+                        fontSize: '0.84rem',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    style={{
+                      padding: '5px 12px',
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                      background: currentPage === 1 ? '#f8fafc' : '#ffffff',
+                      color: currentPage === 1 ? '#94a3b8' : '#1e293b',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                    }}
+                    title="Halaman sebelumnya"
+                  >
+                    &lt;
+                  </button>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                    Halaman {currentPage} dari {totalPages || 1}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    style={{
+                      padding: '5px 12px',
+                      cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                      background: currentPage === totalPages || totalPages === 0 ? '#f8fafc' : '#ffffff',
+                      color: currentPage === totalPages || totalPages === 0 ? '#94a3b8' : '#1e293b',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                    }}
+                    title="Halaman berikutnya"
+                  >
+                    &gt;
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}
