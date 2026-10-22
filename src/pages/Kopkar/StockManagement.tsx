@@ -644,12 +644,26 @@ const StockManagement = () => {
                       </div>
                       
                       {activeMenuId === p.id && (
-                        <div className="action-dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => { setActiveMenuId(null); handleOpenSetStock(p); }}>Update Stock</button>
-                          <button onClick={() => { setActiveMenuId(null); handleOpenDetail(p); }}>Detail Harga & Lokasi</button>
-                          <button onClick={() => { setActiveMenuId(null); setSupplierItem(p); setSupplierLevel(p.level); setSupplierName(p.supplierName || ''); setSupplierSchoolName(p.schoolName || ''); }}>Atur Supplier & Jenjang</button>
+                        <div 
+                          className={`action-dropdown-menu ${(currentItems.length > 3 && idx >= currentItems.length - 2) ? 'dropup' : ''}`} 
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button onClick={() => { setActiveMenuId(null); handleOpenSetStock(p); }}>
+                            <span>📦</span> Update Stock
+                          </button>
+                          <button onClick={() => { setActiveMenuId(null); handleOpenDetail(p); }}>
+                            <span>🏷️</span> Detail Harga & Lokasi
+                          </button>
+                          <button onClick={() => { setActiveMenuId(null); setSupplierItem(p); setSupplierLevel(p.level); setSupplierName(p.supplierName || ''); setSupplierSchoolName(p.schoolName || ''); }}>
+                            <span>🏢</span> Atur Supplier & Jenjang
+                          </button>
                           {(p.stockRusak && p.stockRusak > 0) ? (
-                            <button onClick={() => { setActiveMenuId(null); setRepairingItem(p); setRepairQty(p.stockRusak || 0); }} style={{ color: '#dc2626' }}>Perbaiki Barang Rusak</button>
+                            <button 
+                              className="text-danger" 
+                              onClick={() => { setActiveMenuId(null); setRepairingItem(p); setRepairQty(p.stockRusak || 0); }}
+                            >
+                              <span>🔧</span> Perbaiki Barang Rusak
+                            </button>
                           ) : null}
                         </div>
                       )}
@@ -662,7 +676,7 @@ const StockManagement = () => {
         </table>
 
         {/* Pagination Controls */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: '#fff', borderTop: '1px solid #e2e8f0', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', padding: '16px', background: '#fff', borderTop: '1px solid #e2e8f0', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px', marginTop: 'auto' }}>
           <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
             Menampilkan {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredAndSortedProducts.length)} dari {filteredAndSortedProducts.length} barang
           </div>
