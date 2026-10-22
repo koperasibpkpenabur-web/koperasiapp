@@ -707,7 +707,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     const standardLetterSizes = ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', '4L', '5L', '6L', 'KHUSUS'];
     const standardPantsSizes = ['25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'];
 
-    const uniformDefinitions: Record<string, Array<{ name: string; sizes: string[] }>> = {
+    // 2. Daftar seragam fallback jika database barang belum terisi untuk jenjang tertentu
+    const fallbackUniformDefinitions: Record<string, Array<{ name: string; sizes: string[] }>> = {
       SD: [
         { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
         { name: 'CELANA MERAH', sizes: standardLetterSizes },
@@ -742,66 +743,10 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         { name: 'KAOS OLAHRAGA TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
         { name: 'BAJU RENANG TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
       ],
-      'SPK-SD': [
-        { name: 'POLO SHIRT SPK PRIMARY', sizes: standardLetterSizes },
-        { name: 'CELANA PENDEK SPK PRIMARY', sizes: standardLetterSizes },
-        { name: 'ROK SPK PRIMARY', sizes: standardLetterSizes },
-        { name: 'KAOS OLAHRAGA SPK PRIMARY', sizes: standardLetterSizes },
-        { name: 'CELANA OLAHRAGA SPK PRIMARY', sizes: standardLetterSizes },
-        { name: 'CARDIGAN / ROMPI SPK PRIMARY', sizes: standardLetterSizes },
-      ],
-      'SPK-SMP': [
-        { name: 'POLO SHIRT SPK LOWER SEC', sizes: standardLetterSizes },
-        { name: 'KEMEJA OXFORD SPK LOWER SEC', sizes: standardLetterSizes },
-        { name: 'CELANA BERMUDA SPK LOWER SEC', sizes: standardLetterSizes },
-        { name: 'ROK / SKIRT SPK LOWER SEC', sizes: standardLetterSizes },
-        { name: 'KAOS OLAHRAGA SPK LOWER SEC', sizes: standardLetterSizes },
-        { name: 'BLAZER / CARDIGAN SPK LOWER SEC', sizes: standardLetterSizes },
-      ],
-      'SPK-SMA': [
-        { name: 'POLO SHIRT SPK UPPER SEC', sizes: standardLetterSizes },
-        { name: 'KEMEJA OXFORD SPK UPPER SEC', sizes: standardLetterSizes },
-        { name: 'CELANA PANJANG SPK UPPER SEC', sizes: standardLetterSizes },
-        { name: 'ROK / SKIRT SPK UPPER SEC', sizes: standardLetterSizes },
-        { name: 'KAOS OLAHRAGA SPK UPPER SEC', sizes: standardLetterSizes },
-        { name: 'BLAZER SPK UPPER SEC', sizes: standardLetterSizes },
-      ],
+      'SPK-SD': [],
+      'SPK-SMP': [],
+      'SPK-SMA': [],
     };
-
-    // Gabungkan seragam dari database produk jika ada yang belum terdaftar
-    const seragamProducts = products.filter((p) => p.category === 'seragam');
-    seragamProducts.forEach((p) => {
-      const lvl = (p.level || 'SD').toUpperCase().trim();
-      let targetLvl = 'SD';
-      if (lvl === 'SPK-SD' || (lvl.includes('SPK') && (lvl.includes('SD') || lvl.includes('PRIMARY')))) {
-        targetLvl = 'SPK-SD';
-      } else if (lvl === 'SPK-SMP' || (lvl.includes('SPK') && (lvl.includes('SMP') || lvl.includes('LOWER')))) {
-        targetLvl = 'SPK-SMP';
-      } else if (lvl === 'SPK-SMA' || (lvl.includes('SPK') && (lvl.includes('SMA') || lvl.includes('UPPER')))) {
-        targetLvl = 'SPK-SMA';
-      } else if (lvl.includes('TK')) {
-        targetLvl = 'TK';
-      } else if (lvl.includes('SMP')) {
-        targetLvl = 'SMP';
-      } else if (lvl.includes('SMA')) {
-        targetLvl = 'SMA';
-      } else {
-        targetLvl = 'SD';
-      }
-
-      if (!uniformDefinitions[targetLvl]) {
-        uniformDefinitions[targetLvl] = [];
-      }
-
-      const pName = p.name.toUpperCase().trim();
-      const exists = uniformDefinitions[targetLvl].find((u) => u.name === pName);
-      if (!exists && pName) {
-        uniformDefinitions[targetLvl].push({
-          name: pName,
-          sizes: standardLetterSizes,
-        });
-      }
-    });
 
     const workbook = XLSX.utils.book_new();
 
@@ -810,7 +755,68 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     sheetOrder.forEach((lvl) => {
       const schoolList = getSchoolsForLevel(lvl, fallbackSchools[lvl]);
-      const uniformList = uniformDefinitions[lvl] || [];
+
+      // Ambil produk seragam ASLI langsung dari database barang (props products)
+      const dbItemsForLevel = products.filter((p) => {
+        const isSeragam = !p.category || p.category.toLowerCase() === 'seragam';
+        if (!isSeragam) return false;
+        const pLvl = (p.level || '').toUpperCase().trim();
+        const pName = (p.name || '').toUpperCase();
+
+        if (lvl === 'SPK-SD') {
+          return pLvl === 'SPK-SD' || (pLvl.includes('SPK') && (pLvl.includes('SD') || pLvl.includes('PRIMARY') || pName.includes('PRIMARY') || pName.includes('SD')));
+        }
+        if (lvl === 'SPK-SMP') {
+          return pLvl === 'SPK-SMP' || (pLvl.includes('SPK') && (pLvl.includes('SMP') || pLvl.includes('LOWER') || pName.includes('LOWER') || pName.includes('SMP')));
+        }
+        if (lvl === 'SPK-SMA') {
+          return pLvl === 'SPK-SMA' || (pLvl.includes('SPK') && (pLvl.includes('SMA') || pLvl.includes('UPPER') || pName.includes('UPPER') || pName.includes('SMA') || pName.includes('JC')));
+        }
+        if (pLvl.includes('SPK') || pName.includes('SPK ') || pName.includes('PIS ')) return false;
+
+        if (lvl === 'SD') return pLvl === 'SD';
+        if (lvl === 'SMP') return pLvl === 'SMP';
+        if (lvl === 'SMA') return pLvl === 'SMA' || pLvl === 'SMK';
+        if (lvl === 'TK') return pLvl === 'TK';
+        return pLvl === lvl;
+      });
+
+      let uniformList: Array<{ name: string; sizes: string[] }> = [];
+
+      if (dbItemsForLevel.length > 0) {
+        // Ambil nama barang unik dan kumpulkan seluruh ukuran fisik yang ada di database barang
+        const groupedMap = new Map<string, Set<string>>();
+        dbItemsForLevel.forEach((p) => {
+          const pName = (p.name || '').toUpperCase().trim();
+          if (!pName) return;
+          if (!groupedMap.has(pName)) groupedMap.set(pName, new Set());
+          if (p.size && p.size.trim()) {
+            groupedMap.get(pName)!.add(p.size.trim().toUpperCase());
+          }
+        });
+
+        groupedMap.forEach((sizesSet, pName) => {
+          let sizesArray = Array.from(sizesSet);
+          if (sizesArray.length === 0) {
+            sizesArray = standardLetterSizes;
+          } else {
+            sizesArray.sort((a, b) => {
+              const idxA = STANDARD_SIZE_ORDER.indexOf(a);
+              const idxB = STANDARD_SIZE_ORDER.indexOf(b);
+              if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+              if (idxA !== -1) return -1;
+              if (idxB !== -1) return 1;
+              return a.localeCompare(b, undefined, { numeric: true });
+            });
+          }
+          uniformList.push({ name: pName, sizes: sizesArray });
+        });
+
+        uniformList.sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }));
+      } else {
+        // Hanya jika database barang benar-benar kosong untuk jenjang ini, gunakan fallback default
+        uniformList = fallbackUniformDefinitions[lvl] || [];
+      }
 
       const rows: any[] = [];
 
