@@ -1094,37 +1094,82 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   };
 
   // =========================================================================
-  // 4. EKSPOR SPK VENDOR KE EXCEL (.XLSX) - OPSI A (MATRIKS RINCIAN PER SEKOLAH)
+  // 4. EKSPOR SPK VENDOR KE EXCEL (.XLSX) - OPSI A (PER JENJANG PER SHEET)
   //    Baris: Jenis Barang (di-merge vertikal) & Ukuran
-  //    Kolom: Sekolah-sekolah yang dilayani vendor & TOTAL (PCS)
+  //    Kolom: Sekolah-sekolah jenjang terkait & TOTAL (PCS)
+  //    Sheet: Dibagi per jenjang agar kolom sekolah tidak terlalu banyak/lebar
   // =========================================================================
-  const buildVendorSPKWorksheet = (
-    workbook: ExcelJS.Workbook,
-    vendorAlloc: VendorAllocation,
-    targetYearStr: string
-  ) => {
-    // Kumpulkan seluruh sekolah unik yang dilayani vendor ini
-    const allSchoolsSet = new Set<string>(vendorAlloc.schoolNames);
-    vendorAlloc.items.forEach((it) => {
+
+  // Helper untuk mendapatkan sekolah-sekolah yang dilayani vendor pada jenjang tertentu
+  const getSchoolsForVendorLevel = (
+    va: VendorAllocation,
+    lvl: string,
+    levelItems: VendorAllocatedItem[]
+  ): string[] => {
+    const levelSchoolsSet = new Set<string>();
+
+    // 1. Dari rincian barang jenjang ini (schoolsForItem & schoolBreakdown)
+    levelItems.forEach((it) => {
       if (it.schoolsForItem) {
-        it.schoolsForItem.forEach((s) => allSchoolsSet.add(s));
+        it.schoolsForItem.forEach((s) => levelSchoolsSet.add(s));
       }
       if (it.schoolBreakdown) {
-        Object.keys(it.schoolBreakdown).forEach((s) => allSchoolsSet.add(s));
+        Object.keys(it.schoolBreakdown).forEach((s) => levelSchoolsSet.add(s));
       }
     });
 
-    const vendorSchools = Array.from(allSchoolsSet)
+    // 2. Dari plottings database untuk vendor ini pada jenjang ini
+    plottings.forEach((p) => {
+      if (p.vendor_id === va.vendorId) {
+        const pLvl = (p.app_users?.school_level || '').toUpperCase().trim();
+        const sName = p.app_users?.school_name || '';
+        if (sName) {
+          if (pLvl === lvl) {
+            levelSchoolsSet.add(sName);
+          } else if (!pLvl) {
+            if (lvl === 'SD' && (sName.startsWith('SDK') || sName.includes('SD '))) levelSchoolsSet.add(sName);
+            if (lvl === 'SMP' && (sName.startsWith('SMPK') || sName.includes('SMP '))) levelSchoolsSet.add(sName);
+            if (lvl === 'SMA' && (sName.startsWith('SMAK') || sName.includes('SMA '))) levelSchoolsSet.add(sName);
+            if (lvl === 'TK' && (sName.startsWith('TKK') || sName.includes('TK '))) levelSchoolsSet.add(sName);
+          }
+        }
+      }
+    });
+
+    // 3. Dari va.schoolNames yang cocok dengan jenjang ini
+    va.schoolNames.forEach((sName) => {
+      if (lvl === 'SD' && (sName.startsWith('SDK') || sName.includes('SD '))) levelSchoolsSet.add(sName);
+      else if (lvl === 'SMP' && (sName.startsWith('SMPK') || sName.includes('SMP '))) levelSchoolsSet.add(sName);
+      else if (lvl === 'SMA' && (sName.startsWith('SMAK') || sName.includes('SMA '))) levelSchoolsSet.add(sName);
+      else if (lvl === 'TK' && (sName.startsWith('TKK') || sName.includes('TK '))) levelSchoolsSet.add(sName);
+      else if (
+        lvl.startsWith('SPK') &&
+        (sName.includes('PIS') || sName.includes('SPK') || sName.includes('International') || sName.includes('Primary') || sName.includes('Secondary'))
+      ) {
+        levelSchoolsSet.add(sName);
+      }
+    });
+
+    return Array.from(levelSchoolsSet)
       .filter((s) => s && s.trim() !== '')
       .sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
+  };
 
-    const numSchools = vendorSchools.length;
+  // Helper untuk membuat 1 sheet SPK vendor per jenjang tertentu
+  const buildVendorLevelSPKWorksheet = (
+    workbook: ExcelJS.Workbook,
+    sheetName: string,
+    vendorAlloc: VendorAllocation,
+    level: string,
+    targetYearStr: string,
+    levelItems: VendorAllocatedItem[],
+    levelSchools: string[]
+  ) => {
+    const numSchools = levelSchools.length;
     const hasSchools = numSchools > 0;
     const totalColIdx = hasSchools ? 3 + numSchools : 3;
 
-    // Nama sheet aman (maks 31 karakter, tanpa karakter ilegal Excel)
-    const cleanSheetName = vendorAlloc.vendorName.replace(/[\\/?*[\]:]/g, '').trim().slice(0, 31) || 'SPK_Vendor';
-    const worksheet = workbook.addWorksheet(cleanSheetName, {
+    const worksheet = workbook.addWorksheet(sheetName, {
       views: [{ showGridLines: true }],
     });
 
@@ -1154,7 +1199,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     };
 
     // 1. Informasi Header SPK
-    worksheet.getCell(1, 1).value = 'SURAT PERINTAH KERJA (SPK) PRODUKSI';
+    worksheet.getCell(1, 1).value = `SURAT PERINTAH KERJA (SPK) PRODUKSI - JENJANG ${level.toUpperCase()}`;
     worksheet.getCell(1, 1).font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF1E293B' } };
 
     worksheet.getCell(2, 1).value = `Tahun Ajaran: ${targetYearStr}`;
@@ -1167,8 +1212,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     worksheet.getCell(4, 1).font = { name: 'Calibri', size: 10, color: { argb: 'FF475569' } };
 
     const schoolSubtitle = hasSchools
-      ? `Sekolah yang Dilayani (${vendorSchools.length} Sekolah): ${vendorSchools.join(', ')}`
-      : 'Sekolah yang Dilayani: Seluruh Sekolah Terdaftar';
+      ? `Sekolah Jenjang ${level.toUpperCase()} yang Dilayani (${levelSchools.length} Sekolah): ${levelSchools.join(', ')}`
+      : `Sekolah Jenjang ${level.toUpperCase()} yang Dilayani: Seluruh Sekolah Terdaftar`;
     worksheet.getCell(5, 1).value = schoolSubtitle;
     worksheet.getCell(5, 1).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } };
 
@@ -1185,11 +1230,11 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     worksheet.mergeCells(headerRow1, 2, headerRow2, 2);
 
     if (hasSchools) {
-      worksheet.getCell(headerRow1, 3).value = 'RINCIAN ALOKASI SEKOLAH';
+      worksheet.getCell(headerRow1, 3).value = `RINCIAN ALOKASI SEKOLAH (${level.toUpperCase()})`;
       if (numSchools > 1) {
         worksheet.mergeCells(headerRow1, 3, headerRow1, 2 + numSchools);
       }
-      vendorSchools.forEach((schoolName, sIdx) => {
+      levelSchools.forEach((schoolName, sIdx) => {
         worksheet.getCell(headerRow2, 3 + sIdx).value = schoolName;
       });
       worksheet.getCell(headerRow1, totalColIdx).value = 'TOTAL (PCS)';
@@ -1199,7 +1244,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       worksheet.mergeCells(headerRow1, 3, headerRow2, 3);
     }
 
-    // Terapkan style header untuk seluruh sel di Baris 7 & 8
     for (let r = headerRow1; r <= headerRow2; r++) {
       for (let c = 1; c <= totalColIdx; c++) {
         const cell = worksheet.getCell(r, c);
@@ -1215,7 +1259,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     const schoolColumnTotals = new Array(numSchools).fill(0);
     let grandPcsSum = 0;
 
-    vendorAlloc.items.forEach((it) => {
+    levelItems.forEach((it) => {
       const rawSizes = Object.keys(it.sizes).filter((s) => s && s.trim() !== '' && s !== 'TOTAL');
       const sortedSizes = rawSizes.sort((a, b) => {
         const idxA = STANDARD_SIZE_ORDER.indexOf(a);
@@ -1250,10 +1294,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         // Kolom Sekolah-sekolah
         let rowSum = 0;
         if (hasSchools) {
-          vendorSchools.forEach((schoolName, sIdx) => {
+          levelSchools.forEach((schoolName, sIdx) => {
             const colIdx = 3 + sIdx;
 
-            // Cari qty untuk sekolah ini dan ukuran ini
             let qty = it.schoolBreakdown?.[schoolName]?.[sz] || 0;
             if (!qty && it.schoolBreakdown) {
               const cleanTarget = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1277,13 +1320,13 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             if (qty > 0) cellV.numFmt = '#,##0';
           });
 
-          // Jika rowSum masih 0 tapi it.sizes[sz] > 0, alokasikan fallback ke sekolah pertama yang relevan
+          // Remainder check fallback
           const expectedSizeTotal = it.sizes[sz] || 0;
           if (rowSum < expectedSizeTotal) {
             const diff = expectedSizeTotal - rowSum;
             let targetIdx = 0;
             if (it.schoolsForItem && it.schoolsForItem.length > 0) {
-              const fIdx = vendorSchools.findIndex((sn) => it.schoolsForItem!.includes(sn));
+              const fIdx = levelSchools.findIndex((sn) => it.schoolsForItem!.includes(sn));
               if (fIdx !== -1) targetIdx = fIdx;
             }
             const currentCell = worksheet.getCell(currentRow, 3 + targetIdx);
@@ -1295,7 +1338,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             rowSum += diff;
           }
 
-          // Kolom TOTAL (PCS)
           const finalRowTotal = expectedSizeTotal > 0 ? expectedSizeTotal : rowSum;
           grandPcsSum += finalRowTotal;
 
@@ -1306,7 +1348,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           cellTot.border = thinBorder;
           if (finalRowTotal > 0) cellTot.numFmt = '#,##0';
         } else {
-          // Fallback tanpa sekolah
           const finalRowTotal = it.sizes[sz] || 0;
           grandPcsSum += finalRowTotal;
           const cellTot = worksheet.getCell(currentRow, 3);
@@ -1320,7 +1361,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         currentRow++;
       });
 
-      // Merge Vertikal Kolom 1 (JENIS BARANG) untuk seluruh ukuran pada barang ini
+      // Merge Vertikal Kolom 1 (JENIS BARANG)
       const endItemRow = currentRow - 1;
       if (endItemRow > startItemRow) {
         worksheet.mergeCells(startItemRow, 1, endItemRow, 1);
@@ -1346,7 +1387,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     worksheet.getCell(grandRow, 2).fill = totalFill;
 
     if (hasSchools) {
-      vendorSchools.forEach((_, sIdx) => {
+      levelSchools.forEach((_, sIdx) => {
         const colIdx = 3 + sIdx;
         const sTot = schoolColumnTotals[sIdx] || 0;
         const cellS = worksheet.getCell(grandRow, colIdx);
@@ -1358,23 +1399,21 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         if (sTot > 0) cellS.numFmt = '#,##0';
       });
 
-      const finalGrandTot = grandPcsSum > 0 ? grandPcsSum : vendorAlloc.grandTotalPcs;
       const cellGrand = worksheet.getCell(grandRow, totalColIdx);
-      cellGrand.value = finalGrandTot > 0 ? finalGrandTot : '';
+      cellGrand.value = grandPcsSum > 0 ? grandPcsSum : '';
       cellGrand.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
       cellGrand.alignment = { vertical: 'middle', horizontal: 'right' };
       cellGrand.border = thinBorder;
       cellGrand.fill = totalFill;
-      if (finalGrandTot > 0) cellGrand.numFmt = '#,##0';
+      if (grandPcsSum > 0) cellGrand.numFmt = '#,##0';
     } else {
-      const finalGrandTot = grandPcsSum > 0 ? grandPcsSum : vendorAlloc.grandTotalPcs;
       const cellGrand = worksheet.getCell(grandRow, 3);
-      cellGrand.value = finalGrandTot > 0 ? finalGrandTot : '';
+      cellGrand.value = grandPcsSum > 0 ? grandPcsSum : '';
       cellGrand.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
       cellGrand.alignment = { vertical: 'middle', horizontal: 'right' };
       cellGrand.border = thinBorder;
       cellGrand.fill = totalFill;
-      if (finalGrandTot > 0) cellGrand.numFmt = '#,##0';
+      if (grandPcsSum > 0) cellGrand.numFmt = '#,##0';
     }
 
     // 5. Atur Lebar Kolom
@@ -1416,18 +1455,176 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     }
   };
 
-  // Ekspor SPK Tunggal Vendor
+  // Ekspor SPK Tunggal Vendor (Dibagi per sheet per jenjang)
   const handleExportVendorSPK = async (vendorAlloc: VendorAllocation) => {
     if (vendorAlloc.items.length === 0) {
       alert(`Vendor "${vendorAlloc.vendorName}" belum memiliki alokasi produksi.`);
       return;
     }
 
+    const LEVEL_ORDER = ['SD', 'SMP', 'SMA', 'TK', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
+    const availableLevels = Array.from(new Set(vendorAlloc.items.map((it) => it.level.toUpperCase().trim())));
+    availableLevels.sort((a, b) => {
+      const idxA = LEVEL_ORDER.indexOf(a);
+      const idxB = LEVEL_ORDER.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Koperasi Konsumen Karyawan BPK PENABUR Jakarta';
     workbook.created = new Date();
 
-    buildVendorSPKWorksheet(workbook, vendorAlloc, targetYear);
+    const thinBorder: Partial<ExcelJS.Borders> = {
+      top: { style: 'thin', color: { argb: 'FF000000' } },
+      left: { style: 'thin', color: { argb: 'FF000000' } },
+      bottom: { style: 'thin', color: { argb: 'FF000000' } },
+      right: { style: 'thin', color: { argb: 'FF000000' } },
+    };
+
+    const headerFill: ExcelJS.Fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF8FAFC' },
+    };
+
+    const totalFill: ExcelJS.Fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF1F5F9' },
+    };
+
+    // Jika vendor memiliki lebih dari 1 jenjang, buat Sheet Ringkasan di awal
+    if (availableLevels.length > 1) {
+      const summarySheet = workbook.addWorksheet('Ringkasan_Jenjang', {
+        views: [{ showGridLines: true }],
+      });
+
+      summarySheet.getCell(1, 1).value = `REKAPITULASI SPK PRODUKSI PER JENJANG - ${vendorAlloc.vendorName.toUpperCase()}`;
+      summarySheet.getCell(1, 1).font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF1E293B' } };
+
+      summarySheet.getCell(2, 1).value = `Tahun Ajaran: ${targetYear} | PIC: ${vendorAlloc.contactPerson || '-'} | No. Telp: ${vendorAlloc.phone || '-'}`;
+      summarySheet.getCell(2, 1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } };
+
+      const headers = ['NO', 'JENJANG', 'NAMA SHEET', 'JUMLAH SEKOLAH', 'DAFTAR SEKOLAH', 'JUMLAH ITEM', 'TOTAL TARGET (PCS)'];
+      summarySheet.getRow(4).height = 24;
+      headers.forEach((h, idx) => {
+        const cell = summarySheet.getCell(4, idx + 1);
+        cell.value = h;
+        cell.font = { name: 'Calibri', size: 10, bold: true };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = thinBorder;
+        cell.fill = headerFill;
+      });
+
+      let sRow = 5;
+      let totalPcsAllLevels = 0;
+
+      availableLevels.forEach((lvl, idx) => {
+        const levelItems = vendorAlloc.items.filter((it) => it.level.toUpperCase().trim() === lvl);
+        const levelSchools = getSchoolsForVendorLevel(vendorAlloc, lvl, levelItems);
+        const levelPcs = levelItems.reduce((sum, it) => sum + (it.total || 0), 0);
+        totalPcsAllLevels += levelPcs;
+
+        summarySheet.getRow(sRow).height = 20;
+        const cells = [
+          summarySheet.getCell(sRow, 1),
+          summarySheet.getCell(sRow, 2),
+          summarySheet.getCell(sRow, 3),
+          summarySheet.getCell(sRow, 4),
+          summarySheet.getCell(sRow, 5),
+          summarySheet.getCell(sRow, 6),
+          summarySheet.getCell(sRow, 7),
+        ];
+
+        cells[0].value = idx + 1;
+        cells[0].alignment = { vertical: 'middle', horizontal: 'center' };
+
+        cells[1].value = lvl;
+        cells[1].font = { name: 'Calibri', size: 10, bold: true };
+        cells[1].alignment = { vertical: 'middle', horizontal: 'center' };
+
+        cells[2].value = lvl;
+        cells[2].font = { name: 'Calibri', size: 10, italic: true };
+        cells[2].alignment = { vertical: 'middle', horizontal: 'center' };
+
+        cells[3].value = levelSchools.length;
+        cells[3].alignment = { vertical: 'middle', horizontal: 'center' };
+
+        cells[4].value = levelSchools.join(', ');
+        cells[4].alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+
+        cells[5].value = levelItems.length;
+        cells[5].alignment = { vertical: 'middle', horizontal: 'center' };
+
+        cells[6].value = levelPcs;
+        cells[6].font = { name: 'Calibri', size: 10, bold: true };
+        cells[6].alignment = { vertical: 'middle', horizontal: 'right' };
+        cells[6].numFmt = '#,##0';
+
+        cells.forEach((c) => {
+          c.font = c.font || { name: 'Calibri', size: 10 };
+          c.border = thinBorder;
+        });
+
+        sRow++;
+      });
+
+      // Total row
+      summarySheet.getRow(sRow).height = 22;
+      summarySheet.getCell(sRow, 1).value = 'TOTAL KESELURUHAN';
+      summarySheet.mergeCells(sRow, 1, sRow, 6);
+      const totLabel = summarySheet.getCell(sRow, 1);
+      totLabel.font = { name: 'Calibri', size: 10, bold: true };
+      totLabel.alignment = { vertical: 'middle', horizontal: 'center' };
+      totLabel.fill = totalFill;
+      totLabel.border = thinBorder;
+      for (let c = 2; c <= 6; c++) {
+        summarySheet.getCell(sRow, c).fill = totalFill;
+        summarySheet.getCell(sRow, c).border = thinBorder;
+      }
+
+      const totValCell = summarySheet.getCell(sRow, 7);
+      totValCell.value = totalPcsAllLevels;
+      totValCell.font = { name: 'Calibri', size: 10, bold: true };
+      totValCell.alignment = { vertical: 'middle', horizontal: 'right' };
+      totValCell.fill = totalFill;
+      totValCell.border = thinBorder;
+      totValCell.numFmt = '#,##0';
+
+      summarySheet.getColumn(1).width = 6;
+      summarySheet.getColumn(2).width = 12;
+      summarySheet.getColumn(3).width = 14;
+      summarySheet.getColumn(4).width = 18;
+      summarySheet.getColumn(5).width = 45;
+      summarySheet.getColumn(6).width = 16;
+      summarySheet.getColumn(7).width = 22;
+    }
+
+    // Buat Sheet per Jenjang untuk vendor ini (SD, SMP, SMA, TK, dll)
+    const usedSheetNames = new Set<string>();
+    if (availableLevels.length > 1) {
+      usedSheetNames.add('ringkasan_jenjang');
+    }
+
+    availableLevels.forEach((lvl) => {
+      const levelItems = vendorAlloc.items.filter((it) => it.level.toUpperCase().trim() === lvl);
+      if (levelItems.length === 0) return;
+      const levelSchools = getSchoolsForVendorLevel(vendorAlloc, lvl, levelItems);
+
+      let sheetName = lvl.replace(/[\\/?*[\]:]/g, '').trim().slice(0, 31) || 'SPK';
+      let candidate = sheetName;
+      let counter = 1;
+      while (usedSheetNames.has(candidate.toLowerCase())) {
+        candidate = `${sheetName.slice(0, 28)}_${counter}`;
+        counter++;
+      }
+      usedSheetNames.add(candidate.toLowerCase());
+
+      buildVendorLevelSPKWorksheet(workbook, candidate, vendorAlloc, lvl, targetYear, levelItems, levelSchools);
+    });
 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(
@@ -1436,12 +1633,14 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     );
   };
 
-  // Ekspor Rekap Semua Vendor Sekaligus (Multi-Sheet: Ringkasan + Matriks per Vendor)
+  // Ekspor Rekap Semua Vendor Sekaligus (Multi-Sheet: Ringkasan + Matriks per Vendor per Jenjang, misal: Andryna-TK, Andryna-SD, dst.)
   const handleExportAllVendors = async () => {
     if (vendorAllocations.length === 0) {
       alert('Tidak ada alokasi vendor untuk diekspor.');
       return;
     }
+
+    const LEVEL_ORDER = ['SD', 'SMP', 'SMA', 'TK', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Koperasi Konsumen Karyawan BPK PENABUR Jakarta';
@@ -1584,9 +1783,39 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     summarySheet.getColumn(7).width = 20;
     summarySheet.getColumn(8).width = 22;
 
-    // 2. Satu Sheet per Vendor dengan Format Opsi A (Matriks per Sekolah)
+    // 2. Satu Sheet per Vendor per Jenjang (misal: Andryna-TK, Andryna-SD, Loki-SD, dst.)
+    const usedSheetNames = new Set<string>(['ringkasan_vendor']);
+
     vendorAllocations.forEach((va) => {
-      buildVendorSPKWorksheet(workbook, va, targetYear);
+      const vendorLevels = Array.from(new Set(va.items.map((it) => it.level.toUpperCase().trim())));
+      vendorLevels.sort((a, b) => {
+        const idxA = LEVEL_ORDER.indexOf(a);
+        const idxB = LEVEL_ORDER.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.localeCompare(b);
+      });
+
+      vendorLevels.forEach((lvl) => {
+        const levelItems = va.items.filter((it) => it.level.toUpperCase().trim() === lvl);
+        if (levelItems.length === 0) return;
+
+        const levelSchools = getSchoolsForVendorLevel(va, lvl, levelItems);
+
+        // Format nama sheet: NamaVendor-Jenjang, misal Andryna-TK, Andryna-SD
+        const rawBase = `${va.vendorName}-${lvl}`.replace(/[\\/?*[\]:]/g, '').trim();
+        let candidate = rawBase.slice(0, 31);
+        let counter = 1;
+        while (usedSheetNames.has(candidate.toLowerCase())) {
+          const suffix = `_${counter}`;
+          candidate = `${rawBase.slice(0, 31 - suffix.length)}${suffix}`;
+          counter++;
+        }
+        usedSheetNames.add(candidate.toLowerCase());
+
+        buildVendorLevelSPKWorksheet(workbook, candidate, va, lvl, targetYear, levelItems, levelSchools);
+      });
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
