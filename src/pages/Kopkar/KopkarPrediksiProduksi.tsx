@@ -88,9 +88,15 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         try {
           const parsed = JSON.parse(data.value);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setForecastItems(parsed);
-            setLoading(false);
-            return;
+            const hasCorrupt = parsed.some((it: any) => Number(it.total) > 100000000 || Object.values(it.sizes || {}).some((s: any) => Number(s) > 100000000));
+            if (!hasCorrupt) {
+              setForecastItems(parsed);
+              setLoading(false);
+              return;
+            } else {
+              // Hapus data korup dari database
+              await supabase.from('app_settings').delete().eq('key', storageKey);
+            }
           }
         } catch (e) {
           console.error('Error parsing forecast json from DB:', e);
@@ -103,7 +109,13 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         try {
           const parsedLocal = JSON.parse(local);
           if (Array.isArray(parsedLocal) && parsedLocal.length > 0) {
-            setForecastItems(parsedLocal);
+            const hasCorrupt = parsedLocal.some((it: any) => Number(it.total) > 100000000 || Object.values(it.sizes || {}).some((s: any) => Number(s) > 100000000));
+            if (!hasCorrupt) {
+              setForecastItems(parsedLocal);
+            } else {
+              localStorage.removeItem(storageKey);
+              setForecastItems([]);
+            }
           }
         } catch (e) {
           console.error('Error parsing forecast json from local:', e);
@@ -355,6 +367,24 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         // Map unik: `${level}___${uniformName}` -> ForecastItem
         const itemMap = new Map<string, ForecastItem>();
 
+        // Parser angka aman yang tidak merusak angka desimal/koma (menghindari bug 411.233 -> 4 kuadriliun)
+        const parseCellNumber = (val: any): number => {
+          if (val === null || val === undefined || val === '') return 0;
+          if (typeof val === 'number') return isNaN(val) ? 0 : Math.round(val);
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            if (!trimmed) return 0;
+            if (trimmed.includes('+')) {
+              const parts = trimmed.split('+').map((p) => parseFloat(p.trim().replace(',', '.'))).filter((n) => !isNaN(n));
+              if (parts.length > 0) return Math.round(parts.reduce((a, b) => a + b, 0));
+            }
+            const clean = trimmed.replace(/[^0-9.,-]/g, '').replace(',', '.');
+            const num = parseFloat(clean);
+            return isNaN(num) ? 0 : Math.round(num);
+          }
+          return 0;
+        };
+
         workbook.SheetNames.forEach((sheetName) => {
           const sheet = workbook.Sheets[sheetName];
           if (!sheet) return;
@@ -497,8 +527,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                     return;
                   }
 
-                  const numVal = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
-                  if (!isNaN(numVal) && numVal > 0) {
+                  const numVal = parseCellNumber(val);
+                  if (numVal > 0) {
                     schoolSum += numVal;
                     item.sizes[size] = (item.sizes[size] || 0) + numVal;
                     item.total += numVal;
@@ -519,9 +549,15 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                     row['Total (Pcs)'] ||
                     row['Total Pcs'] ||
                     row['Total Rencana'] ||
+                    row['TOTAL/SIZE'] ||
+                    row['TOTAL / SIZE'] ||
+                    row['Total/Size'] ||
+                    row['Total / Size'] ||
+                    row['TOTAL'] ||
+                    row['Total'] ||
                     '';
-                  const totalNum = parseInt(String(totalRaw).replace(/[^0-9]/g, ''), 10);
-                  if (!isNaN(totalNum) && totalNum > 0) {
+                  const totalNum = parseCellNumber(totalRaw);
+                  if (totalNum > 0) {
                     item.sizes[size] = (item.sizes[size] || 0) + totalNum;
                     item.total += totalNum;
                   }
@@ -561,8 +597,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                   return;
                 }
 
-                const numVal = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
-                if (!isNaN(numVal) && numVal > 0) {
+                const numVal = parseCellNumber(val);
+                if (numVal > 0) {
                   sizes[cleanKey] = numVal;
                   rowTotal += numVal;
                 }
