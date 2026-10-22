@@ -359,10 +359,20 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           const sheet = workbook.Sheets[sheetName];
           if (!sheet) return;
 
-          // Deteksi jenjang dari nama sheet (contoh: "SD", "SMP", "SMA", "TK")
+          // Deteksi jenjang dari nama sheet (contoh: "SD", "SMP", "SMA", "TK", "SPK-SD", "SPK-SMP", "SPK-SMA")
           let defaultLevel = 'SD';
           const cleanSheet = sheetName.toUpperCase().trim();
-          if (cleanSheet.includes('SD') && !cleanSheet.includes('SMP') && !cleanSheet.includes('SMA')) {
+          if (cleanSheet.includes('SPK')) {
+            if (cleanSheet.includes('SD') || cleanSheet.includes('PRIMARY')) {
+              defaultLevel = 'SPK-SD';
+            } else if (cleanSheet.includes('SMP') || cleanSheet.includes('LOWER')) {
+              defaultLevel = 'SPK-SMP';
+            } else if (cleanSheet.includes('SMA') || cleanSheet.includes('UPPER')) {
+              defaultLevel = 'SPK-SMA';
+            } else {
+              defaultLevel = 'SPK-SD';
+            }
+          } else if (cleanSheet.includes('SD') && !cleanSheet.includes('SMP') && !cleanSheet.includes('SMA')) {
             defaultLevel = 'SD';
           } else if (cleanSheet.includes('SMP')) {
             defaultLevel = 'SMP';
@@ -608,18 +618,32 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       const filtered = schools.filter((s) => {
         const lvl = (s.level || '').toUpperCase().trim();
         const sName = (s.school_name || '').toUpperCase().trim();
+        const isSpk = lvl.startsWith('SPK') || sName.includes('PIS') || sName.includes('INTERNATIONAL');
+
+        if (levelKey === 'SPK-SD') {
+          return lvl === 'SPK-SD' || (isSpk && (lvl.includes('SD') || lvl.includes('PRIMARY') || sName.includes('PRIMARY') || sName.includes('SD')));
+        }
+        if (levelKey === 'SPK-SMP') {
+          return lvl === 'SPK-SMP' || (isSpk && (lvl.includes('SMP') || lvl.includes('LOWER') || sName.includes('LOWER') || sName.includes('SMP')));
+        }
+        if (levelKey === 'SPK-SMA') {
+          return lvl === 'SPK-SMA' || (isSpk && (lvl.includes('SMA') || lvl.includes('UPPER') || sName.includes('UPPER') || sName.includes('SMA') || sName.includes('JC')));
+        }
+
+        // Untuk jenjang Nasional, jangan masukkan sekolah SPK / International
+        if (isSpk) return false;
 
         if (levelKey === 'SD') {
-          return lvl === 'SD' || lvl.includes('SD') || lvl.includes('PRIMARY') || sName.includes('SDK ') || sName.includes('SD ');
+          return lvl === 'SD' || sName.includes('SDK ') || sName.includes('SD ');
         }
         if (levelKey === 'SMP') {
-          return lvl === 'SMP' || lvl.includes('SMP') || lvl.includes('LOWER') || sName.includes('SMPK ') || sName.includes('SMP ');
+          return lvl === 'SMP' || sName.includes('SMPK ') || sName.includes('SMP ');
         }
         if (levelKey === 'SMA') {
-          return lvl === 'SMA' || lvl.includes('SMA') || lvl.includes('SMK') || lvl.includes('UPPER') || sName.includes('SMAK ') || sName.includes('SMA ') || sName.includes('SMK ');
+          return lvl === 'SMA' || lvl.includes('SMK') || sName.includes('SMAK ') || sName.includes('SMA ') || sName.includes('SMK ');
         }
         if (levelKey === 'TK') {
-          return lvl === 'TK' || lvl.includes('TK') || lvl.includes('KINDER') || lvl.includes('EARLY') || sName.includes('TKK ') || sName.includes('TK ');
+          return lvl === 'TK' || lvl.includes('KINDER') || sName.includes('TKK ') || sName.includes('TK ');
         }
         return lvl === levelKey;
       });
@@ -639,20 +663,23 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         'SDK 8 PENABUR', 'SDK 9 PENABUR', 'SDK 10 PENABUR', 'SDK 11 PENABUR',
         'SDK PENABUR Depok', 'SDK PENABUR Bintaro Jaya', 'SDK PENABUR Gading Serpong',
         'SDK PENABUR Kota Modern', 'SDK PENABUR Kota Wisata', 'SDK PENABUR Harapan Indah',
-        'SDK PENABUR Summarecon Bekasi', 'SDK PENABUR Agus Salim', 'SDK PENABUR Kota Jababeka'
+        'SDK PENABUR Summarecon Bekasi', 'SDK PENABUR Agus Salim', 'SDK PENABUR Kota Jababeka',
+        'SDK Tirtamarta 1', 'SDK Tirtamarta 2'
       ],
       SMP: [
         'SMPK 1 PENABUR Jakarta', 'SMPK 2 PENABUR Jakarta', 'SMPK 3 PENABUR Jakarta',
         'SMPK 4 PENABUR Jakarta', 'SMPK 5 PENABUR Jakarta', 'SMPK 6 PENABUR Jakarta',
         'SMPK 7 PENABUR Jakarta', 'SMPK PENABUR Bintaro Jaya', 'SMPK PENABUR Gading Serpong',
         'SMPK PENABUR Kota Modern', 'SMPK PENABUR Harapan Indah', 'SMPK PENABUR Kota Wisata',
-        'SMPK PENABUR Kota Depok', 'SMPK PENABUR Kota Jababeka', 'SMPK PENABUR Summarecon Bekasi'
+        'SMPK PENABUR Kota Depok', 'SMPK PENABUR Kota Jababeka', 'SMPK PENABUR Summarecon Bekasi',
+        'SMPK Tirtamarta 1', 'SMPK Tirtamarta 2'
       ],
       SMA: [
         'SMAK 1 PENABUR', 'SMAK 2 PENABUR', 'SMAK 3 PENABUR', 'SMAK 4 PENABUR',
         'SMAK 5 PENABUR', 'SMAK 6 PENABUR', 'SMAK 7 PENABUR', 'SMAK SUMMARECON BEKASI',
         'SMAK KOTA JABABEKA', 'SMAK HARAPAN INDAH', 'SMAK KOTA TANGERANG',
-        'SMAK BINTARO JAYA', 'SMAK GADING SERPONG', 'SMAK KOTA WISATA', 'SMK FARMASI PENABUR'
+        'SMAK BINTARO JAYA', 'SMAK GADING SERPONG', 'SMAK KOTA WISATA', 'SMK FARMASI PENABUR',
+        'SMAK Tirtamarta 1', 'SMAK Tirtamarta 2'
       ],
       TK: [
         'TKK 1 PENABUR', 'TKK 2 PENABUR', 'TKK 3 PENABUR', 'TKK 5 PENABUR',
@@ -660,7 +687,19 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         'TKK 10 PENABUR', 'TKK 11 PENABUR', 'TKK PENABUR Bintaro Jaya',
         'TKK PENABUR Gading Serpong', 'TKK PENABUR Kota Modern', 'TKK PENABUR Kota Jababeka',
         'TKK PENABUR Harapan Indah', 'TKK PENABUR Bekasi Agus Salim', 'TKK PENABUR Kota Wisata',
-        'TKK PENABUR Summarecon Bekasi', 'TKK PENABUR Depok'
+        'TKK PENABUR Summarecon Bekasi', 'TKK PENABUR Depok',
+        'TKK Tirtamarta 1', 'TKK Tirtamarta 2'
+      ],
+      'SPK-SD': [
+        'PIS Kelapa Gading (Primary)'
+      ],
+      'SPK-SMP': [
+        'PIS Kelapa Gading (Lower Secondary)',
+        'PIS Tanjung Duren (Lower Secondary)'
+      ],
+      'SPK-SMA': [
+        'PIS Kelapa Gading (Upper Secondary)',
+        'PIS Tanjung Duren (Upper Secondary)'
       ]
     };
 
@@ -703,29 +742,71 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         { name: 'KAOS OLAHRAGA TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
         { name: 'BAJU RENANG TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
       ],
+      'SPK-SD': [
+        { name: 'POLO SHIRT SPK PRIMARY', sizes: standardLetterSizes },
+        { name: 'CELANA PENDEK SPK PRIMARY', sizes: standardLetterSizes },
+        { name: 'ROK SPK PRIMARY', sizes: standardLetterSizes },
+        { name: 'KAOS OLAHRAGA SPK PRIMARY', sizes: standardLetterSizes },
+        { name: 'CELANA OLAHRAGA SPK PRIMARY', sizes: standardLetterSizes },
+        { name: 'CARDIGAN / ROMPI SPK PRIMARY', sizes: standardLetterSizes },
+      ],
+      'SPK-SMP': [
+        { name: 'POLO SHIRT SPK LOWER SEC', sizes: standardLetterSizes },
+        { name: 'KEMEJA OXFORD SPK LOWER SEC', sizes: standardLetterSizes },
+        { name: 'CELANA BERMUDA SPK LOWER SEC', sizes: standardLetterSizes },
+        { name: 'ROK / SKIRT SPK LOWER SEC', sizes: standardLetterSizes },
+        { name: 'KAOS OLAHRAGA SPK LOWER SEC', sizes: standardLetterSizes },
+        { name: 'BLAZER / CARDIGAN SPK LOWER SEC', sizes: standardLetterSizes },
+      ],
+      'SPK-SMA': [
+        { name: 'POLO SHIRT SPK UPPER SEC', sizes: standardLetterSizes },
+        { name: 'KEMEJA OXFORD SPK UPPER SEC', sizes: standardLetterSizes },
+        { name: 'CELANA PANJANG SPK UPPER SEC', sizes: standardLetterSizes },
+        { name: 'ROK / SKIRT SPK UPPER SEC', sizes: standardLetterSizes },
+        { name: 'KAOS OLAHRAGA SPK UPPER SEC', sizes: standardLetterSizes },
+        { name: 'BLAZER SPK UPPER SEC', sizes: standardLetterSizes },
+      ],
     };
 
     // Gabungkan seragam dari database produk jika ada yang belum terdaftar
     const seragamProducts = products.filter((p) => p.category === 'seragam');
     seragamProducts.forEach((p) => {
       const lvl = (p.level || 'SD').toUpperCase().trim();
-      const targetLvl = lvl.includes('TK') ? 'TK' : lvl.includes('SMP') ? 'SMP' : lvl.includes('SMA') ? 'SMA' : 'SD';
-      if (uniformDefinitions[targetLvl]) {
-        const pName = p.name.toUpperCase().trim();
-        const exists = uniformDefinitions[targetLvl].find((u) => u.name === pName);
-        if (!exists && pName) {
-          uniformDefinitions[targetLvl].push({
-            name: pName,
-            sizes: standardLetterSizes,
-          });
-        }
+      let targetLvl = 'SD';
+      if (lvl === 'SPK-SD' || (lvl.includes('SPK') && (lvl.includes('SD') || lvl.includes('PRIMARY')))) {
+        targetLvl = 'SPK-SD';
+      } else if (lvl === 'SPK-SMP' || (lvl.includes('SPK') && (lvl.includes('SMP') || lvl.includes('LOWER')))) {
+        targetLvl = 'SPK-SMP';
+      } else if (lvl === 'SPK-SMA' || (lvl.includes('SPK') && (lvl.includes('SMA') || lvl.includes('UPPER')))) {
+        targetLvl = 'SPK-SMA';
+      } else if (lvl.includes('TK')) {
+        targetLvl = 'TK';
+      } else if (lvl.includes('SMP')) {
+        targetLvl = 'SMP';
+      } else if (lvl.includes('SMA')) {
+        targetLvl = 'SMA';
+      } else {
+        targetLvl = 'SD';
+      }
+
+      if (!uniformDefinitions[targetLvl]) {
+        uniformDefinitions[targetLvl] = [];
+      }
+
+      const pName = p.name.toUpperCase().trim();
+      const exists = uniformDefinitions[targetLvl].find((u) => u.name === pName);
+      if (!exists && pName) {
+        uniformDefinitions[targetLvl].push({
+          name: pName,
+          sizes: standardLetterSizes,
+        });
       }
     });
 
     const workbook = XLSX.utils.book_new();
 
-    // Buat sheet terurut: SD, SMP, SMA, TK
-    const sheetOrder = ['SD', 'SMP', 'SMA', 'TK'];
+    // Buat sheet terurut: SD, SMP, SMA, TK, SPK-SD, SPK-SMP, SPK-SMA
+    const sheetOrder = ['SD', 'SMP', 'SMA', 'TK', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
 
     sheetOrder.forEach((lvl) => {
       const schoolList = getSchoolsForLevel(lvl, fallbackSchools[lvl]);

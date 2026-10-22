@@ -350,7 +350,6 @@ const VendorManagement = () => {
             .from('app_users')
             .insert([{
               username: emailClean,
-              password: '',
               name: schoolName,
               role: 'sekolah',
               school_name: schoolName,
