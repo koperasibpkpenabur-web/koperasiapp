@@ -796,9 +796,20 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         });
 
         groupedMap.forEach((sizesSet, pName) => {
-          let sizesArray = Array.from(sizesSet);
+          // Bersihkan variasi ukuran
+          const cleanSizes = new Set<string>();
+          sizesSet.forEach((s) => {
+            const clean = s.trim().toUpperCase();
+            if (clean && clean !== '-' && clean !== 'NULL' && clean !== 'UNDEFINED') {
+              cleanSizes.add(clean);
+            }
+          });
+
+          let sizesArray = Array.from(cleanSizes);
           if (sizesArray.length === 0) {
-            sizesArray = standardLetterSizes;
+            // Jika di database barang memang tidak memiliki ukuran (misal: Baret & Emblem, Dasi, Topi, Sabuk, dll.),
+            // cukup buat 1 baris saja dengan ukuran 'ALL SIZE' (bukan dipecah ke SS s/d 6L)
+            sizesArray = ['ALL SIZE'];
           } else {
             sizesArray.sort((a, b) => {
               const idxA = STANDARD_SIZE_ORDER.indexOf(a);
