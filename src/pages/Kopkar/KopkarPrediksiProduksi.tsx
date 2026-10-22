@@ -398,6 +398,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             // ========================================================
             // FORMAT BARU: Baris = Barang + Ukuran, Kolom = Sekolah
             // ========================================================
+            let lastUniformName = '';
+
             rawRows.forEach((row) => {
               const nameRaw =
                 row['Nama Barang'] ||
@@ -406,8 +408,17 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                 row['Jenis Baju'] ||
                 row['Item'] ||
                 row['Barang'] ||
+                row['NAMA'] ||
+                row['Nama'] ||
+                row['JENIS'] ||
+                row['Jenis'] ||
+                row['JENIS SERAGAM'] ||
                 '';
-              const uniformName = String(nameRaw).trim();
+              const trimmedName = String(nameRaw).trim();
+              if (trimmedName && !trimmedName.toLowerCase().startsWith('barang') && !trimmedName.toLowerCase().startsWith('jenis barang')) {
+                lastUniformName = trimmedName;
+              }
+              const uniformName = (trimmedName && !trimmedName.toLowerCase().startsWith('barang') && !trimmedName.toLowerCase().startsWith('jenis barang')) ? trimmedName : lastUniformName;
               if (!uniformName) return;
 
               const sizeRaw =
@@ -415,8 +426,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                 row['SIZE'] ||
                 row['Ukuran'] ||
                 row['UKURAN'] ||
-                'ALL SIZE';
-              const size = String(sizeRaw).trim().toUpperCase();
+                '';
+              let size = String(sizeRaw).trim().toUpperCase();
+              if (!size || size === 'BARANG' || size === 'UKURAN' || size === 'SIZE') return;
 
               const levelRaw = row['Jenjang'] || row['Level'] || defaultLevel;
               const level = String(levelRaw).toUpperCase().trim();
@@ -437,52 +449,82 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
               if (!item.sizes[size]) item.sizes[size] = 0;
               if (!item.schoolBreakdown) item.schoolBreakdown = {};
 
-              // Kolom selain nama barang, ukuran, dan total dianggap nama sekolah
-              let schoolSum = 0;
-              Object.entries(row).forEach(([colKey, val]) => {
-                const cleanKey = colKey.trim();
-                const lowerKey = cleanKey.toLowerCase();
-                if (
-                  [
-                    'no', 'no.', 'nomor',
-                    'jenjang', 'level', 'tingkat',
-                    'nama seragam', 'jenis baju', 'nama barang', 'barang', 'item',
-                    'size', 'ukuran',
-                    'total', 'total (pcs)', 'total pcs', 'total rencana', 'keterangan'
-                  ].includes(lowerKey)
-                ) {
-                  return;
-                }
-
-                const numVal = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
-                if (!isNaN(numVal) && numVal > 0) {
-                  schoolSum += numVal;
-                  item.sizes[size] = (item.sizes[size] || 0) + numVal;
-                  item.total += numVal;
-
-                  if (!item.schoolBreakdown![cleanKey]) {
-                    item.schoolBreakdown![cleanKey] = {};
+              // 1. Cek apakah baris ini memiliki kolom PO (misal file rekap pesanan/PO TM)
+              let poVal = 0;
+              let hasPoCol = false;
+              for (const [k, v] of Object.entries(row)) {
+                const lk = k.trim().toLowerCase();
+                if (lk === 'po' || lk.startsWith('po ') || lk.startsWith('po_') || lk === 'order') {
+                  hasPoCol = true;
+                  if (typeof v === 'number') {
+                    poVal = v;
+                  } else if (typeof v === 'string') {
+                    // Mendukung format gabungan seperti '12++4' atau '30+6'
+                    const parts = v.split('+').map((p) => parseInt(p.trim(), 10)).filter((n) => !isNaN(n));
+                    if (parts.length > 0) poVal = parts.reduce((a, b) => a + b, 0);
                   }
-                  item.schoolBreakdown![cleanKey][size] =
-                    (item.schoolBreakdown![cleanKey][size] || 0) + numVal;
                 }
-              });
+              }
 
-              // Jika kolom-kolom sekolah kosong, cek apakah user langsung menginput angka di kolom TOTAL:
-              if (schoolSum === 0) {
-                const totalRaw =
-                  row['TOTAL (PCS)'] ||
-                  row['TOTAL'] ||
-                  row['Total'] ||
-                  row['Total (Pcs)'] ||
-                  row['Total Pcs'] ||
-                  row['TOTAL RENCANA'] ||
-                  row['Total Rencana'] ||
-                  '';
-                const totalNum = parseInt(String(totalRaw).replace(/[^0-9]/g, ''), 10);
-                if (!isNaN(totalNum) && totalNum > 0) {
-                  item.sizes[size] = (item.sizes[size] || 0) + totalNum;
-                  item.total += totalNum;
+              if (hasPoCol && poVal > 0) {
+                // Gunakan angka murni dari PO (bukan nominal harga atau total rupiah)
+                item.sizes[size] = (item.sizes[size] || 0) + poVal;
+                item.total += poVal;
+              } else {
+                // 2. Mode Kolom Sekolah (Template Resmi Prediksi)
+                let schoolSum = 0;
+                Object.entries(row).forEach(([colKey, val]) => {
+                  const cleanKey = colKey.trim();
+                  const lowerKey = cleanKey.toLowerCase();
+
+                  // Filter ketat: abaikan kolom nomor, identitas barang, finansial (harga/rupiah/setoran), dan logistik (kirim/surat jalan)
+                  if (
+                    [
+                      'no', 'no.', 'nomor', '__empty',
+                      'jenjang', 'level', 'tingkat',
+                      'nama seragam', 'jenis baju', 'nama barang', 'barang', 'item', 'nama', 'jenis', 'jenis seragam',
+                      'size', 'ukuran',
+                      'po', 'harga', 'price', 'rp', 'rupiah', 'setor', 'setor kop', 'setor koperasi',
+                      'kirim', 's. jalan', 'surat jalan', 'cek', 'cek s. jalan',
+                      'total', 'total ', 'total (pcs)', 'total pcs', 'total rencana', 'keterangan'
+                    ].includes(lowerKey) ||
+                    lowerKey.startsWith('kirim') ||
+                    lowerKey.startsWith('__empty') ||
+                    lowerKey.includes('jalan') ||
+                    lowerKey.includes('setor') ||
+                    lowerKey.includes('harga')
+                  ) {
+                    return;
+                  }
+
+                  const numVal = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
+                  if (!isNaN(numVal) && numVal > 0) {
+                    schoolSum += numVal;
+                    item.sizes[size] = (item.sizes[size] || 0) + numVal;
+                    item.total += numVal;
+
+                    if (!item.schoolBreakdown![cleanKey]) {
+                      item.schoolBreakdown![cleanKey] = {};
+                    }
+                    item.schoolBreakdown![cleanKey][size] =
+                      (item.schoolBreakdown![cleanKey][size] || 0) + numVal;
+                  }
+                });
+
+                // Jika kolom sekolah kosong dan bukan PO, ambil dari kolom TOTAL Rencana
+                if (schoolSum === 0) {
+                  const totalRaw =
+                    row['TOTAL (PCS)'] ||
+                    row['TOTAL RENCANA'] ||
+                    row['Total (Pcs)'] ||
+                    row['Total Pcs'] ||
+                    row['Total Rencana'] ||
+                    '';
+                  const totalNum = parseInt(String(totalRaw).replace(/[^0-9]/g, ''), 10);
+                  if (!isNaN(totalNum) && totalNum > 0) {
+                    item.sizes[size] = (item.sizes[size] || 0) + totalNum;
+                    item.total += totalNum;
+                  }
                 }
               }
             });
