@@ -182,87 +182,176 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   }, [forecastItems]);
 
   // =========================================================================
-  // 1. ENGINE DISTRIBUSI KE VENDOR MURNI PROPORSI JUMLAH SEKOLAH
+  // 1. HELPER PENCATATAN & PENCOCOKAN JENIS BARANG (SMART ALIAS MATCHING)
+  // =========================================================================
+  const normalizeItemName = (str: string): string => {
+    return (str || '')
+      .toUpperCase()
+      .replace(/\bSET\b/g, '')
+      .replace(/\b1\s+SET\b/g, '')
+      .replace(/[-_()/+]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const isClothingTypeMatch = (targetUniform: string, plottedType: string): boolean => {
+    const tNorm = normalizeItemName(targetUniform);
+    const pNorm = normalizeItemName(plottedType);
+
+    if (!tNorm || !pNorm) return false;
+    if (tNorm === pNorm) return true;
+
+    // Kotak Putra / Putri (e.g. SET KOTAK PUTRA <-> KOTAK-KOTAK PUTRA)
+    if (tNorm.includes('KOTAK PUTRA') && pNorm.includes('KOTAK PUTRA')) return true;
+    if (tNorm.includes('KOTAK PUTRI') && pNorm.includes('KOTAK PUTRI')) return true;
+    if (tNorm.includes('ROMPI KOTAK') && pNorm.includes('ROMPI KOTAK')) return true;
+
+    // Celana / Rok / Kulot Merah (SD)
+    if (tNorm.includes('CELANA MERAH') && (pNorm.includes('CELANA MERAH') || pNorm.includes('CELANA POLOS MERAH'))) return true;
+    if (tNorm.includes('KULOT MERAH') && (pNorm.includes('KULOT MERAH') || pNorm.includes('KULOT POLOS MERAH'))) return true;
+    if (tNorm.includes('ROK MERAH') && (pNorm.includes('ROK MERAH') || pNorm.includes('ROK POLOS MERAH'))) return true;
+
+    // Celana / Rok / Kulot Biru (SMP)
+    if (tNorm.includes('CELANA BIRU') && pNorm.includes('CELANA BIRU')) return true;
+    if (tNorm.includes('ROK BIRU') && pNorm.includes('ROK BIRU')) return true;
+    if (tNorm.includes('KULOT BIRU') && pNorm.includes('KULOT BIRU')) return true;
+
+    // Celana / Rok / Kulot Abu (SMA)
+    if (tNorm.includes('CELANA ABU') && (pNorm.includes('CELANA ABU') || pNorm.includes('CELANA PANJANG ABU'))) return true;
+    if (tNorm.includes('ROK ABU') && pNorm.includes('ROK ABU')) return true;
+    if (tNorm.includes('KULOT ABU') && pNorm.includes('KULOT ABU')) return true;
+
+    // Kaos Kaki (Loki, Vania, Christy)
+    if (tNorm.includes('KAOS KAKI PUTIH') && pNorm.includes('KAOS KAKI PUTIH')) return true;
+    if (tNorm.includes('KAOS KAKI HITAM') && pNorm.includes('KAOS KAKI HITAM')) return true;
+    if (tNorm === 'KAOS KAKI' && pNorm.includes('KAOS KAKI')) return true;
+
+    // Sepatu (Yongky)
+    if (tNorm.includes('SEPATU') && pNorm.includes('SEPATU')) {
+      if (tNorm.includes('VELCRO') && pNorm.includes('VELCRO')) return true;
+      if (tNorm.includes('PHANTOM') && pNorm.includes('PHANTOM')) return true;
+      if (!tNorm.includes('VELCRO') && !tNorm.includes('PHANTOM')) return true;
+    }
+
+    // Olahraga (Vania, Kanio, Deltara, Harmoni, Sumak)
+    if (tNorm.includes('OLAHRAGA') && pNorm.includes('OLAHRAGA')) {
+      if (tNorm.includes('KAOS') && pNorm.includes('KAOS')) return true;
+      if (tNorm.includes('CELANA') && (pNorm.includes('CELANA') || pNorm.includes('CELANA OR'))) return true;
+      if (pNorm.includes('1 SET OLAHRAGA')) return true;
+    }
+
+    // Topi / Dasi (Supatno, Fortuna)
+    if (tNorm.includes('TOPI MERAH') && pNorm.includes('TOPI MERAH')) return true;
+    if (tNorm.includes('DASI MERAH') && pNorm.includes('DASI MERAH')) return true;
+    if (tNorm.includes('TOPI BIRU') && pNorm.includes('TOPI BIRU')) return true;
+    if (tNorm.includes('DASI BIRU') && pNorm.includes('DASI BIRU')) return true;
+    if (tNorm.includes('TOPI ABU') && pNorm.includes('TOPI ABU')) return true;
+    if (tNorm.includes('DASI ABU') && pNorm.includes('DASI ABU')) return true;
+    if (tNorm.includes('TOPI') && pNorm.includes('TOPI')) return true;
+    if (tNorm.includes('DASI') && pNorm.includes('DASI')) return true;
+
+    // Pramuka
+    if (tNorm.includes('PRAMUKA') && pNorm.includes('PRAMUKA')) {
+      if (tNorm.includes('KEMEJA') && pNorm.includes('KEMEJA')) return true;
+      if (tNorm.includes('CELANA') && pNorm.includes('CELANA')) return true;
+      if (tNorm.includes('ROK') && pNorm.includes('ROK')) return true;
+      if (tNorm.includes('KULOT') && pNorm.includes('KULOT')) return true;
+      if (tNorm.includes('BARET') && pNorm.includes('BARET')) return true;
+      if (tNorm.includes('LAKEN') && pNorm.includes('LAKEN')) return true;
+      if (tNorm.includes('KACU') && pNorm.includes('KACU')) return true;
+    }
+
+    // Jas Lab
+    if (tNorm.includes('JAS LAB') && pNorm.includes('JAS LAB')) return true;
+
+    // Substring fallback jika teks cukup spesifik
+    if (tNorm.length >= 7 && pNorm.length >= 7) {
+      if (tNorm.includes(pNorm) || pNorm.includes(tNorm)) return true;
+    }
+
+    return false;
+  };
+
+  // =========================================================================
+  // 2. ENGINE DISTRIBUSI KE VENDOR BERDASARKAN PLOTTING & JENIS BARANG
   // =========================================================================
   const vendorAllocations = useMemo(() => {
     if (forecastItems.length === 0 || vendors.length === 0) return [];
 
-    // 1. Petakan sekolah-sekolah aktif per jenjang
-    const schoolsByLevel = new Map<string, Set<string>>();
-    schools.forEach((s) => {
-      const lvl = (s.level || '').toUpperCase().trim();
-      if (!schoolsByLevel.has(lvl)) schoolsByLevel.set(lvl, new Set());
-      schoolsByLevel.get(lvl)!.add(s.id);
-    });
-
-    // 2. Petakan plotting per vendor & jenjang
-    // vendorLevelSchools: Map<vendorId, Map<level, Set<schoolId>>>
-    const vendorLevelSchools = new Map<string, Map<string, Set<string>>>();
-    const vendorSchoolNames = new Map<string, Set<string>>();
-
-    plottings.forEach((p) => {
-      const vId = p.vendor_id;
-      const sId = p.school_user_id;
-      const lvl = (p.app_users?.school_level || '').toUpperCase().trim();
-      const sName = p.app_users?.school_name || '';
-
-      if (!vendorLevelSchools.has(vId)) vendorLevelSchools.set(vId, new Map());
-      const vLvlMap = vendorLevelSchools.get(vId)!;
-      if (!vLvlMap.has(lvl)) vLvlMap.set(lvl, new Set());
-      vLvlMap.get(lvl)!.add(sId);
-
-      if (!vendorSchoolNames.has(vId)) vendorSchoolNames.set(vId, new Set());
-      if (sName) vendorSchoolNames.get(vId)!.add(sName);
-    });
-
-    // 3. Alokasikan setiap ForecastItem ke masing-masing vendor
+    // Inisialisasi struktur alokasi per vendor
     const allocationByVendor = new Map<string, VendorAllocation>();
-
     vendors.forEach((v) => {
       allocationByVendor.set(v.id, {
         vendorId: v.id,
         vendorName: v.name,
         contactPerson: v.contact_person || '-',
         phone: v.phone || '-',
-        schoolNames: Array.from(vendorSchoolNames.get(v.id) || []),
+        schoolNames: [],
         items: [],
         grandTotalPcs: 0,
       });
     });
 
+    // Alokasikan tiap ForecastItem HANYA ke vendor yang di-plot untuk barang tersebut
     forecastItems.forEach((fcItem) => {
       const itemLevel = fcItem.level.toUpperCase().trim();
 
-      // Cari vendor-vendor yang memegang sekolah pada jenjang ini
-      const activeVendorsForLevel: Array<{
+      // Cari plotting-plotting yang sesuai jenjang DAN jenis barang ini
+      const matchedPlottings = plottings.filter((p) => {
+        const pLevel = (p.app_users?.school_level || '').toUpperCase().trim();
+        if (pLevel !== itemLevel) return false;
+
+        const plottedTypes = (p.clothing_type || '')
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
+
+        return plottedTypes.some((pt) => isClothingTypeMatch(fcItem.uniformName, pt));
+      });
+
+      if (matchedPlottings.length === 0) {
+        // Belum ada vendor yang di-plot untuk barang ini di jenjang ini
+        return;
+      }
+
+      // Hitung jumlah sekolah yang dilayani tiap vendor KHUSUS untuk barang ini
+      const schoolsByVendor = new Map<string, Set<string>>();
+      const schoolNamesByVendor = new Map<string, Set<string>>();
+
+      matchedPlottings.forEach((p) => {
+        const vId = p.vendor_id;
+        const sId = p.school_user_id;
+        const sName = p.app_users?.school_name || '';
+
+        if (!schoolsByVendor.has(vId)) schoolsByVendor.set(vId, new Set());
+        schoolsByVendor.get(vId)!.add(sId);
+
+        if (!schoolNamesByVendor.has(vId)) schoolNamesByVendor.set(vId, new Set());
+        if (sName) schoolNamesByVendor.get(vId)!.add(sName);
+      });
+
+      const activeVendorsForItem: Array<{
         vendorId: string;
         schoolCount: number;
         schoolNames: Set<string>;
       }> = [];
 
-      vendors.forEach((v) => {
-        const vSchools = vendorLevelSchools.get(v.id)?.get(itemLevel);
-        const count = vSchools ? vSchools.size : 0;
-        if (count > 0) {
-          activeVendorsForLevel.push({
-            vendorId: v.id,
-            schoolCount: count,
-            schoolNames: vendorSchoolNames.get(v.id) || new Set(),
+      schoolsByVendor.forEach((schoolsSet, vId) => {
+        if (schoolsSet.size > 0) {
+          activeVendorsForItem.push({
+            vendorId: vId,
+            schoolCount: schoolsSet.size,
+            schoolNames: schoolNamesByVendor.get(vId) || new Set(),
           });
         }
       });
 
-      // Total sekolah yang di-plot pada jenjang ini lintas semua vendor
-      const totalSchoolsInLevel = activeVendorsForLevel.reduce((sum, av) => sum + av.schoolCount, 0);
+      // Total sekolah yang di-plot untuk barang ini lintas vendor yang kompeten
+      const totalSchoolsForItem = activeVendorsForItem.reduce((sum, av) => sum + av.schoolCount, 0);
+      if (totalSchoolsForItem === 0) return;
 
-      if (totalSchoolsInLevel === 0) {
-        // Belum ada vendor yang di-plot untuk jenjang ini
-        return;
-      }
-
-      // Distribusikan tiap ukuran ke masing-masing vendor
       const allocatedSizesByVendor = new Map<string, Record<string, number>>();
-      activeVendorsForLevel.forEach((av) => {
+      activeVendorsForItem.forEach((av) => {
         allocatedSizesByVendor.set(av.vendorId, {});
       });
 
@@ -271,38 +360,37 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       let matchedBySchool = false;
 
       if (hasBreakdown) {
-        // Alokasikan langsung ke vendor yang menaungi sekolah tersebut
+        // Alokasikan langsung ke vendor yang menaungi sekolah tersebut untuk barang ini
         Object.entries(fcItem.schoolBreakdown!).forEach(([schoolName, schoolSizes]) => {
           const sClean = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const targetVendor = activeVendorsForLevel.find((av) =>
-            Array.from(av.schoolNames).some((sn) => {
-              const snClean = sn.toLowerCase().replace(/[^a-z0-9]/g, '');
-              return snClean === sClean || snClean.includes(sClean) || sClean.includes(snClean);
-            })
-          );
+          const targetPlot = matchedPlottings.find((p) => {
+            const pSchoolClean = (p.app_users?.school_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return pSchoolClean === sClean || pSchoolClean.includes(sClean) || sClean.includes(pSchoolClean);
+          });
 
-          if (targetVendor) {
+          if (targetPlot) {
             matchedBySchool = true;
-            const vSizes = allocatedSizesByVendor.get(targetVendor.vendorId)!;
-            Object.entries(schoolSizes).forEach(([sz, qty]) => {
-              vSizes[sz] = (vSizes[sz] || 0) + qty;
-            });
+            const vSizes = allocatedSizesByVendor.get(targetPlot.vendor_id);
+            if (vSizes) {
+              Object.entries(schoolSizes).forEach(([sz, qty]) => {
+                vSizes[sz] = (vSizes[sz] || 0) + qty;
+              });
+            }
           }
         });
       }
 
-      // Jika tidak ada data per sekolah atau sekolah tidak ada yang cocok dengan plotting,
-      // fallback ke perhitungan proporsi rasio jumlah sekolah per vendor
+      // Jika tidak ada data per sekolah atau mode rencana global (tanpa rincian sekolah)
       if (!matchedBySchool) {
         Object.entries(fcItem.sizes).forEach(([sizeName, totalQtyForSize]) => {
           if (totalQtyForSize <= 0) return;
 
           let allocatedSum = 0;
-          let maxVendorId = activeVendorsForLevel[0]?.vendorId || '';
+          let maxVendorId = activeVendorsForItem[0]?.vendorId || '';
           let maxVendorCount = -1;
 
-          activeVendorsForLevel.forEach((av) => {
-            const ratio = av.schoolCount / totalSchoolsInLevel;
+          activeVendorsForItem.forEach((av) => {
+            const ratio = av.schoolCount / totalSchoolsForItem;
             const qty = Math.round(totalQtyForSize * ratio);
             allocatedSizesByVendor.get(av.vendorId)![sizeName] = qty;
             allocatedSum += qty;
@@ -321,13 +409,13 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         });
       }
 
-      // Masukkan ke struktur alokasi masing-masing vendor
-      activeVendorsForLevel.forEach((av) => {
+      // Masukkan ke struktur alokasi masing-masing vendor yang berhak
+      activeVendorsForItem.forEach((av) => {
         const vendorSizes = allocatedSizesByVendor.get(av.vendorId) || {};
         const itemTotal = Object.values(vendorSizes).reduce((a, b) => a + b, 0);
         if (itemTotal === 0 && !matchedBySchool) return;
 
-        const sharePct = (av.schoolCount / totalSchoolsInLevel) * 100;
+        const sharePct = (av.schoolCount / totalSchoolsForItem) * 100;
 
         const alloc = allocationByVendor.get(av.vendorId);
         if (alloc) {
@@ -338,15 +426,21 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             total: itemTotal,
             sharePercentage: Math.round(sharePct * 10) / 10,
             schoolCount: av.schoolCount,
-            totalSchoolsInLevel,
+            totalSchoolsInLevel: totalSchoolsForItem,
           });
           alloc.grandTotalPcs += itemTotal;
+
+          av.schoolNames.forEach((sn) => {
+            if (!alloc.schoolNames.includes(sn)) {
+              alloc.schoolNames.push(sn);
+            }
+          });
         }
       });
     });
 
     return Array.from(allocationByVendor.values())
-      .filter((a) => a.items.length > 0 || a.schoolNames.length > 0)
+      .filter((a) => a.items.length > 0 && a.grandTotalPcs > 0)
       .sort((a, b) => a.vendorName.localeCompare(b.vendorName, 'id', { numeric: true, sensitivity: 'base' }));
   }, [forecastItems, vendors, plottings, schools]);
 
@@ -838,10 +932,10 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     sheetOrder.forEach((lvl) => {
       const schoolList = getSchoolsForLevel(lvl, fallbackSchools[lvl]);
 
-      // Ambil produk seragam ASLI langsung dari database barang (props products)
+      // Ambil seluruh produk (seragam, kaos kaki, sepatu, topi, dasi, aksesoris) kecuali buku langsung dari database barang (props products)
       const dbItemsForLevel = products.filter((p) => {
-        const isSeragam = !p.category || p.category.toLowerCase() === 'seragam';
-        if (!isSeragam) return false;
+        const isBuku = p.category && p.category.toLowerCase() === 'buku';
+        if (isBuku) return false;
         const pLvl = (p.level || '').toUpperCase().trim();
         const pName = (p.name || '').toUpperCase();
 
@@ -973,11 +1067,11 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     const exportRows: any[] = [];
 
     // Header SPK Informasi Vendor
-    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI SERAGAM': '' });
-    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI SERAGAM': `Tahun Ajaran: ${targetYear}` });
-    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI SERAGAM': `Vendor / Penjahit: ${vendorAlloc.vendorName}` });
-    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI SERAGAM': `PIC: ${vendorAlloc.contactPerson} | No. Telp: ${vendorAlloc.phone}` });
-    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI SERAGAM': `Sekolah yang Dikerjakan (${vendorAlloc.schoolNames.length} sekolah): ${vendorAlloc.schoolNames.join(', ')}` });
+    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI': '' });
+    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI': `Tahun Ajaran: ${targetYear}` });
+    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI': `Vendor / Mitra: ${vendorAlloc.vendorName}` });
+    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI': `PIC: ${vendorAlloc.contactPerson} | No. Telp: ${vendorAlloc.phone}` });
+    exportRows.push({ 'SURAT PERINTAH KERJA (SPK) PRODUKSI': `Sekolah yang Dilayani (${vendorAlloc.schoolNames.length} sekolah): ${vendorAlloc.schoolNames.join(', ')}` });
     exportRows.push({}); // Baris kosong
 
     // Daftar kolom ukuran unik yang ada di vendor ini
@@ -999,7 +1093,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       const row: Record<string, any> = {
         No: idx + 1,
         Jenjang: it.level,
-        'Nama Seragam': it.uniformName,
+        'Nama Barang': it.uniformName,
         'Porsi Vendor': `${it.sharePercentage}% (${it.schoolCount}/${it.totalSchoolsInLevel} Sekolah)`,
       };
 
@@ -1183,12 +1277,19 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       const levelItems = forecastItems.filter((it) => it.level.toUpperCase().trim() === level);
       if (levelItems.length === 0) return;
 
-      // Ambil vendor aktif yang memiliki alokasi pada jenjang ini
+      // Ambil vendor aktif yang memiliki alokasi pada jenjang ini dengan total pcs > 0
       const activeVendors = vendorAllocations.filter((va) =>
-        va.items.some((it) => it.level.toUpperCase().trim() === level)
+        va.items.some((it) => it.level.toUpperCase().trim() === level && it.total > 0)
       );
 
-      const vendorsToDisplay = activeVendors.length > 0 ? activeVendors : vendorAllocations;
+      // Urutkan vendor yang memiliki volume alokasi terbesar lebih dulu di kolom
+      activeVendors.sort((a, b) => {
+        const totalA = a.items.filter((it) => it.level.toUpperCase().trim() === level).reduce((s, it) => s + it.total, 0);
+        const totalB = b.items.filter((it) => it.level.toUpperCase().trim() === level).reduce((s, it) => s + it.total, 0);
+        return totalB - totalA;
+      });
+
+      const vendorsToDisplay = activeVendors;
       const numVendors = vendorsToDisplay.length;
 
       const safeSheetName = level.replace(/[\\/?*[\]:]/g, '').slice(0, 31);
@@ -1271,7 +1372,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             const vaItem = va.items.find(
               (it) =>
                 it.level.toUpperCase().trim() === level &&
-                it.uniformName.toUpperCase().trim() === item.uniformName.toUpperCase().trim()
+                (it.uniformName.toUpperCase().trim() === item.uniformName.toUpperCase().trim() ||
+                  isClothingTypeMatch(item.uniformName, it.uniformName))
             );
             const qty = vaItem?.sizes[sz] || 0;
             rowVendorSum += qty;
