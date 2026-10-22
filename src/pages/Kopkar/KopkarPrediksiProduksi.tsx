@@ -56,6 +56,17 @@ const STANDARD_SIZE_ORDER = [
   'ALL SIZE', 'KHUSUS'
 ];
 
+// Standar urutan resmi jenjang sekolah: TK, SD, SMP, SMA, SPK-SD (Primary), SPK-SMP (Lower Secondary), SPK-SMA (Upper Secondary)
+const LEVEL_ORDER = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
+
+const getLevelDisplayTitle = (lvl: string): string => {
+  const u = (lvl || '').toUpperCase().trim();
+  if (u === 'SPK-SD') return 'SPK-SD (Primary)';
+  if (u === 'SPK-SMP') return 'SPK-SMP (Lower Secondary)';
+  if (u === 'SPK-SMA') return 'SPK-SMA (Upper Secondary)';
+  return u;
+};
+
 export const KopkarPrediksiProduksi: React.FC<Props> = ({
   vendors,
   plottings,
@@ -964,8 +975,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     const workbook = XLSX.utils.book_new();
 
-    // Buat sheet terurut: SD, SMP, SMA, TK, SPK-SD, SPK-SMP, SPK-SMA
-    const sheetOrder = ['SD', 'SMP', 'SMA', 'TK', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
+    // Buat sheet terurut: TK, SD, SMP, SMA, SPK-SD, SPK-SMP, SPK-SMA
+    const sheetOrder = LEVEL_ORDER;
 
     sheetOrder.forEach((lvl) => {
       const schoolList = getSchoolsForLevel(lvl, fallbackSchools[lvl]);
@@ -1199,7 +1210,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     };
 
     // 1. Informasi Header SPK
-    worksheet.getCell(1, 1).value = `SURAT PERINTAH KERJA (SPK) PRODUKSI - JENJANG ${level.toUpperCase()}`;
+    worksheet.getCell(1, 1).value = `SURAT PERINTAH KERJA (SPK) PRODUKSI - JENJANG ${getLevelDisplayTitle(level)}`;
     worksheet.getCell(1, 1).font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF1E293B' } };
 
     worksheet.getCell(2, 1).value = `Tahun Ajaran: ${targetYearStr}`;
@@ -1212,8 +1223,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     worksheet.getCell(4, 1).font = { name: 'Calibri', size: 10, color: { argb: 'FF475569' } };
 
     const schoolSubtitle = hasSchools
-      ? `Sekolah Jenjang ${level.toUpperCase()} yang Dilayani (${levelSchools.length} Sekolah): ${levelSchools.join(', ')}`
-      : `Sekolah Jenjang ${level.toUpperCase()} yang Dilayani: Seluruh Sekolah Terdaftar`;
+      ? `Sekolah Jenjang ${getLevelDisplayTitle(level)} yang Dilayani (${levelSchools.length} Sekolah): ${levelSchools.join(', ')}`
+      : `Sekolah Jenjang ${getLevelDisplayTitle(level)} yang Dilayani: Seluruh Sekolah Terdaftar`;
     worksheet.getCell(5, 1).value = schoolSubtitle;
     worksheet.getCell(5, 1).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } };
 
@@ -1230,7 +1241,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     worksheet.mergeCells(headerRow1, 2, headerRow2, 2);
 
     if (hasSchools) {
-      worksheet.getCell(headerRow1, 3).value = `RINCIAN ALOKASI SEKOLAH (${level.toUpperCase()})`;
+      worksheet.getCell(headerRow1, 3).value = `RINCIAN ALOKASI SEKOLAH (${getLevelDisplayTitle(level)})`;
       if (numSchools > 1) {
         worksheet.mergeCells(headerRow1, 3, headerRow1, 2 + numSchools);
       }
@@ -1462,7 +1473,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return;
     }
 
-    const LEVEL_ORDER = ['SD', 'SMP', 'SMA', 'TK', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
     const availableLevels = Array.from(new Set(vendorAlloc.items.map((it) => it.level.toUpperCase().trim())));
     availableLevels.sort((a, b) => {
       const idxA = LEVEL_ORDER.indexOf(a);
@@ -1528,7 +1538,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         const levelPcs = levelItems.reduce((sum, it) => sum + (it.total || 0), 0);
         totalPcsAllLevels += levelPcs;
 
-        summarySheet.getRow(sRow).height = 20;
+        const schoolCount = levelSchools.length;
+        summarySheet.getRow(sRow).height = Math.max(24, Math.min(300, schoolCount * 18));
+
         const cells = [
           summarySheet.getCell(sRow, 1),
           summarySheet.getCell(sRow, 2),
@@ -1540,28 +1552,28 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         ];
 
         cells[0].value = idx + 1;
-        cells[0].alignment = { vertical: 'middle', horizontal: 'center' };
+        cells[0].alignment = { vertical: 'top', horizontal: 'center' };
 
-        cells[1].value = lvl;
+        cells[1].value = getLevelDisplayTitle(lvl);
         cells[1].font = { name: 'Calibri', size: 10, bold: true };
-        cells[1].alignment = { vertical: 'middle', horizontal: 'center' };
+        cells[1].alignment = { vertical: 'top', horizontal: 'center' };
 
         cells[2].value = lvl;
         cells[2].font = { name: 'Calibri', size: 10, italic: true };
-        cells[2].alignment = { vertical: 'middle', horizontal: 'center' };
+        cells[2].alignment = { vertical: 'top', horizontal: 'center' };
 
-        cells[3].value = levelSchools.length;
-        cells[3].alignment = { vertical: 'middle', horizontal: 'center' };
+        cells[3].value = schoolCount;
+        cells[3].alignment = { vertical: 'top', horizontal: 'center' };
 
-        cells[4].value = levelSchools.join(', ');
-        cells[4].alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        cells[4].value = levelSchools.join('\n');
+        cells[4].alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
 
         cells[5].value = levelItems.length;
-        cells[5].alignment = { vertical: 'middle', horizontal: 'center' };
+        cells[5].alignment = { vertical: 'top', horizontal: 'center' };
 
         cells[6].value = levelPcs;
         cells[6].font = { name: 'Calibri', size: 10, bold: true };
-        cells[6].alignment = { vertical: 'middle', horizontal: 'right' };
+        cells[6].alignment = { vertical: 'top', horizontal: 'right' };
         cells[6].numFmt = '#,##0';
 
         cells.forEach((c) => {
@@ -1640,8 +1652,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return;
     }
 
-    const LEVEL_ORDER = ['SD', 'SMP', 'SMA', 'TK', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
-
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Koperasi Konsumen Karyawan BPK PENABUR Jakarta';
     workbook.created = new Date();
@@ -1701,7 +1711,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     let grandAllVendorsPcs = 0;
 
     vendorAllocations.forEach((va, idx) => {
-      summarySheet.getRow(sRow).height = 20;
+      const schoolLineCount = Math.max(1, va.schoolNames.length);
+      summarySheet.getRow(sRow).height = Math.max(24, Math.min(300, schoolLineCount * 18));
 
       const cells = [
         summarySheet.getCell(sRow, 1),
@@ -1715,30 +1726,30 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       ];
 
       cells[0].value = idx + 1;
-      cells[0].alignment = { vertical: 'middle', horizontal: 'center' };
+      cells[0].alignment = { vertical: 'top', horizontal: 'center' };
 
       cells[1].value = va.vendorName;
       cells[1].font = { name: 'Calibri', size: 10, bold: true };
-      cells[1].alignment = { vertical: 'middle', horizontal: 'left' };
+      cells[1].alignment = { vertical: 'top', horizontal: 'left' };
 
       cells[2].value = va.contactPerson || '-';
-      cells[2].alignment = { vertical: 'middle', horizontal: 'left' };
+      cells[2].alignment = { vertical: 'top', horizontal: 'left' };
 
       cells[3].value = va.phone || '-';
-      cells[3].alignment = { vertical: 'middle', horizontal: 'left' };
+      cells[3].alignment = { vertical: 'top', horizontal: 'left' };
 
       cells[4].value = va.schoolNames.length;
-      cells[4].alignment = { vertical: 'middle', horizontal: 'center' };
+      cells[4].alignment = { vertical: 'top', horizontal: 'center' };
 
-      cells[5].value = va.schoolNames.join(', ');
-      cells[5].alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+      cells[5].value = va.schoolNames.join('\n');
+      cells[5].alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
 
       cells[6].value = va.items.length;
-      cells[6].alignment = { vertical: 'middle', horizontal: 'center' };
+      cells[6].alignment = { vertical: 'top', horizontal: 'center' };
 
       cells[7].value = va.grandTotalPcs;
       cells[7].font = { name: 'Calibri', size: 10, bold: true };
-      cells[7].alignment = { vertical: 'middle', horizontal: 'right' };
+      cells[7].alignment = { vertical: 'top', horizontal: 'right' };
       cells[7].numFmt = '#,##0';
 
       grandAllVendorsPcs += va.grandTotalPcs;
@@ -1839,8 +1850,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Koperasi Konsumen Karyawan BPK PENABUR Jakarta';
     workbook.created = new Date();
-
-    const LEVEL_ORDER = ['SD', 'SMP', 'SMA', 'TK', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
 
     const availableLevels = Array.from(new Set(forecastItems.map((it) => it.level.toUpperCase().trim())));
     availableLevels.sort((a, b) => {
