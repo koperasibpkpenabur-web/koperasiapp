@@ -1538,50 +1538,69 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         const levelPcs = levelItems.reduce((sum, it) => sum + (it.total || 0), 0);
         totalPcsAllLevels += levelPcs;
 
-        const schoolCount = levelSchools.length;
-        summarySheet.getRow(sRow).height = Math.max(24, Math.min(300, schoolCount * 18));
+        const schoolList = levelSchools.length > 0 ? levelSchools : ['-'];
+        const rowCount = schoolList.length;
+        const startRow = sRow;
+        const endRow = startRow + rowCount - 1;
 
-        const cells = [
-          summarySheet.getCell(sRow, 1),
-          summarySheet.getCell(sRow, 2),
-          summarySheet.getCell(sRow, 3),
-          summarySheet.getCell(sRow, 4),
-          summarySheet.getCell(sRow, 5),
-          summarySheet.getCell(sRow, 6),
-          summarySheet.getCell(sRow, 7),
-        ];
+        schoolList.forEach((sName, subIdx) => {
+          const r = startRow + subIdx;
+          summarySheet.getRow(r).height = 20;
 
-        cells[0].value = idx + 1;
-        cells[0].alignment = { vertical: 'top', horizontal: 'center' };
+          // Siapkan seluruh cell di baris r dengan border dan font dasar
+          for (let c = 1; c <= 7; c++) {
+            const cell = summarySheet.getCell(r, c);
+            cell.font = { name: 'Calibri', size: 10 };
+            cell.border = thinBorder;
+          }
 
-        cells[1].value = getLevelDisplayTitle(lvl);
-        cells[1].font = { name: 'Calibri', size: 10, bold: true };
-        cells[1].alignment = { vertical: 'top', horizontal: 'center' };
-
-        cells[2].value = lvl;
-        cells[2].font = { name: 'Calibri', size: 10, italic: true };
-        cells[2].alignment = { vertical: 'top', horizontal: 'center' };
-
-        cells[3].value = schoolCount;
-        cells[3].alignment = { vertical: 'top', horizontal: 'center' };
-
-        cells[4].value = levelSchools.join('\n');
-        cells[4].alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
-
-        cells[5].value = levelItems.length;
-        cells[5].alignment = { vertical: 'top', horizontal: 'center' };
-
-        cells[6].value = levelPcs;
-        cells[6].font = { name: 'Calibri', size: 10, bold: true };
-        cells[6].alignment = { vertical: 'top', horizontal: 'right' };
-        cells[6].numFmt = '#,##0';
-
-        cells.forEach((c) => {
-          c.font = c.font || { name: 'Calibri', size: 10 };
-          c.border = thinBorder;
+          // Kolom 5: Daftar Sekolah (tiap sekolah di baris/cell sendiri)
+          const cellSch = summarySheet.getCell(r, 5);
+          cellSch.value = sName;
+          cellSch.alignment = { vertical: 'middle', horizontal: 'left' };
         });
 
-        sRow++;
+        // Set value dan styling untuk kolom data di baris pertama (startRow)
+        const cellNo = summarySheet.getCell(startRow, 1);
+        cellNo.value = idx + 1;
+        cellNo.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        const cellLvl = summarySheet.getCell(startRow, 2);
+        cellLvl.value = getLevelDisplayTitle(lvl);
+        cellLvl.font = { name: 'Calibri', size: 10, bold: true };
+        cellLvl.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        const cellSheet = summarySheet.getCell(startRow, 3);
+        cellSheet.value = lvl;
+        cellSheet.font = { name: 'Calibri', size: 10, italic: true };
+        cellSheet.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        const cellCount = summarySheet.getCell(startRow, 4);
+        cellCount.value = levelSchools.length;
+        cellCount.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        const cellItems = summarySheet.getCell(startRow, 6);
+        cellItems.value = levelItems.length;
+        cellItems.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        const cellPcs = summarySheet.getCell(startRow, 7);
+        cellPcs.value = levelPcs;
+        cellPcs.font = { name: 'Calibri', size: 10, bold: true };
+        cellPcs.alignment = { vertical: 'middle', horizontal: 'right' };
+        cellPcs.numFmt = '#,##0';
+
+        // Jika jumlah sekolah > 1, merge vertikal kolom 1, 2, 3, 4, 6, 7
+        if (endRow > startRow) {
+          summarySheet.mergeCells(startRow, 1, endRow, 1);
+          summarySheet.mergeCells(startRow, 2, endRow, 2);
+          summarySheet.mergeCells(startRow, 3, endRow, 3);
+          summarySheet.mergeCells(startRow, 4, endRow, 4);
+          // Kolom 5 (Daftar Sekolah) sengaja TIDAK di-merge agar tiap sekolah menempati cell baris sendiri
+          summarySheet.mergeCells(startRow, 6, endRow, 6);
+          summarySheet.mergeCells(startRow, 7, endRow, 7);
+        }
+
+        sRow = endRow + 1;
       });
 
       // Total row
@@ -1711,55 +1730,74 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     let grandAllVendorsPcs = 0;
 
     vendorAllocations.forEach((va, idx) => {
-      const schoolLineCount = Math.max(1, va.schoolNames.length);
-      summarySheet.getRow(sRow).height = Math.max(24, Math.min(300, schoolLineCount * 18));
+      const schoolList = va.schoolNames && va.schoolNames.length > 0 ? va.schoolNames : ['-'];
+      const rowCount = schoolList.length;
+      const startRow = sRow;
+      const endRow = startRow + rowCount - 1;
 
-      const cells = [
-        summarySheet.getCell(sRow, 1),
-        summarySheet.getCell(sRow, 2),
-        summarySheet.getCell(sRow, 3),
-        summarySheet.getCell(sRow, 4),
-        summarySheet.getCell(sRow, 5),
-        summarySheet.getCell(sRow, 6),
-        summarySheet.getCell(sRow, 7),
-        summarySheet.getCell(sRow, 8),
-      ];
+      schoolList.forEach((sName, subIdx) => {
+        const r = startRow + subIdx;
+        summarySheet.getRow(r).height = 20;
 
-      cells[0].value = idx + 1;
-      cells[0].alignment = { vertical: 'top', horizontal: 'center' };
+        for (let c = 1; c <= 8; c++) {
+          const cell = summarySheet.getCell(r, c);
+          cell.font = { name: 'Calibri', size: 10 };
+          cell.border = thinBorder;
+        }
 
-      cells[1].value = va.vendorName;
-      cells[1].font = { name: 'Calibri', size: 10, bold: true };
-      cells[1].alignment = { vertical: 'top', horizontal: 'left' };
+        // Kolom 6: Daftar Sekolah (tiap sekolah di baris/cell sendiri)
+        const cellSch = summarySheet.getCell(r, 6);
+        cellSch.value = sName;
+        cellSch.alignment = { vertical: 'middle', horizontal: 'left' };
+      });
 
-      cells[2].value = va.contactPerson || '-';
-      cells[2].alignment = { vertical: 'top', horizontal: 'left' };
+      // Data utama di baris startRow
+      const cellNo = summarySheet.getCell(startRow, 1);
+      cellNo.value = idx + 1;
+      cellNo.alignment = { vertical: 'middle', horizontal: 'center' };
 
-      cells[3].value = va.phone || '-';
-      cells[3].alignment = { vertical: 'top', horizontal: 'left' };
+      const cellVendor = summarySheet.getCell(startRow, 2);
+      cellVendor.value = va.vendorName;
+      cellVendor.font = { name: 'Calibri', size: 10, bold: true };
+      cellVendor.alignment = { vertical: 'middle', horizontal: 'left' };
 
-      cells[4].value = va.schoolNames.length;
-      cells[4].alignment = { vertical: 'top', horizontal: 'center' };
+      const cellPic = summarySheet.getCell(startRow, 3);
+      cellPic.value = va.contactPerson || '-';
+      cellPic.alignment = { vertical: 'middle', horizontal: 'left' };
 
-      cells[5].value = va.schoolNames.join('\n');
-      cells[5].alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+      const cellPhone = summarySheet.getCell(startRow, 4);
+      cellPhone.value = va.phone || '-';
+      cellPhone.alignment = { vertical: 'middle', horizontal: 'left' };
 
-      cells[6].value = va.items.length;
-      cells[6].alignment = { vertical: 'top', horizontal: 'center' };
+      const cellSchCount = summarySheet.getCell(startRow, 5);
+      cellSchCount.value = va.schoolNames.length;
+      cellSchCount.alignment = { vertical: 'middle', horizontal: 'center' };
 
-      cells[7].value = va.grandTotalPcs;
-      cells[7].font = { name: 'Calibri', size: 10, bold: true };
-      cells[7].alignment = { vertical: 'top', horizontal: 'right' };
-      cells[7].numFmt = '#,##0';
+      const cellItems = summarySheet.getCell(startRow, 7);
+      cellItems.value = va.items.length;
+      cellItems.alignment = { vertical: 'middle', horizontal: 'center' };
+
+      const cellPcs = summarySheet.getCell(startRow, 8);
+      cellPcs.value = va.grandTotalPcs;
+      cellPcs.font = { name: 'Calibri', size: 10, bold: true };
+      cellPcs.alignment = { vertical: 'middle', horizontal: 'right' };
+      cellPcs.numFmt = '#,##0';
 
       grandAllVendorsPcs += va.grandTotalPcs;
 
-      cells.forEach((c) => {
-        c.font = c.font || { name: 'Calibri', size: 10 };
-        c.border = thinBorder;
-      });
+      // Jika jumlah sekolah > 1, merge vertikal kolom 1, 2, 3, 4, 5, 7, 8
+      if (endRow > startRow) {
+        summarySheet.mergeCells(startRow, 1, endRow, 1);
+        summarySheet.mergeCells(startRow, 2, endRow, 2);
+        summarySheet.mergeCells(startRow, 3, endRow, 3);
+        summarySheet.mergeCells(startRow, 4, endRow, 4);
+        summarySheet.mergeCells(startRow, 5, endRow, 5);
+        // Kolom 6 (Daftar Sekolah) sengaja TIDAK di-merge agar tiap sekolah menempati cell baris sendiri
+        summarySheet.mergeCells(startRow, 7, endRow, 7);
+        summarySheet.mergeCells(startRow, 8, endRow, 8);
+      }
 
-      sRow++;
+      sRow = endRow + 1;
     });
 
     // Baris Total di Ringkasan
