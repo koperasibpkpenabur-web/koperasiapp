@@ -223,6 +223,33 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (!tNorm || !pNorm) return false;
     if (tNorm === pNorm) return true;
 
+    // 0. Cegah pencocokan silang warna jenjang yang berbeda: MERAH (SD) vs BIRU (SMP) vs ABU (SMA)
+    const hasMerahT = tNorm.includes('MERAH');
+    const hasBiruT = tNorm.includes('BIRU');
+    const hasAbuT = tNorm.includes('ABU');
+
+    const hasMerahP = pNorm.includes('MERAH');
+    const hasBiruP = pNorm.includes('BIRU');
+    const hasAbuP = pNorm.includes('ABU');
+
+    if ((hasMerahT && (hasBiruP || hasAbuP)) || (hasBiruT && (hasMerahP || hasAbuP)) || (hasAbuT && (hasMerahP || hasBiruP))) {
+      return false;
+    }
+
+    // 0b. Cegah pencocokan silang tingkatan Pramuka yang berbeda: SIAGA (SD) vs PENEGAK (SMA)
+    const hasSiagaT = tNorm.includes('SIAGA');
+    const hasPenegakT = tNorm.includes('PENEGAK');
+    const hasSiagaP = pNorm.includes('SIAGA');
+    const hasPenegakP = pNorm.includes('PENEGAK');
+
+    if ((hasSiagaT && hasPenegakP) || (hasPenegakT && hasSiagaP)) {
+      return false;
+    }
+
+    // 0c. TK Set Seragam Putra / Putri
+    if ((tNorm.includes('1 SET SERGM PI') || tNorm.includes('SERGM PI')) && (pNorm.includes('KOTAK PUTRI') || pNorm.includes('SERGM PI'))) return true;
+    if ((tNorm.includes('1 SET SERGM PA') || tNorm.includes('SERGM PA')) && (pNorm.includes('KOTAK PUTRA') || pNorm.includes('SERGM PA'))) return true;
+
     // Kotak Putra / Putri (e.g. SET KOTAK PUTRA <-> KOTAK-KOTAK PUTRA)
     if (tNorm.includes('KOTAK PUTRA') && pNorm.includes('KOTAK PUTRA')) return true;
     if (tNorm.includes('KOTAK PUTRI') && pNorm.includes('KOTAK PUTRI')) return true;
@@ -2014,52 +2041,230 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     return schoolName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase();
   };
 
-  const formatItemDisplayName = (itemName: string): string => {
+  const resolveSchoolLevel = (schoolName: string, email?: string, existingLevel?: string): string => {
+    const n = (schoolName || '').toUpperCase();
+    const e = (email || '').toLowerCase();
+
+    // Prioritas 1: Awalan nama resmi & email sekolah BPK PENABUR
+    if (n.startsWith('TKK') || n.includes('TKK ') || n.includes('TK ') || e.includes('tkk') || e.includes('penjualan.k')) return 'TK';
+    if (n.startsWith('SDK') || n.includes('SDK ') || n.includes('SD ') || e.includes('sdk') || e.includes('penjualan.d')) return 'SD';
+    if (n.startsWith('SMPK') || n.includes('SMPK ') || n.includes('SMP ') || e.includes('smpk') || e.includes('penjualan.p')) return 'SMP';
+    if (n.startsWith('SMAK') || n.startsWith('SMKF') || n.includes('SMAK ') || n.includes('SMA ') || n.includes('SMK') || e.includes('smak') || e.includes('penjualan.a')) return 'SMA';
+    if (n.includes('PRIMARY') || n.includes('SPK-SD')) return 'SPK-SD';
+    if (n.includes('LOWER') || n.includes('SPK-SMP')) return 'SPK-SMP';
+    if (n.includes('UPPER') || n.includes('SPK-SMA')) return 'SPK-SMA';
+
+    // Prioritas 2: Level yang sudah ada
+    const cleanLvl = (existingLevel || '').toUpperCase().trim();
+    if (cleanLvl) return cleanLvl;
+
+    return '';
+  };
+
+  const isItemAllowedForLevel = (rawItemName: string, level: string): boolean => {
+    const u = (rawItemName || '').toUpperCase();
+    const lvl = (level || '').toUpperCase().trim();
+
+    // Level TK: Hanya 1 SET SERAGAM & OLAHRAGA
+    if (lvl === 'TK') {
+      if (u.includes('SIAGA') || u.includes('PENGGALANG') || u.includes('PENEGAK')) return false;
+      if (u.includes('KLS') || u.includes('KELAS')) return false;
+      if (u.includes('MERAH') || u.includes('BIRU') || u.includes('ABU')) return false;
+      if (u.includes('JAS LAB')) return false;
+      return true;
+    }
+
+    // Level SD: Tidak boleh ada seragam TK (1 SET SERGM), SMP (BIRU), SMA (ABU, PENEGAK, JAS LAB)
+    if (lvl === 'SD') {
+      if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
+      if (u.includes('BIRU') || u.includes('ABU')) return false;
+      if (u.includes('PENEGAK') || u.includes('JAS LAB')) return false;
+      if (u.includes('KLS 7') || u.includes('KLS 8') || u.includes('KLS 9') || u.includes('KLS 10') || u.includes('KLS 11') || u.includes('KLS 12')) return false;
+      return true;
+    }
+
+    // Level SMP: Tidak boleh ada seragam TK (1 SET SERGM), SD (SIAGA, KLS 1-6, MERAH), SMA (ABU, PENEGAK, JAS LAB)
+    if (lvl === 'SMP') {
+      if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
+      if (u.includes('SIAGA')) return false;
+      if (u.includes('KLS 1') || u.includes('KLS 2') || u.includes('KLS 3-6') || u.includes('KLS 3-4') || u.includes('KLS 5-6')) return false;
+      if (u.includes('MERAH') || u.includes('ABU')) return false;
+      if (u.includes('PENEGAK') || u.includes('JAS LAB')) return false;
+      return true;
+    }
+
+    // Level SMA: Tidak boleh ada seragam TK (1 SET SERGM), SD (SIAGA, PENGGALANG, KLS 1-6, MERAH), SMP (BIRU)
+    if (lvl === 'SMA') {
+      if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
+      if (u.includes('SIAGA') || u.includes('PENGGALANG')) return false;
+      if (u.includes('KLS 1-2') || u.includes('KLS 3-6') || u.includes('KLS 1-4') || u.includes('KLS 5-6') || u.includes('KLS 7') || u.includes('KLS 8') || u.includes('KLS 9')) return false;
+      if (u.includes('MERAH') || u.includes('BIRU')) return false;
+      return true;
+    }
+
+    return true;
+  };
+
+  const getStandardItemsForLevel = (level: string): string[] => {
+    const lvl = (level || '').toUpperCase().trim();
+    if (lvl === 'TK') {
+      return ['1 SET SERGM PI', '1 SET SERGM PA', 'SET OLAHRAGA'];
+    }
+    if (lvl === 'SD') {
+      return [
+        'Kemeja Putih',
+        'Celana Kotak',
+        'Celana Polos',
+        'Rok Kotak kls 1-2',
+        'Rok Polos kls 1-2',
+        'Kulot Kotak kls 3-6',
+        'Kulot Polos kls 3-6',
+        'Rompi Kotak',
+        'Kemeja Pramuka Siaga Putra',
+        'Kemeja Pramuka Siaga Putri',
+        'Celana Pramuka Siaga',
+        'Rok Pramuka Siaga kls 1-2',
+        'Kulot Pramuka Siaga kls 3-4',
+        'Kemeja Pramuka Penggalang Putra',
+        'Kemeja Pramuka Penggalang Putri',
+        'Celana Pramuka Penggalang',
+        'Kulot Pramuka Penggalang',
+        'SET OLAHRAGA',
+      ];
+    }
+    if (lvl === 'SMP') {
+      return [
+        'Kemeja Putih',
+        'Celana Biru',
+        'Celana Panjang Biru',
+        'Rok Biru',
+        'Kulot Biru',
+        'Rompi Kotak',
+        'Kemeja Pramuka Penggalang Putra',
+        'Kemeja Pramuka Penggalang Putri',
+        'Celana Pramuka Penggalang',
+        'Kulot Pramuka Penggalang',
+        'SET OLAHRAGA',
+      ];
+    }
+    if (lvl === 'SMA') {
+      return [
+        'Kemeja Putih',
+        'Celana Panjang Abu',
+        'Rok Abu',
+        'Kulot Abu',
+        'Rompi Kotak',
+        'Kemeja Pramuka Penegak Putra',
+        'Kemeja Pramuka Penegak Putri',
+        'Celana Pramuka Penegak',
+        'Kulot Pramuka Penegak',
+        'Jas Lab',
+        'SET OLAHRAGA',
+      ];
+    }
+    return [];
+  };
+
+  const formatItemDisplayName = (itemName: string, level?: string): string => {
     const u = itemName.trim().toUpperCase();
-    if (u.includes('1 SET SERGM PI') || u.includes('1 SET SERAGAM PI')) return '1 SET SERGM PI';
-    if (u.includes('1 SET SERGM PA') || u.includes('1 SET SERAGAM PA')) return '1 SET SERGM PA';
-    if (u.includes('SET OLAHRAGA') || u === 'OLAHRAGA' || u.includes('1 SET OLAHRAGA')) return 'SET OLAHRAGA';
-    if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG')) return 'Kemeja Putih';
-    if (u.includes('CELANA KOTAK')) return 'Celana Kotak';
-    if (u.includes('CELANA POLOS') || u.includes('CELANA MERAH') || u.includes('CELANA BIRU') || u.includes('CELANA ABU')) return 'Celana Polos';
-    if (u.includes('ROK KOTAK')) return 'Rok Kotak kls 1-2';
-    if (u.includes('ROK POLOS') || u.includes('ROK MERAH') || u.includes('ROK BIRU') || u.includes('ROK ABU')) return 'Rok Polos kls 1-2';
-    if (u.includes('KULOT KOTAK')) return 'Kulot Kotak kls 3-6';
-    if (u.includes('KULOT POLOS') || u.includes('KULOT MERAH') || u.includes('KULOT BIRU') || u.includes('KULOT ABU')) return 'Kulot Polos kls 3-6';
-    if (u.includes('ROMPI KOTAK') || u === 'ROMPI') return 'Rompi Kotak';
-    if (u.includes('PRAMUKA') && u.includes('SIAGA') && u.includes('PUTRA')) return 'Kemeja Pramuka Siaga Putra';
-    if (u.includes('PRAMUKA') && u.includes('SIAGA') && u.includes('PUTRI')) return 'Kemeja Pramuka Siaga Putri';
-    if (u.includes('CELANA') && u.includes('PRAMUKA') && u.includes('SIAGA')) return 'Celana Pramuka Siaga';
-    if (u.includes('ROK') && u.includes('PRAMUKA') && u.includes('SIAGA')) return 'Rok Pramuka Siaga kls 1-2';
-    if (u.includes('KULOT') && u.includes('PRAMUKA') && u.includes('SIAGA')) return 'Kulot Pramuka Siaga kls 3-4';
-    if (u.includes('PRAMUKA') && (u.includes('PENGGALANG') || u.includes('PENEGAK')) && u.includes('PUTRA')) return 'Kemeja Pramuka Penggalang Putra';
-    if (u.includes('PRAMUKA') && (u.includes('PENGGALANG') || u.includes('PENEGAK')) && u.includes('PUTRI')) return 'Kemeja Pramuka Penggalang Putri';
-    if (u.includes('CELANA') && u.includes('PRAMUKA') && (u.includes('PENGGALANG') || u.includes('PENEGAK') || !u.includes('SIAGA'))) return 'Celana Pramuka Penggalang';
-    if (u.includes('KULOT') && u.includes('PRAMUKA') && (u.includes('PENGGALANG') || u.includes('PENEGAK') || !u.includes('SIAGA'))) return 'Kulot Pramuka Penggalang';
+    const lvl = (level || '').toUpperCase().trim();
+
+    if (lvl === 'TK') {
+      if (u.includes('1 SET SERGM PI') || u.includes('1 SET SERAGAM PI') || (u.includes('KOTAK') && u.includes('PUTRI'))) return '1 SET SERGM PI';
+      if (u.includes('1 SET SERGM PA') || u.includes('1 SET SERAGAM PA') || (u.includes('KOTAK') && u.includes('PUTRA'))) return '1 SET SERGM PA';
+      if (u.includes('SET OLAHRAGA') || u === 'OLAHRAGA' || u.includes('1 SET OLAHRAGA')) return 'SET OLAHRAGA';
+      return itemName;
+    }
+
+    if (lvl === 'SD') {
+      if (u.includes('SET OLAHRAGA') || u === 'OLAHRAGA' || u.includes('1 SET OLAHRAGA')) return 'SET OLAHRAGA';
+      if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG') || u === 'KEMEJA') return 'Kemeja Putih';
+      if (u.includes('CELANA KOTAK')) return 'Celana Kotak';
+      if (u.includes('CELANA POLOS') || u.includes('CELANA MERAH')) return 'Celana Polos';
+      if (u.includes('ROK KOTAK')) return 'Rok Kotak kls 1-2';
+      if (u.includes('ROK POLOS') || u.includes('ROK MERAH')) return 'Rok Polos kls 1-2';
+      if (u.includes('KULOT KOTAK')) return 'Kulot Kotak kls 3-6';
+      if (u.includes('KULOT POLOS') || u.includes('KULOT MERAH')) return 'Kulot Polos kls 3-6';
+      if (u.includes('ROMPI KOTAK') || u === 'ROMPI') return 'Rompi Kotak';
+      if (u.includes('PRAMUKA') && u.includes('SIAGA') && u.includes('PUTRA')) return 'Kemeja Pramuka Siaga Putra';
+      if (u.includes('PRAMUKA') && u.includes('SIAGA') && u.includes('PUTRI')) return 'Kemeja Pramuka Siaga Putri';
+      if (u.includes('CELANA') && u.includes('PRAMUKA') && u.includes('SIAGA')) return 'Celana Pramuka Siaga';
+      if (u.includes('ROK') && u.includes('PRAMUKA') && u.includes('SIAGA')) return 'Rok Pramuka Siaga kls 1-2';
+      if (u.includes('KULOT') && u.includes('PRAMUKA') && u.includes('SIAGA')) return 'Kulot Pramuka Siaga kls 3-4';
+      if (u.includes('PRAMUKA') && u.includes('PENGGALANG') && u.includes('PUTRA')) return 'Kemeja Pramuka Penggalang Putra';
+      if (u.includes('PRAMUKA') && u.includes('PENGGALANG') && u.includes('PUTRI')) return 'Kemeja Pramuka Penggalang Putri';
+      if (u.includes('CELANA') && u.includes('PRAMUKA') && u.includes('PENGGALANG')) return 'Celana Pramuka Penggalang';
+      if (u.includes('KULOT') && u.includes('PRAMUKA') && u.includes('PENGGALANG')) return 'Kulot Pramuka Penggalang';
+      if (u.includes('BATIK')) return 'Batik SD';
+      return itemName;
+    }
+
+    if (lvl === 'SMP') {
+      if (u.includes('SET OLAHRAGA') || u === 'OLAHRAGA' || u.includes('1 SET OLAHRAGA')) return 'SET OLAHRAGA';
+      if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG') || u === 'KEMEJA') return 'Kemeja Putih';
+      if (u.includes('CELANA PANJANG BIRU')) return 'Celana Panjang Biru';
+      if (u.includes('CELANA BIRU') || u.includes('CELANA PENDEK BIRU')) return 'Celana Biru';
+      if (u.includes('ROK BIRU')) return 'Rok Biru';
+      if (u.includes('KULOT BIRU')) return 'Kulot Biru';
+      if (u.includes('ROMPI KOTAK') || u === 'ROMPI') return 'Rompi Kotak';
+      if (u.includes('PRAMUKA') && u.includes('PUTRA') && u.includes('KEMEJA')) return 'Kemeja Pramuka Penggalang Putra';
+      if (u.includes('PRAMUKA') && u.includes('PUTRI') && u.includes('KEMEJA')) return 'Kemeja Pramuka Penggalang Putri';
+      if (u.includes('CELANA') && u.includes('PRAMUKA')) return 'Celana Pramuka Penggalang';
+      if (u.includes('KULOT') && u.includes('PRAMUKA')) return 'Kulot Pramuka Penggalang';
+      if (u.includes('BATIK')) return 'Batik SMP';
+      return itemName;
+    }
+
+    if (lvl === 'SMA') {
+      if (u.includes('SET OLAHRAGA') || u === 'OLAHRAGA' || u.includes('1 SET OLAHRAGA')) return 'SET OLAHRAGA';
+      if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG') || u === 'KEMEJA') return 'Kemeja Putih';
+      if (u.includes('CELANA PANJANG ABU') || u.includes('CELANA ABU')) return 'Celana Panjang Abu';
+      if (u.includes('ROK ABU')) return 'Rok Abu';
+      if (u.includes('KULOT ABU')) return 'Kulot Abu';
+      if (u.includes('ROMPI KOTAK') || u === 'ROMPI') return 'Rompi Kotak';
+      if (u.includes('PRAMUKA') && u.includes('PUTRA') && u.includes('KEMEJA')) return 'Kemeja Pramuka Penegak Putra';
+      if (u.includes('PRAMUKA') && u.includes('PUTRI') && u.includes('KEMEJA')) return 'Kemeja Pramuka Penegak Putri';
+      if (u.includes('CELANA') && u.includes('PRAMUKA')) return 'Celana Pramuka Penegak';
+      if (u.includes('KULOT') && u.includes('PRAMUKA')) return 'Kulot Pramuka Penegak';
+      if (u.includes('JAS LAB')) return 'Jas Lab';
+      if (u.includes('BATIK')) return 'Batik SMA';
+      return itemName;
+    }
+
     return itemName;
   };
 
-  const getItemPriority = (item: string): number => {
+  const getItemPriority = (item: string, level?: string): number => {
     const s = item.toUpperCase();
-    if (s.includes('1 SET SERGM PI')) return 1;
-    if (s.includes('1 SET SERGM PA')) return 2;
-    if (s.includes('KEMEJA PUTIH')) return 10;
+    const lvl = (level || '').toUpperCase().trim();
+
+    if (lvl === 'TK') {
+      if (s.includes('1 SET SERGM PI')) return 1;
+      if (s.includes('1 SET SERGM PA')) return 2;
+      if (s.includes('OLAHRAGA')) return 3;
+      return 10;
+    }
+
+    if (s.includes('KEMEJA PUTIH') || s === 'KEMEJA') return 10;
     if (s.includes('CELANA KOTAK')) return 11;
-    if (s.includes('CELANA POLOS') || s.includes('CELANA MERAH') || s.includes('CELANA BIRU') || s.includes('CELANA ABU')) return 12;
+    if (s.includes('CELANA POLOS') || s.includes('CELANA BIRU') || s.includes('CELANA ABU')) return 12;
+    if (s.includes('CELANA PANJANG')) return 12.5;
     if (s.includes('ROK KOTAK')) return 13;
-    if (s.includes('ROK POLOS') || s.includes('ROK MERAH')) return 14;
+    if (s.includes('ROK POLOS') || s.includes('ROK BIRU') || s.includes('ROK ABU')) return 14;
     if (s.includes('KULOT KOTAK')) return 15;
-    if (s.includes('KULOT POLOS') || s.includes('KULOT MERAH') || s.includes('KULOT BIRU') || s.includes('KULOT ABU')) return 16;
+    if (s.includes('KULOT POLOS') || s.includes('KULOT BIRU') || s.includes('KULOT ABU')) return 16;
     if (s.includes('ROMPI')) return 17;
-    if (s.includes('PRAMUKA') && s.includes('SIAGA') && s.includes('PUTRA')) return 20;
-    if (s.includes('PRAMUKA') && s.includes('SIAGA') && s.includes('PUTRI')) return 21;
-    if (s.includes('CELANA') && s.includes('PRAMUKA') && s.includes('SIAGA')) return 22;
-    if (s.includes('ROK') && s.includes('PRAMUKA') && s.includes('SIAGA')) return 23;
-    if (s.includes('KULOT') && s.includes('PRAMUKA') && s.includes('SIAGA')) return 24;
-    if (s.includes('PRAMUKA') && (s.includes('PENGGALANG') || s.includes('PENEGAK')) && s.includes('PUTRA')) return 25;
-    if (s.includes('PRAMUKA') && (s.includes('PENGGALANG') || s.includes('PENEGAK')) && s.includes('PUTRI')) return 26;
-    if (s.includes('CELANA') && s.includes('PRAMUKA')) return 27;
-    if (s.includes('KULOT') && s.includes('PRAMUKA')) return 28;
+    if (s.includes('SIAGA') && s.includes('PUTRA')) return 20;
+    if (s.includes('SIAGA') && s.includes('PUTRI')) return 21;
+    if (s.includes('CELANA') && s.includes('SIAGA')) return 22;
+    if (s.includes('ROK') && s.includes('SIAGA')) return 23;
+    if (s.includes('KULOT') && s.includes('SIAGA')) return 24;
+    if ((s.includes('PENGGALANG') || s.includes('PENEGAK')) && s.includes('PUTRA')) return 25;
+    if ((s.includes('PENGGALANG') || s.includes('PENEGAK')) && s.includes('PUTRI')) return 26;
+    if (s.includes('CELANA') && (s.includes('PENGGALANG') || s.includes('PENEGAK') || s.includes('PRAMUKA'))) return 27;
+    if (s.includes('KULOT') && (s.includes('PENGGALANG') || s.includes('PENEGAK') || s.includes('PRAMUKA'))) return 28;
+    if (s.includes('JAS LAB')) return 35;
+    if (s.includes('BATIK')) return 38;
     if (s.includes('KACU')) return 40;
     if (s.includes('NAME TAG')) return 50;
     if (s.includes('GUDEP')) return 51;
@@ -2081,11 +2286,14 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       const jenjangOrder = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
       const activeLevels = jenjangOrder.filter((lvl) => {
         const hasPlottings = vPlottings.some((p) => {
-          let pLvl = (p.app_users?.school_level || '').toUpperCase().trim();
-          if (!pLvl) {
-            const sch = schools.find((s) => s.id === p.school_user_id);
-            if (sch) pLvl = (sch.level || '').toUpperCase().trim();
+          let sName = p.app_users?.school_name || '';
+          let sEmail = p.app_users?.username || '';
+          const sch = schools.find((s) => s.id === p.school_user_id);
+          if (sch) {
+            if (!sName) sName = sch.school_name;
+            if (!sEmail) sEmail = sch.email || '';
           }
+          const pLvl = resolveSchoolLevel(sName, sEmail, p.app_users?.school_level || sch?.level);
           return pLvl === lvl;
         });
         const hasAlloc = vendorAlloc.items.some((it) => it.level.toUpperCase().trim() === lvl);
@@ -2120,11 +2328,14 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       activeLevels.forEach((lvl, lvlIdx) => {
         const headerTitle = lvl === 'TK' ? 'TKK' : lvl === 'SD' ? 'SDK' : lvl === 'SMP' ? 'SMPK' : lvl === 'SMA' ? 'SMAK' : lvl;
         const lvlPlottings = vPlottings.filter((p) => {
-          let pLvl = (p.app_users?.school_level || '').toUpperCase().trim();
-          if (!pLvl) {
-            const sch = schools.find((s) => s.id === p.school_user_id);
-            if (sch) pLvl = (sch.level || '').toUpperCase().trim();
+          let sName = p.app_users?.school_name || '';
+          let sEmail = p.app_users?.username || '';
+          const sch = schools.find((s) => s.id === p.school_user_id);
+          if (sch) {
+            if (!sName) sName = sch.school_name;
+            if (!sEmail) sEmail = sch.email || '';
           }
+          const pLvl = resolveSchoolLevel(sName, sEmail, p.app_users?.school_level || sch?.level);
           return pLvl === lvl;
         });
 
@@ -2138,6 +2349,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             if (!sName) sName = sch.school_name;
             if (!sEmail) sEmail = sch.email || '';
           }
+          const detectedLvl = resolveSchoolLevel(sName, sEmail, p.app_users?.school_level || sch?.level);
+          if (detectedLvl !== lvl) return;
+
           const sId = p.school_user_id || sName;
           if (sName && !schoolMap.has(sId)) {
             schoolMap.set(sId, {
@@ -2154,13 +2368,17 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           .forEach((it) => {
             (it.schoolsForItem || []).forEach((sName) => {
               const schObj = schools.find((s) => s.school_name === sName);
+              const sEmail = schObj?.email || '';
+              const detectedLvl = resolveSchoolLevel(sName, sEmail, schObj?.level);
+              if (detectedLvl !== lvl) return;
+
               const sId = schObj?.id || sName;
               if (sName && !schoolMap.has(sId)) {
                 schoolMap.set(sId, {
                   id: sId,
                   name: sName,
-                  email: schObj?.email || '',
-                  code: getSchoolDisplayCode(sName, schObj?.email, lvl),
+                  email: sEmail,
+                  code: getSchoolDisplayCode(sName, sEmail, lvl),
                 });
               }
             });
@@ -2170,14 +2388,21 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         if (schoolList.length === 0) return;
 
         schoolList.sort((a, b) => {
-          const isTmA = a.code.startsWith('TM');
-          const isTmB = b.code.startsWith('TM');
           const isDkgiA = a.code === 'DKGI';
           const isDkgiB = b.code === 'DKGI';
           if (isDkgiA) return 1;
           if (isDkgiB) return -1;
+
+          const isTmA = a.code.startsWith('TM');
+          const isTmB = b.code.startsWith('TM');
           if (isTmA && !isTmB) return 1;
           if (!isTmA && isTmB) return -1;
+
+          const isNumA = /^[A-Z]\d+$/.test(a.code);
+          const isNumB = /^[A-Z]\d+$/.test(b.code);
+          if (isNumA && !isNumB) return -1;
+          if (!isNumA && isNumB) return 1;
+
           return a.code.localeCompare(b.code, 'id', { numeric: true });
         });
 
@@ -2186,9 +2411,11 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           if (p.clothing_type && p.clothing_type !== 'Semua Jenis Baju') {
             p.clothing_type.split(',').forEach((raw) => {
               const trimmed = raw.trim();
-              if (trimmed) {
-                const formatted = formatItemDisplayName(trimmed);
-                if (!itemMap.has(formatted)) itemMap.set(formatted, trimmed);
+              if (trimmed && isItemAllowedForLevel(trimmed, lvl)) {
+                const formatted = formatItemDisplayName(trimmed, lvl);
+                if (isItemAllowedForLevel(formatted, lvl) && !itemMap.has(formatted)) {
+                  itemMap.set(formatted, trimmed);
+                }
               }
             });
           }
@@ -2197,8 +2424,12 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         vendorAlloc.items
           .filter((it) => it.level.toUpperCase().trim() === lvl)
           .forEach((it) => {
-            const formatted = formatItemDisplayName(it.uniformName);
-            if (!itemMap.has(formatted)) itemMap.set(formatted, it.uniformName);
+            if (isItemAllowedForLevel(it.uniformName, lvl)) {
+              const formatted = formatItemDisplayName(it.uniformName, lvl);
+              if (isItemAllowedForLevel(formatted, lvl) && !itemMap.has(formatted)) {
+                itemMap.set(formatted, it.uniformName);
+              }
+            }
           });
 
         const hasAllBaju = lvlPlottings.some((p) => p.clothing_type === 'Semua Jenis Baju');
@@ -2206,27 +2437,25 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           forecastItems
             .filter((f) => f.level.toUpperCase().trim() === lvl)
             .forEach((f) => {
-              const formatted = formatItemDisplayName(f.uniformName);
-              if (!itemMap.has(formatted)) itemMap.set(formatted, f.uniformName);
+              if (isItemAllowedForLevel(f.uniformName, lvl)) {
+                const formatted = formatItemDisplayName(f.uniformName, lvl);
+                if (isItemAllowedForLevel(formatted, lvl) && !itemMap.has(formatted)) {
+                  itemMap.set(formatted, f.uniformName);
+                }
+              }
             });
         }
 
         if (itemMap.size === 0) {
-          products
-            .filter((pr) => {
-              const pLvl = (pr.level || '').toUpperCase().trim();
-              const isBuku = pr.category && pr.category.toLowerCase() === 'buku';
-              return !isBuku && (pLvl === lvl || (lvl === 'SD' && pLvl === 'SD') || (lvl === 'TK' && pLvl === 'TK'));
-            })
-            .forEach((pr) => {
-              const formatted = formatItemDisplayName(pr.name);
-              if (!itemMap.has(formatted)) itemMap.set(formatted, pr.name);
-            });
+          const standardItems = getStandardItemsForLevel(lvl);
+          standardItems.forEach((std) => {
+            if (!itemMap.has(std)) itemMap.set(std, std);
+          });
         }
 
         const items = Array.from(itemMap.keys()).sort((a, b) => {
-          const pA = getItemPriority(a);
-          const pB = getItemPriority(b);
+          const pA = getItemPriority(a, lvl);
+          const pB = getItemPriority(b, lvl);
           if (pA !== pB) return pA - pB;
           return a.localeCompare(b);
         });
@@ -2279,7 +2508,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
               const allocItem = vendorAlloc.items.find(
                 (it) =>
                   it.level.toUpperCase().trim() === lvl &&
-                  (it.uniformName.toLowerCase() === origName.toLowerCase() || formatItemDisplayName(it.uniformName) === formattedName)
+                  (it.uniformName.toLowerCase() === origName.toLowerCase() || formatItemDisplayName(it.uniformName, lvl) === formattedName)
               );
               if (allocItem && allocItem.schoolsForItem?.some((sn) => sn.toLowerCase().trim() === sch.name.toLowerCase().trim())) {
                 isAssigned = true;
@@ -2297,7 +2526,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           if (
             assignedCount === schoolList.length &&
             schoolList.length > 2 &&
-            (formattedName.toUpperCase().includes('OLAHRAGA') || formattedName.toUpperCase().includes('SET SERGM'))
+            formattedName.toUpperCase().includes('OLAHRAGA')
           ) {
             tableRows.push([
               formattedName,
