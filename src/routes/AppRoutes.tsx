@@ -5,25 +5,46 @@ import MainLayout from '../components/layout/MainLayout';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
 import type { UserRole } from '../types';
 
-// Lazy loading modul halaman (Code Splitting)
-const LoginPage = lazy(() => import('../pages/Auth/LoginPage'));
-const AdminDashboard = lazy(() => import('../pages/Admin/AdminDashboard'));
-const UserManagement = lazy(() => import('../pages/Admin/UserManagement'));
-const SchoolDashboard = lazy(() => import('../pages/School/SchoolDashboard'));
-const SchoolPemesanan = lazy(() => import('../pages/School/SchoolPemesanan'));
-const SchoolPayment = lazy(() => import('../pages/School/SchoolPayment'));
-const KopkarDashboard = lazy(() => import('../pages/Kopkar/KopkarDashboard'));
-const KopkarPesanan = lazy(() => import('../pages/Kopkar/KopkarPesanan'));
-const KopkarPelunasan = lazy(() => import('../pages/Kopkar/KopkarPelunasan'));
-const ItemManagement = lazy(() => import('../pages/Kopkar/ItemManagement'));
-const VendorManagement = lazy(() => import('../pages/Kopkar/VendorManagement'));
-const KopkarReturn = lazy(() => import('../pages/Kopkar/KopkarReturn'));
-const KopkarRekap = lazy(() => import('../pages/Kopkar/KopkarRekap'));
-const KopkarNotifikasi = lazy(() => import('../pages/Kopkar/KopkarNotifikasi'));
-const SchoolReturn = lazy(() => import('../pages/School/SchoolReturn'));
-const SchoolRekap = lazy(() => import('../pages/School/SchoolRekap'));
-const PengurusDashboard = lazy(() => import('../pages/Pengurus/PengurusDashboard'));
-const GuruOtsPemesanan = lazy(() => import('../pages/GuruOts/GuruOtsPemesanan'));
+// Helper untuk menangani cache chunk lama saat ada update deployment baru (mencegah layar putih)
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  componentImport: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    try {
+      return await componentImport();
+    } catch (error) {
+      console.warn('Chunk loading failed, reloading app for latest build...', error);
+      const isRefreshed = sessionStorage.getItem('chunk_reload');
+      if (!isRefreshed) {
+        sessionStorage.setItem('chunk_reload', 'true');
+        window.location.reload();
+        return { default: (() => null) as unknown as T };
+      }
+      sessionStorage.removeItem('chunk_reload');
+      throw error;
+    }
+  });
+}
+
+// Lazy loading modul halaman (Code Splitting dengan auto-retry)
+const LoginPage = lazyWithRetry(() => import('../pages/Auth/LoginPage'));
+const AdminDashboard = lazyWithRetry(() => import('../pages/Admin/AdminDashboard'));
+const UserManagement = lazyWithRetry(() => import('../pages/Admin/UserManagement'));
+const SchoolDashboard = lazyWithRetry(() => import('../pages/School/SchoolDashboard'));
+const SchoolPemesanan = lazyWithRetry(() => import('../pages/School/SchoolPemesanan'));
+const SchoolPayment = lazyWithRetry(() => import('../pages/School/SchoolPayment'));
+const KopkarDashboard = lazyWithRetry(() => import('../pages/Kopkar/KopkarDashboard'));
+const KopkarPesanan = lazyWithRetry(() => import('../pages/Kopkar/KopkarPesanan'));
+const KopkarPelunasan = lazyWithRetry(() => import('../pages/Kopkar/KopkarPelunasan'));
+const ItemManagement = lazyWithRetry(() => import('../pages/Kopkar/ItemManagement'));
+const VendorManagement = lazyWithRetry(() => import('../pages/Kopkar/VendorManagement'));
+const KopkarReturn = lazyWithRetry(() => import('../pages/Kopkar/KopkarReturn'));
+const KopkarRekap = lazyWithRetry(() => import('../pages/Kopkar/KopkarRekap'));
+const KopkarNotifikasi = lazyWithRetry(() => import('../pages/Kopkar/KopkarNotifikasi'));
+const SchoolReturn = lazyWithRetry(() => import('../pages/School/SchoolReturn'));
+const SchoolRekap = lazyWithRetry(() => import('../pages/School/SchoolRekap'));
+const PengurusDashboard = lazyWithRetry(() => import('../pages/Pengurus/PengurusDashboard'));
+const GuruOtsPemesanan = lazyWithRetry(() => import('../pages/GuruOts/GuruOtsPemesanan'));
 
 const PageLoader = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px', color: '#64748b', fontSize: '0.95rem', gap: '8px' }}>
