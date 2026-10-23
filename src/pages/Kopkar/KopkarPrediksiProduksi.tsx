@@ -3,7 +3,14 @@ import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable, { applyPlugin } from 'jspdf-autotable';
+
+// Pastikan plugin terpasang pada prototype jsPDF
+try {
+  applyPlugin(jsPDF);
+} catch {
+  // plugin may already be attached
+}
 import { supabase } from '../../lib/supabase';
 
 export interface ForecastItem {
@@ -2061,273 +2068,327 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   };
 
   const handleExportVendorSPKPdf = (vendorAlloc: VendorAllocation) => {
-    const vPlottings = plottings.filter((p) => p.vendor_id === vendorAlloc.vendorId);
-    if (vPlottings.length === 0 && vendorAlloc.items.length === 0) {
-      alert(`Vendor "${vendorAlloc.vendorName}" belum memiliki data penugasan plotting sekolah.`);
-      return;
-    }
-
-    const doc = new jsPDF('landscape', 'mm', 'a4');
-    const vendorLabel = getVendorShortCode(vendorAlloc.vendorName);
-
-    const jenjangOrder = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
-    const activeLevels = jenjangOrder.filter((lvl) => {
-      const hasPlottings = vPlottings.some((p) => (p.app_users?.school_level || '').toUpperCase().trim() === lvl);
-      const hasAlloc = vendorAlloc.items.some((it) => it.level.toUpperCase().trim() === lvl);
-      return hasPlottings || hasAlloc;
-    });
-
-    if (activeLevels.length === 0) {
-      alert(`Tidak ada jenjang sekolah yang aktif untuk vendor "${vendorAlloc.vendorName}".`);
-      return;
-    }
-
-    let currentY = 14;
-
-    // Header Dokumen
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.text(`${vendorAlloc.vendorName.toUpperCase()} TA ${targetYear}`, 14, currentY);
-    currentY += 5;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(80, 80, 80);
-    doc.text(
-      `Lampiran Surat Perintah Kerja (SPK) - Matriks Penugasan Seragam per Sekolah | PIC: ${vendorAlloc.contactPerson || '-'} | Telp: ${vendorAlloc.phone || '-'}`,
-      14,
-      currentY
-    );
-    currentY += 7;
-
-    activeLevels.forEach((lvl, lvlIdx) => {
-      const headerTitle = lvl === 'TK' ? 'TKK' : lvl === 'SD' ? 'SDK' : lvl === 'SMP' ? 'SMPK' : lvl === 'SMA' ? 'SMAK' : lvl;
-      const lvlPlottings = vPlottings.filter((p) => (p.app_users?.school_level || '').toUpperCase().trim() === lvl);
-
-      const schoolMap = new Map<string, { id: string; name: string; email: string; code: string }>();
-
-      lvlPlottings.forEach((p) => {
-        const sName = p.app_users?.school_name || '';
-        const sEmail = p.app_users?.username || '';
-        const sId = p.school_user_id || sName;
-        if (sName && !schoolMap.has(sId)) {
-          schoolMap.set(sId, {
-            id: sId,
-            name: sName,
-            email: sEmail,
-            code: getSchoolDisplayCode(sName, sEmail, lvl),
-          });
-        }
-      });
-
-      vendorAlloc.items
-        .filter((it) => it.level.toUpperCase().trim() === lvl)
-        .forEach((it) => {
-          (it.schoolsForItem || []).forEach((sName) => {
-            const schObj = schools.find((s) => s.school_name === sName);
-            const sId = schObj?.id || sName;
-            if (sName && !schoolMap.has(sId)) {
-              schoolMap.set(sId, {
-                id: sId,
-                name: sName,
-                email: schObj?.email || '',
-                code: getSchoolDisplayCode(sName, schObj?.email, lvl),
-              });
-            }
-          });
-        });
-
-      const schoolList = Array.from(schoolMap.values());
-      if (schoolList.length === 0) return;
-
-      schoolList.sort((a, b) => {
-        const isTmA = a.code.startsWith('TM');
-        const isTmB = b.code.startsWith('TM');
-        const isDkgiA = a.code === 'DKGI';
-        const isDkgiB = b.code === 'DKGI';
-        if (isDkgiA) return 1;
-        if (isDkgiB) return -1;
-        if (isTmA && !isTmB) return 1;
-        if (!isTmA && isTmB) return -1;
-        return a.code.localeCompare(b.code, 'id', { numeric: true });
-      });
-
-      const itemMap = new Map<string, string>();
-      lvlPlottings.forEach((p) => {
-        if (p.clothing_type && p.clothing_type !== 'Semua Jenis Baju') {
-          p.clothing_type.split(',').forEach((raw) => {
-            const trimmed = raw.trim();
-            if (trimmed) {
-              const formatted = formatItemDisplayName(trimmed);
-              if (!itemMap.has(formatted)) itemMap.set(formatted, trimmed);
-            }
-          });
-        }
-      });
-
-      vendorAlloc.items
-        .filter((it) => it.level.toUpperCase().trim() === lvl)
-        .forEach((it) => {
-          const formatted = formatItemDisplayName(it.uniformName);
-          if (!itemMap.has(formatted)) itemMap.set(formatted, it.uniformName);
-        });
-
-      const hasAllBaju = lvlPlottings.some((p) => p.clothing_type === 'Semua Jenis Baju');
-      if (hasAllBaju) {
-        forecastItems
-          .filter((f) => f.level.toUpperCase().trim() === lvl)
-          .forEach((f) => {
-            const formatted = formatItemDisplayName(f.uniformName);
-            if (!itemMap.has(formatted)) itemMap.set(formatted, f.uniformName);
-          });
+    try {
+      const vPlottings = plottings.filter((p) => p.vendor_id === vendorAlloc.vendorId);
+      if (vPlottings.length === 0 && vendorAlloc.items.length === 0) {
+        alert(`Vendor "${vendorAlloc.vendorName}" belum memiliki data penugasan plotting sekolah.`);
+        return;
       }
 
-      const items = Array.from(itemMap.keys()).sort((a, b) => {
-        const pA = getItemPriority(a);
-        const pB = getItemPriority(b);
-        if (pA !== pB) return pA - pB;
-        return a.localeCompare(b);
+      const doc = new jsPDF('landscape', 'mm', 'a4');
+      const vendorLabel = getVendorShortCode(vendorAlloc.vendorName);
+
+      const jenjangOrder = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
+      const activeLevels = jenjangOrder.filter((lvl) => {
+        const hasPlottings = vPlottings.some((p) => {
+          let pLvl = (p.app_users?.school_level || '').toUpperCase().trim();
+          if (!pLvl) {
+            const sch = schools.find((s) => s.id === p.school_user_id);
+            if (sch) pLvl = (sch.level || '').toUpperCase().trim();
+          }
+          return pLvl === lvl;
+        });
+        const hasAlloc = vendorAlloc.items.some((it) => it.level.toUpperCase().trim() === lvl);
+        return hasPlottings || hasAlloc;
       });
 
-      if (items.length === 0) return;
-
-      if (currentY > 155 && lvlIdx > 0) {
-        doc.addPage();
-        currentY = 14;
+      if (activeLevels.length === 0) {
+        alert(`Tidak ada jenjang sekolah yang aktif untuk vendor "${vendorAlloc.vendorName}".`);
+        return;
       }
 
+      let currentY = 14;
+
+      // Header Dokumen
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10.5);
-      doc.setTextColor(0, 0, 0);
-      doc.text(headerTitle, 14, currentY);
-      currentY += 2;
+      doc.setFontSize(13);
+      doc.text(`${vendorAlloc.vendorName.toUpperCase()} TA ${targetYear}`, 14, currentY);
+      currentY += 5;
 
-      const headColumns = ['JENIS', ...schoolList.map((s) => s.code)];
-      const tableRows: any[] = [];
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(80, 80, 80);
+      doc.text(
+        `Lampiran Surat Perintah Kerja (SPK) - Matriks Penugasan Seragam per Sekolah | PIC: ${vendorAlloc.contactPerson || '-'} | Telp: ${vendorAlloc.phone || '-'}`,
+        14,
+        currentY
+      );
+      currentY += 7;
 
-      items.forEach((formattedName) => {
-        const origName = itemMap.get(formattedName) || formattedName;
-        const rowCells: any[] = [formattedName];
-        let assignedCount = 0;
+      let tablesCreated = 0;
 
-        schoolList.forEach((sch) => {
-          const pMatch = lvlPlottings.find(
-            (p) =>
-              p.school_user_id === sch.id ||
-              (p.app_users?.school_name && p.app_users.school_name.toLowerCase().trim() === sch.name.toLowerCase().trim())
-          );
-
-          let isAssigned = false;
-          if (pMatch) {
-            if (pMatch.clothing_type === 'Semua Jenis Baju') {
-              isAssigned = true;
-            } else if (pMatch.clothing_type) {
-              const types = pMatch.clothing_type.split(',').map((t) => t.trim());
-              isAssigned = types.some(
-                (pt) =>
-                  isClothingTypeMatch(origName, pt) ||
-                  isClothingTypeMatch(formattedName, pt) ||
-                  pt.toLowerCase().includes(formattedName.toLowerCase()) ||
-                  formattedName.toLowerCase().includes(pt.toLowerCase())
-              );
-            }
+      activeLevels.forEach((lvl, lvlIdx) => {
+        const headerTitle = lvl === 'TK' ? 'TKK' : lvl === 'SD' ? 'SDK' : lvl === 'SMP' ? 'SMPK' : lvl === 'SMA' ? 'SMAK' : lvl;
+        const lvlPlottings = vPlottings.filter((p) => {
+          let pLvl = (p.app_users?.school_level || '').toUpperCase().trim();
+          if (!pLvl) {
+            const sch = schools.find((s) => s.id === p.school_user_id);
+            if (sch) pLvl = (sch.level || '').toUpperCase().trim();
           }
+          return pLvl === lvl;
+        });
 
-          if (!isAssigned) {
-            const allocItem = vendorAlloc.items.find(
-              (it) =>
-                it.level.toUpperCase().trim() === lvl &&
-                (it.uniformName.toLowerCase() === origName.toLowerCase() || formatItemDisplayName(it.uniformName) === formattedName)
-            );
-            if (allocItem && allocItem.schoolsForItem?.some((sn) => sn.toLowerCase().trim() === sch.name.toLowerCase().trim())) {
-              isAssigned = true;
-            }
+        const schoolMap = new Map<string, { id: string; name: string; email: string; code: string }>();
+
+        lvlPlottings.forEach((p) => {
+          let sName = p.app_users?.school_name || '';
+          let sEmail = p.app_users?.username || '';
+          const sch = schools.find((s) => s.id === p.school_user_id);
+          if (sch) {
+            if (!sName) sName = sch.school_name;
+            if (!sEmail) sEmail = sch.email || '';
           }
-
-          if (isAssigned) {
-            assignedCount++;
-            rowCells.push(vendorLabel);
-          } else {
-            rowCells.push('');
+          const sId = p.school_user_id || sName;
+          if (sName && !schoolMap.has(sId)) {
+            schoolMap.set(sId, {
+              id: sId,
+              name: sName,
+              email: sEmail,
+              code: getSchoolDisplayCode(sName, sEmail, lvl),
+            });
           }
         });
 
-        if (
-          assignedCount === schoolList.length &&
-          schoolList.length > 2 &&
-          (formattedName.toUpperCase().includes('OLAHRAGA') || formattedName.toUpperCase().includes('SET SERGM'))
-        ) {
-          tableRows.push([
-            formattedName,
-            {
-              content: `Semua Sekolah ${headerTitle}`,
-              colSpan: schoolList.length,
-              styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 250, 252] },
-            },
-          ]);
-        } else {
-          tableRows.push(rowCells);
+        vendorAlloc.items
+          .filter((it) => it.level.toUpperCase().trim() === lvl)
+          .forEach((it) => {
+            (it.schoolsForItem || []).forEach((sName) => {
+              const schObj = schools.find((s) => s.school_name === sName);
+              const sId = schObj?.id || sName;
+              if (sName && !schoolMap.has(sId)) {
+                schoolMap.set(sId, {
+                  id: sId,
+                  name: sName,
+                  email: schObj?.email || '',
+                  code: getSchoolDisplayCode(sName, schObj?.email, lvl),
+                });
+              }
+            });
+          });
+
+        const schoolList = Array.from(schoolMap.values());
+        if (schoolList.length === 0) return;
+
+        schoolList.sort((a, b) => {
+          const isTmA = a.code.startsWith('TM');
+          const isTmB = b.code.startsWith('TM');
+          const isDkgiA = a.code === 'DKGI';
+          const isDkgiB = b.code === 'DKGI';
+          if (isDkgiA) return 1;
+          if (isDkgiB) return -1;
+          if (isTmA && !isTmB) return 1;
+          if (!isTmA && isTmB) return -1;
+          return a.code.localeCompare(b.code, 'id', { numeric: true });
+        });
+
+        const itemMap = new Map<string, string>();
+        lvlPlottings.forEach((p) => {
+          if (p.clothing_type && p.clothing_type !== 'Semua Jenis Baju') {
+            p.clothing_type.split(',').forEach((raw) => {
+              const trimmed = raw.trim();
+              if (trimmed) {
+                const formatted = formatItemDisplayName(trimmed);
+                if (!itemMap.has(formatted)) itemMap.set(formatted, trimmed);
+              }
+            });
+          }
+        });
+
+        vendorAlloc.items
+          .filter((it) => it.level.toUpperCase().trim() === lvl)
+          .forEach((it) => {
+            const formatted = formatItemDisplayName(it.uniformName);
+            if (!itemMap.has(formatted)) itemMap.set(formatted, it.uniformName);
+          });
+
+        const hasAllBaju = lvlPlottings.some((p) => p.clothing_type === 'Semua Jenis Baju');
+        if (hasAllBaju || itemMap.size === 0) {
+          forecastItems
+            .filter((f) => f.level.toUpperCase().trim() === lvl)
+            .forEach((f) => {
+              const formatted = formatItemDisplayName(f.uniformName);
+              if (!itemMap.has(formatted)) itemMap.set(formatted, f.uniformName);
+            });
         }
-      });
 
-      (doc as any).autoTable({
-        head: [headColumns],
-        body: tableRows,
-        startY: currentY,
-        theme: 'grid',
-        styles: {
-          font: 'helvetica',
-          fontSize: 7.5,
-          cellPadding: 1.4,
-          lineColor: [0, 0, 0],
-          lineWidth: 0.2,
-          textColor: [0, 0, 0],
-        },
-        headStyles: {
-          fillColor: [255, 255, 255],
-          textColor: [0, 0, 0],
-          fontStyle: 'bold',
-          halign: 'center',
-          lineWidth: 0.2,
-          lineColor: [0, 0, 0],
-        },
-        columnStyles: {
-          0: { halign: 'left', fontStyle: 'bold', cellWidth: 58 },
-        },
-        didParseCell: (data: any) => {
-          if (data.section === 'head' && data.column.index > 0) {
-            const colCode = headColumns[data.column.index];
-            if (colCode === 'DKGI') {
-              data.cell.styles.fillColor = [254, 240, 138];
+        if (itemMap.size === 0) {
+          products
+            .filter((pr) => {
+              const pLvl = (pr.level || '').toUpperCase().trim();
+              const isBuku = pr.category && pr.category.toLowerCase() === 'buku';
+              return !isBuku && (pLvl === lvl || (lvl === 'SD' && pLvl === 'SD') || (lvl === 'TK' && pLvl === 'TK'));
+            })
+            .forEach((pr) => {
+              const formatted = formatItemDisplayName(pr.name);
+              if (!itemMap.has(formatted)) itemMap.set(formatted, pr.name);
+            });
+        }
+
+        const items = Array.from(itemMap.keys()).sort((a, b) => {
+          const pA = getItemPriority(a);
+          const pB = getItemPriority(b);
+          if (pA !== pB) return pA - pB;
+          return a.localeCompare(b);
+        });
+
+        if (items.length === 0) return;
+
+        if (currentY > 155 && lvlIdx > 0) {
+          doc.addPage();
+          currentY = 14;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10.5);
+        doc.setTextColor(0, 0, 0);
+        doc.text(headerTitle, 14, currentY);
+        currentY += 2;
+
+        const headColumns = ['JENIS', ...schoolList.map((s) => s.code)];
+        const tableRows: any[] = [];
+
+        items.forEach((formattedName) => {
+          const origName = itemMap.get(formattedName) || formattedName;
+          const rowCells: any[] = [formattedName];
+          let assignedCount = 0;
+
+          schoolList.forEach((sch) => {
+            const pMatch = lvlPlottings.find(
+              (p) =>
+                p.school_user_id === sch.id ||
+                (p.app_users?.school_name && p.app_users.school_name.toLowerCase().trim() === sch.name.toLowerCase().trim())
+            );
+
+            let isAssigned = false;
+            if (pMatch) {
+              if (pMatch.clothing_type === 'Semua Jenis Baju') {
+                isAssigned = true;
+              } else if (pMatch.clothing_type) {
+                const types = pMatch.clothing_type.split(',').map((t) => t.trim());
+                isAssigned = types.some(
+                  (pt) =>
+                    isClothingTypeMatch(origName, pt) ||
+                    isClothingTypeMatch(formattedName, pt) ||
+                    pt.toLowerCase().includes(formattedName.toLowerCase()) ||
+                    formattedName.toLowerCase().includes(pt.toLowerCase())
+                );
+              }
             }
+
+            if (!isAssigned) {
+              const allocItem = vendorAlloc.items.find(
+                (it) =>
+                  it.level.toUpperCase().trim() === lvl &&
+                  (it.uniformName.toLowerCase() === origName.toLowerCase() || formatItemDisplayName(it.uniformName) === formattedName)
+              );
+              if (allocItem && allocItem.schoolsForItem?.some((sn) => sn.toLowerCase().trim() === sch.name.toLowerCase().trim())) {
+                isAssigned = true;
+              }
+            }
+
+            if (isAssigned) {
+              assignedCount++;
+              rowCells.push(vendorLabel);
+            } else {
+              rowCells.push('');
+            }
+          });
+
+          if (
+            assignedCount === schoolList.length &&
+            schoolList.length > 2 &&
+            (formattedName.toUpperCase().includes('OLAHRAGA') || formattedName.toUpperCase().includes('SET SERGM'))
+          ) {
+            tableRows.push([
+              formattedName,
+              {
+                content: `Semua Sekolah ${headerTitle}`,
+                colSpan: schoolList.length,
+                styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 250, 252] },
+              },
+            ]);
+          } else {
+            tableRows.push(rowCells);
           }
-          if (data.section === 'body' && data.column.index > 0) {
-            data.cell.styles.halign = 'center';
-          }
-        },
-        margin: { left: 14, right: 14 },
+        });
+
+        autoTable(doc, {
+          head: [headColumns],
+          body: tableRows,
+          startY: currentY,
+          theme: 'grid',
+          styles: {
+            font: 'helvetica',
+            fontSize: 7.5,
+            cellPadding: 1.4,
+            lineColor: [0, 0, 0],
+            lineWidth: 0.2,
+            textColor: [0, 0, 0],
+          },
+          headStyles: {
+            fillColor: [255, 255, 255],
+            textColor: [0, 0, 0],
+            fontStyle: 'bold',
+            halign: 'center',
+            lineWidth: 0.2,
+            lineColor: [0, 0, 0],
+          },
+          columnStyles: {
+            0: { halign: 'left', fontStyle: 'bold', cellWidth: 58 },
+          },
+          didParseCell: (data: any) => {
+            if (data.section === 'head' && data.column.index > 0) {
+              const colCode = headColumns[data.column.index];
+              if (colCode === 'DKGI') {
+                data.cell.styles.fillColor = [254, 240, 138];
+              }
+            }
+            if (data.section === 'body' && data.column.index > 0) {
+              data.cell.styles.halign = 'center';
+            }
+          },
+          margin: { left: 14, right: 14 },
+        });
+
+        tablesCreated++;
+        const lastTable = (doc as any).lastAutoTable;
+        currentY = (lastTable ? lastTable.finalY : currentY + 30) + 8;
       });
 
-      currentY = (doc as any).lastAutoTable.finalY + 8;
-    });
+      if (tablesCreated === 0) {
+        alert(`Vendor "${vendorAlloc.vendorName}" belum memiliki data plotting sekolah yang dapat diekspor.`);
+        return;
+      }
 
-    // Nomor Halaman & Footer Resmi
-    const pageCount = (doc as any).internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(7.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 120, 120);
-      doc.text(
-        `Koperasi Konsumen Karyawan BPK PENABUR Jakarta • Lampiran SPK: ${vendorAlloc.vendorName.toUpperCase()} • Hal ${i} dari ${pageCount}`,
-        14,
-        202
-      );
+      // Nomor Halaman & Footer Resmi
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 120, 120);
+        doc.text(
+          `Koperasi Konsumen Karyawan BPK PENABUR Jakarta • Lampiran SPK: ${vendorAlloc.vendorName.toUpperCase()} • Hal ${i} dari ${pageCount}`,
+          14,
+          202
+        );
+      }
+
+      const cleanVendor = vendorAlloc.vendorName.replace(/[^a-zA-Z0-9]/g, '_');
+      const cleanYear = targetYear.replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `${cleanVendor}_TA_${cleanYear}_Lampiran_SPK.pdf`;
+
+      try {
+        doc.save(fileName);
+      } catch (saveErr) {
+        console.warn('doc.save() failed, using saveAs blob fallback:', saveErr);
+        const blob = doc.output('blob');
+        saveAs(blob, fileName);
+      }
+    } catch (err: any) {
+      console.error('Error saat membuat PDF Lampiran SPK:', err);
+      alert('Gagal membuat PDF Lampiran SPK: ' + (err?.message || String(err)));
     }
-
-    const cleanVendor = vendorAlloc.vendorName.replace(/[^a-zA-Z0-9]/g, '_');
-    const cleanYear = targetYear.replace(/[^a-zA-Z0-9]/g, '_');
-    doc.save(`${cleanVendor}_TA_${cleanYear}_Lampiran_SPK.pdf`);
   };
 
   // =========================================================================
