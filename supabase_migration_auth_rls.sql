@@ -35,52 +35,70 @@ BEGIN
       v_email := lower(trim(v_users.username));
     END IF;
 
-    -- Masukkan akun ke auth.users (ID sama persis dengan app_users agar foreign key aman)
-    INSERT INTO auth.users (
-      instance_id,
-      id,
-      aud,
-      role,
-      email,
-      encrypted_password,
-      email_confirmed_at,
-      raw_app_meta_data,
-      raw_user_meta_data,
-      created_at,
-      updated_at,
-      confirmation_token,
-      recovery_token
-    )
-    VALUES (
-      '00000000-0000-0000-0000-000000000000',
-      v_users.id,
-      'authenticated',
-      'authenticated',
-      v_email,
-      crypt(v_users.password, gen_salt('bf')),
-      now(),
-      '{"provider":"email","providers":["email"]}'::jsonb,
-      jsonb_build_object('name', v_users.name, 'role', v_users.role, 'username', v_users.username),
-      now(),
-      now(),
-      '',
-      ''
-    )
-    ON CONFLICT (id) DO UPDATE SET
-      email = EXCLUDED.email,
-      encrypted_password = EXCLUDED.encrypted_password,
-      raw_user_meta_data = EXCLUDED.raw_user_meta_data,
-      email_confirmed_at = COALESCE(auth.users.email_confirmed_at, now()),
-      updated_at = now();
+    -- Cek jika email sudah terdaftar di auth.users dengan ID lain, lewati atau update saja
+    IF EXISTS (SELECT 1 FROM auth.users WHERE lower(trim(email)) = v_email AND id <> v_users.id) THEN
+      UPDATE auth.users
+      SET encrypted_password = extensions.crypt(v_users.password, extensions.gen_salt('bf')),
+          raw_user_meta_data = jsonb_build_object('name', v_users.name, 'role', v_users.role, 'username', v_users.username),
+          updated_at = now()
+      WHERE lower(trim(email)) = v_email;
+    ELSE
+      -- Masukkan akun ke auth.users (ID sama persis dengan app_users agar foreign key aman)
+      INSERT INTO auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        encrypted_password,
+        email_confirmed_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at,
+        confirmation_token,
+        recovery_token,
+        email_change_token_new,
+        email_change,
+        phone_change,
+        phone_change_token,
+        email_change_token_current,
+        reauthentication_token,
+        is_sso_user,
+        is_anonymous
+      )
+      VALUES (
+        '00000000-0000-0000-0000-000000000000',
+        v_users.id,
+        'authenticated',
+        'authenticated',
+        v_email,
+        extensions.crypt(v_users.password, extensions.gen_salt('bf')),
+        now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        jsonb_build_object('name', v_users.name, 'role', v_users.role, 'username', v_users.username),
+        now(),
+        now(),
+        '', '', '', '', '', '', '', '',
+        false,
+        false
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        encrypted_password = EXCLUDED.encrypted_password,
+        raw_user_meta_data = EXCLUDED.raw_user_meta_data,
+        email_confirmed_at = COALESCE(auth.users.email_confirmed_at, now()),
+        updated_at = now();
 
-    -- Masukkan identitas ke auth.identities jika belum ada (gunakan gen_random_uuid() bertipe UUID)
-    IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = v_users.id AND provider = 'email') THEN
-      IF v_has_provider_id THEN
-        EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, now(), now(), now())'
-        USING v_users.id, jsonb_build_object('sub', v_users.id, 'email', v_email), 'email', v_users.id::text;
-      ELSE
-        EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, now(), now(), now())'
-        USING v_users.id, jsonb_build_object('sub', v_users.id, 'email', v_email), 'email';
+      -- Masukkan identitas ke auth.identities jika belum ada (gunakan gen_random_uuid() bertipe UUID)
+      IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = v_users.id AND provider = 'email') THEN
+        IF v_has_provider_id THEN
+          EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, now(), now(), now())'
+          USING v_users.id, jsonb_build_object('sub', v_users.id, 'email', v_email), 'email', v_users.id::text;
+        ELSE
+          EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, now(), now(), now())'
+          USING v_users.id, jsonb_build_object('sub', v_users.id, 'email', v_email), 'email';
+        END IF;
       END IF;
     END IF;
   END LOOP;
