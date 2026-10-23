@@ -99,10 +99,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const emailToUse = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@koperasi.local`;
 
       // 1. Coba login resmi via Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: emailToUse,
         password: password,
       });
+
+      // Jika gagal dan user tidak mengetik domain @, coba juga dengan domain @bpkpenaburjakarta.or.id
+      if (authError && !cleanUsername.includes('@')) {
+        const penaburAttempt = await supabase.auth.signInWithPassword({
+          email: `${cleanUsername}@bpkpenaburjakarta.or.id`,
+          password: password,
+        });
+        if (!penaburAttempt.error && penaburAttempt.data?.user) {
+          authData = penaburAttempt.data;
+          authError = null;
+        }
+      }
 
       let userData: any = null;
 
@@ -115,6 +127,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .maybeSingle();
 
         userData = profile;
+
+        // Auto-heal jika ID di auth.users berbeda dengan ID di app_users (dicocokkan via username)
+        if (!userData) {
+          const { data: profileByEmail } = await supabase
+            .from('app_users')
+            .select('*')
+            .or(`username.ilike.${cleanUsername},username.ilike.${emailToUse},username.ilike.${cleanUsername}@bpkpenaburjakarta.or.id`)
+            .maybeSingle();
+
+          userData = profileByEmail;
+        }
       }
 
       // Fallback transisi (jika script SQL belum sempat dijalankan): cek app_users langsung
@@ -161,13 +184,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogleData = useCallback(
     async (email: string, id: string) => {
-      const { data, error } = await supabase
+      const cleanEmail = email.trim().toLowerCase();
+      // 1. Cek di school_whitelist
+      let { data: wlData } = await supabase
         .from('school_whitelist')
         .select('*')
-        .eq('email', email)
-        .single();
+        .ilike('email', cleanEmail)
+        .maybeSingle();
 
-      if (error || !data) {
+      let targetSchoolName = wlData?.nama_sekolah || wlData?.Nama_Sekolah;
+      let targetJenjang = wlData?.Jenjang || wlData?.jenjang;
+
+      // 2. Jika tidak ada di school_whitelist, cek juga di app_users
+      if (!wlData) {
+        const { data: appUser } = await supabase
+          .from('app_users')
+          .select('*')
+          .ilike('username', cleanEmail)
+          .maybeSingle();
+
+        if (appUser && (appUser.role === 'sekolah' || appUser.role === 'guru_ots')) {
+          targetSchoolName = appUser.school_name || appUser.name;
+          targetJenjang = appUser.school_level;
+          wlData = { email: cleanEmail, nama_sekolah: targetSchoolName, Jenjang: targetJenjang } as any;
+        }
+      }
+
+      if (!wlData) {
         await supabase.auth.signOut();
         return { success: false, error: 'Email Anda tidak terdaftar sebagai akun Sekolah.' };
       }
@@ -182,10 +225,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       let effectiveUserId = id;
 
-      // Ambil nama & jenjang sekolah dari whitelist
-      const rawJenjang = data.Jenjang || data.jenjang;
-      const cleanJenjang = typeof rawJenjang === 'string' ? rawJenjang.trim() : rawJenjang;
-      const cleanSchoolName = (data.nama_sekolah || data.Nama_Sekolah || email.split('@')[0] || '-').trim();
+      // Ambil nama & jenjang sekolah dari whitelist atau app_users
+      const cleanJenjang = typeof targetJenjang === 'string' ? targetJenjang.trim() : targetJenjang;
+      const cleanSchoolName = (targetSchoolName || cleanEmail.split('@')[0] || '-').trim();
 
       try {
         // Cek apakah akun sudah terdaftar di app_users berdasarkan ID atau email
