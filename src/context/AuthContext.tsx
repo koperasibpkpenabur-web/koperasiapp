@@ -274,41 +274,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addUser = useCallback(async (userData: Omit<User, 'id' | 'createdAt'>) => {
-    // 1. Coba melalui RPC admin_create_user jika fungsi database siap
+    const cleanUser = userData.username.trim().toLowerCase();
+    const emailToUse = cleanUser.includes('@') ? cleanUser : `${cleanUser}@koperasi.local`;
+
+    // 1. Coba melalui RPC admin_create_user
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_create_user', {
-        p_email: userData.username,
+        p_email: emailToUse,
         p_password: userData.password,
-        p_name: userData.name,
+        p_name: userData.name.trim(),
         p_role: userData.role,
-        p_school_name: userData.schoolName || '',
-        p_school_level: userData.schoolLevel || '',
+        p_school_name: userData.schoolName?.trim() || '',
+        p_school_level: userData.schoolLevel?.trim() || '',
+        p_username: cleanUser,
       });
 
       if (!rpcError && rpcData?.success) {
         return { success: true };
       }
+      if (rpcError) {
+        console.warn('RPC admin_create_user error:', rpcError);
+        return { success: false, error: rpcError.message };
+      }
       if (rpcData && !rpcData.success) {
-        console.warn('RPC admin_create_user failed:', rpcData.error);
+        return { success: false, error: rpcData.error || 'Gagal membuat pengguna' };
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('RPC admin_create_user exception:', e);
-    }
-
-    // Fallback jika RPC gagal/belum ada: simpan langsung profil ke app_users (tanpa kolom password karena password ada di auth.users)
-    const { error } = await supabase.from('app_users').insert([{
-      username: userData.username.trim().toLowerCase(),
-      name: userData.name.trim(),
-      role: userData.role,
-      school_name: userData.schoolName?.trim() || null,
-      school_level: userData.schoolLevel?.trim() || null,
-    }]);
-
-    if (error) {
-      if (error.code === '23505') { 
-        return { success: false, error: 'Username atau email sudah digunakan' };
-      }
-      return { success: false, error: error.message };
+      return { success: false, error: e?.message || 'Gagal membuat pengguna' };
     }
 
     return { success: true };
@@ -325,10 +318,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!rpcError && rpcData?.success) {
         return { success: true };
       }
-      if (rpcData && !rpcData.success) {
-        return { success: false, error: rpcData.error };
+      if (rpcError) {
+        return { success: false, error: rpcError.message };
       }
-    } catch {}
+      if (rpcData && !rpcData.success) {
+        return { success: false, error: rpcData.error || 'Gagal mengubah password' };
+      }
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'Gagal mengubah password' };
+    }
 
     return { success: true };
   }, []);

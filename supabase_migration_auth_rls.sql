@@ -87,7 +87,12 @@ BEGIN
 END $$;
 
 -- 3. FUNGSI ADMIN RPC (SECURITY DEFINER)
--- Memungkinkan Admin di Web membuat user & reset password tanpa service_role key
+-- Hapus fungsi lama yang bentrok (overload) agar tidak memicu error PGRST203
+DROP FUNCTION IF EXISTS public.admin_create_user(text, text, text, text, text, text, text);
+DROP FUNCTION IF EXISTS public.admin_create_user(text, text, text, text, text, text);
+DROP FUNCTION IF EXISTS public.admin_create_user(text, text, text, text);
+DROP FUNCTION IF EXISTS public.admin_reset_password(uuid, text);
+DROP FUNCTION IF EXISTS public.admin_delete_user(uuid);
 
 -- A. Fungsi Tambah Pengguna Baru
 CREATE OR REPLACE FUNCTION public.admin_create_user(
@@ -96,7 +101,8 @@ CREATE OR REPLACE FUNCTION public.admin_create_user(
   p_name text,
   p_role text,
   p_school_name text DEFAULT '',
-  p_school_level text DEFAULT ''
+  p_school_level text DEFAULT '',
+  p_username text DEFAULT ''
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -104,18 +110,36 @@ SECURITY DEFINER
 SET search_path = public, auth, extensions
 AS $$
 DECLARE
-  v_user_id uuid := gen_random_uuid();
+  v_user_id uuid;
   v_clean_email text;
-  v_raw_username text := lower(trim(p_email));
+  v_raw_username text;
   v_has_provider_id boolean;
+  v_existing_id uuid;
 BEGIN
+  IF p_username IS NOT NULL AND trim(p_username) <> '' THEN
+    v_raw_username := lower(trim(p_username));
+  ELSE
+    v_raw_username := lower(trim(p_email));
+  END IF;
+
   IF position('@' in v_raw_username) = 0 THEN
     v_clean_email := v_raw_username || '@koperasi.local';
   ELSE
     v_clean_email := v_raw_username;
   END IF;
 
-  -- 1. Insert ke auth.users
+  SELECT id INTO v_existing_id 
+  FROM public.app_users 
+  WHERE lower(trim(username)) = v_raw_username 
+  LIMIT 1;
+
+  IF v_existing_id IS NOT NULL THEN
+    v_user_id := v_existing_id;
+  ELSE
+    v_user_id := gen_random_uuid();
+  END IF;
+
+  -- 1. Insert/Update ke auth.users (semua token non-null untuk GoTrue)
   INSERT INTO auth.users (
     instance_id,
     id,
@@ -129,7 +153,15 @@ BEGIN
     created_at,
     updated_at,
     confirmation_token,
-    recovery_token
+    recovery_token,
+    email_change_token_new,
+    email_change,
+    phone_change,
+    phone_change_token,
+    email_change_token_current,
+    reauthentication_token,
+    is_sso_user,
+    is_anonymous
   )
   VALUES (
     '00000000-0000-0000-0000-000000000000',
@@ -140,12 +172,25 @@ BEGIN
     extensions.crypt(p_password, extensions.gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
-    jsonb_build_object('name', p_name, 'role', p_role, 'username', v_raw_username),
+    jsonb_build_object(
+      'name', p_name, 
+      'role', p_role, 
+      'username', v_raw_username,
+      'school_name', p_school_name,
+      'school_level', p_school_level
+    ),
     now(),
     now(),
-    '',
-    ''
-  );
+    '', '', '', '', '', '', '', '',
+    false,
+    false
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    encrypted_password = EXCLUDED.encrypted_password,
+    raw_user_meta_data = EXCLUDED.raw_user_meta_data,
+    email_confirmed_at = COALESCE(auth.users.email_confirmed_at, now()),
+    updated_at = now();
 
   -- 2. Insert ke auth.identities
   SELECT EXISTS (
@@ -153,15 +198,17 @@ BEGIN
     WHERE table_schema = 'auth' AND table_name = 'identities' AND column_name = 'provider_id'
   ) INTO v_has_provider_id;
 
-  IF v_has_provider_id THEN
-    EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, now(), now(), now())'
-    USING v_user_id, jsonb_build_object('sub', v_user_id, 'email', v_clean_email), 'email', v_user_id::text;
-  ELSE
-    EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, now(), now(), now())'
-    USING v_user_id, jsonb_build_object('sub', v_user_id, 'email', v_clean_email), 'email';
+  IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = v_user_id AND provider = 'email') THEN
+    IF v_has_provider_id THEN
+      EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, now(), now(), now())'
+      USING v_user_id, jsonb_build_object('sub', v_user_id, 'email', v_clean_email), 'email', v_user_id::text;
+    ELSE
+      EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, now(), now(), now())'
+      USING v_user_id, jsonb_build_object('sub', v_user_id, 'email', v_clean_email), 'email';
+    END IF;
   END IF;
 
-  -- 3. Insert ke public.app_users
+  -- 3. Insert / Update ke public.app_users
   INSERT INTO public.app_users (
     id,
     username,
@@ -176,18 +223,24 @@ BEGIN
     v_raw_username,
     p_name,
     p_role,
-    p_school_name,
-    p_school_level,
+    NULLIF(trim(p_school_name), ''),
+    NULLIF(trim(p_school_level), ''),
     now()
-  );
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    username = EXCLUDED.username,
+    name = EXCLUDED.name,
+    role = EXCLUDED.role,
+    school_name = EXCLUDED.school_name,
+    school_level = EXCLUDED.school_level;
 
-  RETURN jsonb_build_object('success', true, 'id', v_user_id);
+  RETURN jsonb_build_object('success', true, 'id', v_user_id, 'user_id', v_user_id);
 EXCEPTION WHEN OTHERS THEN
   RETURN jsonb_build_object('success', false, 'error', SQLERRM);
 END;
 $$;
 
--- B. Fungsi Ganti Password Pengguna oleh Admin
+-- B. Fungsi Ganti Password Pengguna oleh Admin (Dengan Auto-Sync jika belum ada di auth.users)
 CREATE OR REPLACE FUNCTION public.admin_reset_password(
   p_user_id uuid,
   p_new_password text
@@ -197,11 +250,96 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, auth, extensions
 AS $$
+DECLARE
+  v_exists_in_auth boolean;
+  v_user RECORD;
+  v_clean_email text;
+  v_has_provider_id boolean;
 BEGIN
-  UPDATE auth.users
-  SET encrypted_password = extensions.crypt(p_new_password, extensions.gen_salt('bf')),
-      updated_at = now()
-  WHERE id = p_user_id;
+  SELECT EXISTS (SELECT 1 FROM auth.users WHERE id = p_user_id) INTO v_exists_in_auth;
+
+  IF v_exists_in_auth THEN
+    UPDATE auth.users
+    SET encrypted_password = extensions.crypt(p_new_password, extensions.gen_salt('bf')),
+        updated_at = now()
+    WHERE id = p_user_id;
+  ELSE
+    SELECT id, username, name, role, school_name, school_level
+    INTO v_user
+    FROM public.app_users
+    WHERE id = p_user_id;
+
+    IF v_user.id IS NULL THEN
+      RETURN jsonb_build_object('success', false, 'error', 'Pengguna tidak ditemukan di sistem');
+    END IF;
+
+    IF position('@' in v_user.username) = 0 THEN
+      v_clean_email := lower(trim(v_user.username)) || '@koperasi.local';
+    ELSE
+      v_clean_email := lower(trim(v_user.username));
+    END IF;
+
+    INSERT INTO auth.users (
+      instance_id,
+      id,
+      aud,
+      role,
+      email,
+      encrypted_password,
+      email_confirmed_at,
+      raw_app_meta_data,
+      raw_user_meta_data,
+      created_at,
+      updated_at,
+      confirmation_token,
+      recovery_token,
+      email_change_token_new,
+      email_change,
+      phone_change,
+      phone_change_token,
+      email_change_token_current,
+      reauthentication_token,
+      is_sso_user,
+      is_anonymous
+    )
+    VALUES (
+      '00000000-0000-0000-0000-000000000000',
+      v_user.id,
+      'authenticated',
+      'authenticated',
+      v_clean_email,
+      extensions.crypt(p_new_password, extensions.gen_salt('bf')),
+      now(),
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object(
+        'name', v_user.name, 
+        'role', v_user.role, 
+        'username', v_user.username,
+        'school_name', v_user.school_name,
+        'school_level', v_user.school_level
+      ),
+      now(),
+      now(),
+      '', '', '', '', '', '', '', '',
+      false,
+      false
+    );
+
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'auth' AND table_name = 'identities' AND column_name = 'provider_id'
+    ) INTO v_has_provider_id;
+
+    IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = v_user.id AND provider = 'email') THEN
+      IF v_has_provider_id THEN
+        EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, now(), now(), now())'
+        USING v_user.id, jsonb_build_object('sub', v_user.id, 'email', v_clean_email), 'email', v_user.id::text;
+      ELSE
+        EXECUTE 'INSERT INTO auth.identities (id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, now(), now(), now())'
+        USING v_user.id, jsonb_build_object('sub', v_user.id, 'email', v_clean_email), 'email';
+      END IF;
+    END IF;
+  END IF;
 
   RETURN jsonb_build_object('success', true);
 EXCEPTION WHEN OTHERS THEN
@@ -219,10 +357,8 @@ SECURITY DEFINER
 SET search_path = public, auth, extensions
 AS $$
 BEGIN
-  -- Hapus identitas & akun dari auth
   DELETE FROM auth.identities WHERE user_id = p_user_id;
   DELETE FROM auth.users WHERE id = p_user_id;
-  -- Hapus profil dari app_users
   DELETE FROM public.app_users WHERE id = p_user_id;
 
   RETURN jsonb_build_object('success', true);
