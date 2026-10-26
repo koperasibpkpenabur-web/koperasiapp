@@ -2679,34 +2679,16 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
         validItemRows.forEach(({ formattedName, assignedSchoolIds }) => {
           const rowCells: any[] = [formattedName];
-          let assignedCount = 0;
 
           activeSchoolList.forEach((sch) => {
             if (assignedSchoolIds.has(sch.id)) {
-              assignedCount++;
               rowCells.push(vendorLabel);
             } else {
               rowCells.push('');
             }
           });
 
-          // Baris khusus: Jika seluruh sekolah jenjang ini di-handle untuk OLAHRAGA, merge kolom
-          if (
-            assignedCount === activeSchoolList.length &&
-            activeSchoolList.length > 2 &&
-            formattedName.toUpperCase().includes('OLAHRAGA')
-          ) {
-            tableRows.push([
-              formattedName,
-              {
-                content: `Semua Sekolah ${headerTitle}`,
-                colSpan: activeSchoolList.length,
-                styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 250, 252] },
-              },
-            ]);
-          } else {
-            tableRows.push(rowCells);
-          }
+          tableRows.push(rowCells);
         });
 
         if (tableRows.length === 0) return;
