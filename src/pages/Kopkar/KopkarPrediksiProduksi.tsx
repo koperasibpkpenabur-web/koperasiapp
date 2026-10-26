@@ -1822,7 +1822,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     va.schoolNames.forEach((sName) => {
       const schObj = schools.find((s) => s.school_name === sName);
       const sLvl = resolveSchoolLevel(sName, schObj?.email, schObj?.level);
-      if (sLvl === lvl) {
+      if (normalizeLevel(sLvl) === normalizeLevel(lvl)) {
         levelSchoolsSet.add(sName);
       }
     });
@@ -3538,7 +3538,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                 gap: '6px',
               }}
             >
-              📋 Rencana Global & Skala ({forecastItems.length})
+              📋 Rencana Global & Skala
             </button>
             <button
               type="button"
