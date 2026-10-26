@@ -646,6 +646,63 @@ const VendorManagement = () => {
     });
   };
 
+  const resolveSchoolLevel = (schoolName: string, email?: string, existingLevel?: string): string => {
+    const n = (schoolName || '').toUpperCase();
+    const e = (email || '').toLowerCase();
+
+    // Prioritas 1: Awalan nama resmi & email sekolah BPK PENABUR
+    if (n.startsWith('TKK') || n.includes('TKK ') || n.includes('TK ') || e.includes('tkk') || e.includes('penjualan.k')) return 'TK';
+    if (n.startsWith('SDK') || n.includes('SDK ') || n.includes('SD ') || e.includes('sdk') || e.includes('penjualan.d')) return 'SD';
+    if (n.startsWith('SMPK') || n.includes('SMPK ') || n.includes('SMP ') || e.includes('smpk') || e.includes('penjualan.p')) return 'SMP';
+    if (n.startsWith('SMAK') || n.startsWith('SMKF') || n.includes('SMAK ') || n.includes('SMA ') || n.includes('SMK') || e.includes('smak') || e.includes('penjualan.a')) return 'SMA';
+    if (n.includes('PRIMARY') || n.includes('SPK-SD') || n.includes('SD-SPK')) return 'SPK-SD';
+    if (n.includes('LOWER') || n.includes('SPK-SMP') || n.includes('SMP-SPK')) return 'SPK-SMP';
+    if (n.includes('UPPER') || n.includes('SPK-SMA') || n.includes('SMA-SPK')) return 'SPK-SMA';
+
+    // Prioritas 2: Level yang sudah ada
+    const cleanLvl = (existingLevel || '').toUpperCase().trim();
+    if (cleanLvl) {
+      if (cleanLvl === 'SPK-SD' || cleanLvl === 'SD-SPK') return 'SPK-SD';
+      if (cleanLvl === 'SPK-SMP' || cleanLvl === 'SMP-SPK') return 'SPK-SMP';
+      if (cleanLvl === 'SPK-SMA' || cleanLvl === 'SMA-SPK') return 'SPK-SMA';
+      return cleanLvl;
+    }
+
+    return 'SD';
+  };
+
+  const splitClothingTypes = (raw?: string): string[] => {
+    if (!raw) return [];
+    return raw
+      .split(/,(?![^(]*\))/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+
+  // Plottings yang selalu diperkaya nama dan jenjang sekolah valid dari master schools
+  const effectivePlottings = useMemo(() => {
+    return plottings.map((p) => {
+      let sName = p.app_users?.school_name || '';
+      let sEmail = p.app_users?.username || '';
+      let sLvl = p.app_users?.school_level || '';
+      const sch = schools.find((s) => s.id === p.school_user_id);
+      if (sch) {
+        if (!sName) sName = sch.school_name;
+        if (!sEmail) sEmail = sch.email || '';
+        if (!sLvl) sLvl = sch.level || '';
+      }
+      const resolvedLvl = resolveSchoolLevel(sName, sEmail, sLvl);
+      return {
+        ...p,
+        app_users: {
+          school_name: sName || sch?.school_name || 'Sekolah Terpilih',
+          username: sEmail || sch?.email || '',
+          school_level: resolvedLvl,
+        },
+      };
+    });
+  }, [plottings, schools]);
+
   // Fungsi pengecekan bentrok penugasan seragam antar-vendor
   const findPlottingConflicts = (
     targetVendorId: string,
@@ -654,7 +711,7 @@ const VendorManagement = () => {
     excludePlottingId?: string
   ): Array<{ schoolName: string; conflictingTypes: string[]; assignedVendorName: string }> => {
     // Cari penugasan yang ada untuk sekolah ini dengan vendor BERBEDA
-    const otherVendorPlottings = plottings.filter(
+    const otherVendorPlottings = effectivePlottings.filter(
       (p) =>
         p.school_user_id === targetSchoolId &&
         p.vendor_id !== targetVendorId &&
@@ -672,10 +729,7 @@ const VendorManagement = () => {
       const sch = schools.find((s) => s.id === targetSchoolId);
       const schoolName = p.app_users?.school_name || sch?.school_name || 'Sekolah Terpilih';
 
-      const existingTypesRaw = (p.clothing_type || 'Semua Jenis Baju')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const existingTypesRaw = splitClothingTypes(p.clothing_type || 'Semua Jenis Baju');
 
       const existingIsAll = existingTypesRaw.some((t) => t.toLowerCase() === 'semua jenis baju');
       const existingTypesLower = existingTypesRaw.map((t) => t.toLowerCase());
@@ -1020,7 +1074,7 @@ const VendorManagement = () => {
     .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }));
 
   const filteredPlottings = useMemo(() => {
-    return plottings
+    return effectivePlottings
       .filter((p) => {
         const matchesVendor = plotVendorFilter === 'ALL' || p.vendor_id === plotVendorFilter;
         const matchesLevel =
@@ -1044,7 +1098,7 @@ const VendorManagement = () => {
           { numeric: true, sensitivity: 'base' }
         )
       );
-  }, [plottings, plotVendorFilter, plotLevelFilterTable, searchQuery]);
+  }, [effectivePlottings, plotVendorFilter, plotLevelFilterTable, searchQuery]);
 
   const filteredStocks = stocks.filter(
     (s) =>
@@ -1712,7 +1766,7 @@ const VendorManagement = () => {
                                 fontWeight: 700,
                               }}
                             >
-                              {item.app_users?.school_level || 'SD'}
+                              {item.app_users?.school_level || '-'}
                             </span>
                             <span>{item.app_users?.school_name || 'Sekolah'}</span>
                           </span>
@@ -1941,7 +1995,7 @@ const VendorManagement = () => {
         <div style={{ marginTop: '-12px', marginBottom: '24px' }}>
           <KopkarPrediksiProduksi
             vendors={vendors}
-            plottings={plottings}
+            plottings={effectivePlottings}
             schools={schools}
             products={products}
           />
@@ -2325,10 +2379,7 @@ const VendorManagement = () => {
                     </tr>
                   ) : (
                     activeDetailPlotGroup.items.map((item, idx) => {
-                      const clothingList = (item.clothing_type || 'Semua Jenis Baju')
-                        .split(',')
-                        .map((ct) => ct.trim())
-                        .filter(Boolean);
+                      const clothingList = splitClothingTypes(item.clothing_type || 'Semua Jenis Baju');
                       const isAllUniform = clothingList.includes('Semua Jenis Baju');
 
                       return (

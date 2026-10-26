@@ -108,6 +108,14 @@ export const getLevelDisplayTitle = (lvl: string): string => {
   return u;
 };
 
+export const splitClothingTypes = (raw?: string): string[] => {
+  if (!raw) return [];
+  return raw
+    .split(/,(?![^(]*\))/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+};
+
 export const KopkarPrediksiProduksi: React.FC<Props> = ({
   vendors,
   plottings,
@@ -870,10 +878,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         const pLevel = (p.app_users?.school_level || '').toUpperCase().trim();
         if (pLevel !== itemLevel) return false;
 
-        const plottedTypes = (p.clothing_type || '')
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean);
+        const plottedTypes = splitClothingTypes(p.clothing_type);
 
         return plottedTypes.some((pt) => pt === 'Semua Jenis Baju' || isClothingTypeMatch(fcItem.uniformName, pt));
       });
@@ -2568,7 +2573,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
               itemMap.set(std, std);
             });
           } else if (p.clothing_type) {
-            p.clothing_type.split(',').forEach((raw) => {
+            splitClothingTypes(p.clothing_type).forEach((raw) => {
               const trimmed = raw.trim();
               if (trimmed && isItemAllowedForLevel(trimmed, lvl)) {
                 const formatted = formatItemDisplayName(trimmed, lvl);
@@ -2606,7 +2611,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             if (pMatch.clothing_type === 'Semua Jenis Baju') {
               return true;
             } else if (pMatch.clothing_type) {
-              const types = pMatch.clothing_type.split(',').map((t) => t.trim());
+              const types = splitClothingTypes(pMatch.clothing_type);
               const match = types.some(
                 (pt) =>
                   pt === 'Semua Jenis Baju' ||
@@ -2926,7 +2931,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       effectivePlottings
         .filter((p) => normalizeLevel(p.app_users?.school_level || '') === level)
         .forEach((p) => {
-          const types = (p.clothing_type || '').split(',').map((t) => t.trim()).filter(Boolean);
+          const types = splitClothingTypes(p.clothing_type);
           types.forEach((t) => {
             if (t !== 'Semua Jenis Baju' && isItemAllowedForLevel(t, level)) {
               uniformSet.add(formatItemDisplayName(t, level));
@@ -3021,10 +3026,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
             if (!isSchoolMatch) return false;
 
-            const plottedTypes = (p.clothing_type || '')
-              .split(',')
-              .map((t) => t.trim())
-              .filter(Boolean);
+            const plottedTypes = splitClothingTypes(p.clothing_type);
 
             return plottedTypes.some(
               (pt) =>
