@@ -65,14 +65,37 @@ const STANDARD_SIZE_ORDER = [
   'ALL SIZE', 'KHUSUS'
 ];
 
-// Standar urutan resmi jenjang sekolah: TK, SD, SMP, SMA, SPK-SD (Primary), SPK-SMP (Lower Secondary), SPK-SMA (Upper Secondary)
-const LEVEL_ORDER = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
+// Standar urutan resmi jenjang sekolah: TK, SD, SMP, SMA, SD-SPK, SMP-SPK, SMA-SPK
+export const LEVEL_ORDER = [
+  'TK',
+  'SD',
+  'SMP',
+  'SMA',
+  'SD-SPK',
+  'SMP-SPK',
+  'SMA-SPK',
+  'SPK-SD',
+  'SPK-SMP',
+  'SPK-SMA',
+];
 
-const getLevelDisplayTitle = (lvl: string): string => {
+export const getLevelRank = (lvl: string): number => {
   const u = (lvl || '').toUpperCase().trim();
-  if (u === 'SPK-SD') return 'SPK-SD (Primary)';
-  if (u === 'SPK-SMP') return 'SPK-SMP (Lower Secondary)';
-  if (u === 'SPK-SMA') return 'SPK-SMA (Upper Secondary)';
+  if (u === 'TK' || u === 'TKK') return 1;
+  if (u === 'SD' || u === 'SDK') return 2;
+  if (u === 'SMP' || u === 'SMPK') return 3;
+  if (u === 'SMA' || u === 'SMAK' || u === 'SMK' || u === 'SMKF') return 4;
+  if (u === 'SD-SPK' || u === 'SPK-SD' || u.includes('PRIMARY')) return 5;
+  if (u === 'SMP-SPK' || u === 'SPK-SMP' || u.includes('LOWER')) return 6;
+  if (u === 'SMA-SPK' || u === 'SPK-SMA' || u.includes('UPPER')) return 7;
+  return 99;
+};
+
+export const getLevelDisplayTitle = (lvl: string): string => {
+  const u = (lvl || '').toUpperCase().trim();
+  if (u === 'SD-SPK' || u === 'SPK-SD') return 'SD-SPK (Primary)';
+  if (u === 'SMP-SPK' || u === 'SPK-SMP') return 'SMP-SPK (Lower Secondary)';
+  if (u === 'SMA-SPK' || u === 'SPK-SMA') return 'SMA-SPK (Upper Secondary)';
   return u;
 };
 
@@ -215,13 +238,18 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (n.startsWith('SDK') || n.includes('SDK ') || n.includes('SD ') || e.includes('sdk') || e.includes('penjualan.d')) return 'SD';
     if (n.startsWith('SMPK') || n.includes('SMPK ') || n.includes('SMP ') || e.includes('smpk') || e.includes('penjualan.p')) return 'SMP';
     if (n.startsWith('SMAK') || n.startsWith('SMKF') || n.includes('SMAK ') || n.includes('SMA ') || n.includes('SMK') || e.includes('smak') || e.includes('penjualan.a')) return 'SMA';
-    if (n.includes('PRIMARY') || n.includes('SPK-SD')) return 'SPK-SD';
-    if (n.includes('LOWER') || n.includes('SPK-SMP')) return 'SPK-SMP';
-    if (n.includes('UPPER') || n.includes('SPK-SMA')) return 'SPK-SMA';
+    if (n.includes('PRIMARY') || n.includes('SPK-SD') || n.includes('SD-SPK')) return 'SD-SPK';
+    if (n.includes('LOWER') || n.includes('SPK-SMP') || n.includes('SMP-SPK')) return 'SMP-SPK';
+    if (n.includes('UPPER') || n.includes('SPK-SMA') || n.includes('SMA-SPK')) return 'SMA-SPK';
 
     // Prioritas 2: Level yang sudah ada
     const cleanLvl = (existingLevel || '').toUpperCase().trim();
-    if (cleanLvl) return cleanLvl;
+    if (cleanLvl) {
+      if (cleanLvl === 'SPK-SD' || cleanLvl === 'SD-SPK') return 'SD-SPK';
+      if (cleanLvl === 'SPK-SMP' || cleanLvl === 'SMP-SPK') return 'SMP-SPK';
+      if (cleanLvl === 'SPK-SMA' || cleanLvl === 'SMA-SPK') return 'SMA-SPK';
+      return cleanLvl;
+    }
 
     return '';
   };
@@ -944,9 +972,24 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       });
     });
 
-    return Array.from(allocationByVendor.values())
-      .filter((a) => a.items.length > 0 && a.grandTotalPcs > 0)
-      .sort((a, b) => a.vendorName.localeCompare(b.vendorName, 'id', { numeric: true, sensitivity: 'base' }));
+    const result = Array.from(allocationByVendor.values()).filter(
+      (a) => a.items.length > 0 && a.grandTotalPcs > 0
+    );
+
+    // Urutkan rincian item tiap vendor secara baku: TK, SD, SMP, SMA, SD-SPK, SMP-SPK, SMA-SPK
+    result.forEach((alloc) => {
+      alloc.items.sort((a, b) => {
+        const rankA = getLevelRank(a.level);
+        const rankB = getLevelRank(b.level);
+        if (rankA !== rankB) return rankA - rankB;
+        const pA = getItemPriority(a.uniformName, a.level);
+        const pB = getItemPriority(b.uniformName, b.level);
+        if (pA !== pB) return pA - pB;
+        return a.uniformName.localeCompare(b.uniformName);
+      });
+    });
+
+    return result.sort((a, b) => a.vendorName.localeCompare(b.vendorName, 'id', { numeric: true, sensitivity: 'base' }));
   }, [forecastItems, vendors, effectivePlottings, schools]);
 
   // =========================================================================
@@ -1431,11 +1474,12 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     const workbook = XLSX.utils.book_new();
 
-    // Buat sheet terurut: TK, SD, SMP, SMA, SPK-SD, SPK-SMP, SPK-SMA
-    const sheetOrder = LEVEL_ORDER;
+    // Buat sheet terurut: TK, SD, SMP, SMA, SD-SPK, SMP-SPK, SMA-SPK
+    const sheetOrder = ['TK', 'SD', 'SMP', 'SMA', 'SD-SPK', 'SMP-SPK', 'SMA-SPK'];
 
     sheetOrder.forEach((lvl) => {
-      const schoolList = getSchoolsForLevel(lvl, fallbackSchools[lvl]);
+      const fbKey = (lvl === 'SD-SPK' || lvl === 'SPK-SD') ? 'SPK-SD' : (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') ? 'SPK-SMP' : (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') ? 'SPK-SMA' : lvl;
+      const schoolList = getSchoolsForLevel(lvl, fallbackSchools[fbKey] || fallbackSchools[lvl]);
 
       // Ambil seluruh produk (seragam, kaos kaki, sepatu, topi, dasi, aksesoris) kecuali buku langsung dari database barang (props products)
       const dbItemsForLevel = products.filter((p) => {
@@ -1444,14 +1488,14 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         const pLvl = (p.level || '').toUpperCase().trim();
         const pName = (p.name || '').toUpperCase();
 
-        if (lvl === 'SPK-SD') {
-          return pLvl === 'SPK-SD' || (pLvl.includes('SPK') && (pLvl.includes('SD') || pLvl.includes('PRIMARY') || pName.includes('PRIMARY') || pName.includes('SD')));
+        if (lvl === 'SD-SPK' || lvl === 'SPK-SD') {
+          return pLvl === 'SD-SPK' || pLvl === 'SPK-SD' || (pLvl.includes('SPK') && (pLvl.includes('SD') || pLvl.includes('PRIMARY') || pName.includes('PRIMARY') || pName.includes('SD')));
         }
-        if (lvl === 'SPK-SMP') {
-          return pLvl === 'SPK-SMP' || (pLvl.includes('SPK') && (pLvl.includes('SMP') || pLvl.includes('LOWER') || pName.includes('LOWER') || pName.includes('SMP')));
+        if (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') {
+          return pLvl === 'SMP-SPK' || pLvl === 'SPK-SMP' || (pLvl.includes('SPK') && (pLvl.includes('SMP') || pLvl.includes('LOWER') || pName.includes('LOWER') || pName.includes('SMP')));
         }
-        if (lvl === 'SPK-SMA') {
-          return pLvl === 'SPK-SMA' || (pLvl.includes('SPK') && (pLvl.includes('SMA') || pLvl.includes('UPPER') || pName.includes('UPPER') || pName.includes('SMA') || pName.includes('JC')));
+        if (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') {
+          return pLvl === 'SMA-SPK' || pLvl === 'SPK-SMA' || (pLvl.includes('SPK') && (pLvl.includes('SMA') || pLvl.includes('UPPER') || pName.includes('UPPER') || pName.includes('SMA') || pName.includes('JC')));
         }
         if (pLvl.includes('SPK') || pName.includes('SPK ') || pName.includes('PIS ')) return false;
 
@@ -1919,11 +1963,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     const availableLevels = Array.from(new Set(vendorAlloc.items.map((it) => it.level.toUpperCase().trim())));
     availableLevels.sort((a, b) => {
-      const idxA = LEVEL_ORDER.indexOf(a);
-      const idxB = LEVEL_ORDER.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
+      const rankA = getLevelRank(a);
+      const rankB = getLevelRank(b);
+      if (rankA !== rankB) return rankA - rankB;
       return a.localeCompare(b);
     });
 
@@ -2282,11 +2324,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     vendorAllocations.forEach((va) => {
       const vendorLevels = Array.from(new Set(va.items.map((it) => it.level.toUpperCase().trim())));
       vendorLevels.sort((a, b) => {
-        const idxA = LEVEL_ORDER.indexOf(a);
-        const idxB = LEVEL_ORDER.indexOf(b);
-        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        if (idxA !== -1) return -1;
-        if (idxB !== -1) return 1;
+        const rankA = getLevelRank(a);
+        const rankB = getLevelRank(b);
+        if (rankA !== rankB) return rankA - rankB;
         return a.localeCompare(b);
       });
 
@@ -2337,10 +2377,10 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       const doc = new jsPDF('landscape', 'mm', 'a4');
       const vendorLabel = getVendorShortCode(vendorAlloc.vendorName);
 
-      const jenjangOrder = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
+      const jenjangOrder = ['TK', 'SD', 'SMP', 'SMA', 'SD-SPK', 'SMP-SPK', 'SMA-SPK'];
       const activeLevels = jenjangOrder.filter((lvl) => {
-        const hasPlottings = vPlottings.some((p) => p.app_users?.school_level === lvl);
-        const hasAlloc = vendorAlloc.items.some((it) => it.level.toUpperCase().trim() === lvl);
+        const hasPlottings = vPlottings.some((p) => getLevelRank(p.app_users?.school_level || '') === getLevelRank(lvl));
+        const hasAlloc = vendorAlloc.items.some((it) => getLevelRank(it.level) === getLevelRank(lvl));
         return hasPlottings || hasAlloc;
       });
 
@@ -2370,8 +2410,15 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       let tablesCreated = 0;
 
       activeLevels.forEach((lvl) => {
-        const headerTitle = lvl === 'TK' ? 'TKK' : lvl === 'SD' ? 'SDK' : lvl === 'SMP' ? 'SMPK' : lvl === 'SMA' ? 'SMAK' : lvl;
-        const lvlPlottings = vPlottings.filter((p) => p.app_users?.school_level === lvl);
+        const headerTitle =
+          lvl === 'TK' ? 'TKK' :
+          lvl === 'SD' ? 'SDK' :
+          lvl === 'SMP' ? 'SMPK' :
+          lvl === 'SMA' ? 'SMAK' :
+          lvl === 'SD-SPK' || lvl === 'SPK-SD' ? 'SD-SPK' :
+          lvl === 'SMP-SPK' || lvl === 'SPK-SMP' ? 'SMP-SPK' :
+          lvl === 'SMA-SPK' || lvl === 'SPK-SMA' ? 'SMA-SPK' : lvl;
+        const lvlPlottings = vPlottings.filter((p) => getLevelRank(p.app_users?.school_level || '') === getLevelRank(lvl));
 
         // Kumpulkan sekolah untuk header kolom pada jenjang ini
         const schoolMap = new Map<string, { id: string; name: string; email: string; code: string }>();
@@ -2665,11 +2712,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     const availableLevels = Array.from(new Set(forecastItems.map((it) => it.level.toUpperCase().trim())));
     availableLevels.sort((a, b) => {
-      const idxA = LEVEL_ORDER.indexOf(a);
-      const idxB = LEVEL_ORDER.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
+      const rankA = getLevelRank(a);
+      const rankB = getLevelRank(b);
+      if (rankA !== rankB) return rankA - rankB;
       return a.localeCompare(b);
     });
 
@@ -2882,13 +2927,26 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     );
   };
 
-  // Filter items untuk tampilan
+  // Filter items untuk tampilan (diurutkan baku: TK, SD, SMP, SMA, SD-SPK, SMP-SPK, SMA-SPK)
   const filteredForecastItems = useMemo(() => {
-    return forecastItems.filter((it) => {
-      const matchesLevel = selectedLevelFilter === 'ALL' || it.level.toUpperCase() === selectedLevelFilter.toUpperCase();
+    const list = forecastItems.filter((it) => {
+      const matchesLevel =
+        selectedLevelFilter === 'ALL' ||
+        it.level.toUpperCase() === selectedLevelFilter.toUpperCase() ||
+        getLevelRank(it.level) === getLevelRank(selectedLevelFilter);
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch = !q || it.uniformName.toLowerCase().includes(q) || it.level.toLowerCase().includes(q);
       return matchesLevel && matchesSearch;
+    });
+
+    return list.sort((a, b) => {
+      const rankA = getLevelRank(a.level);
+      const rankB = getLevelRank(b.level);
+      if (rankA !== rankB) return rankA - rankB;
+      const pA = getItemPriority(a.uniformName, a.level);
+      const pB = getItemPriority(b.uniformName, b.level);
+      if (pA !== pB) return pA - pB;
+      return a.uniformName.localeCompare(b.uniformName);
     });
   }, [forecastItems, selectedLevelFilter, searchQuery]);
 
@@ -3245,9 +3303,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                   <option value="SD">SD</option>
                   <option value="SMP">SMP</option>
                   <option value="SMA">SMA</option>
-                  <option value="SPK-SD">SPK-SD</option>
-                  <option value="SPK-SMP">SPK-SMP</option>
-                  <option value="SPK-SMA">SPK-SMA</option>
+                  <option value="SD-SPK">SD-SPK</option>
+                  <option value="SMP-SPK">SMP-SPK</option>
+                  <option value="SMA-SPK">SMA-SPK</option>
                 </select>
 
                 <input

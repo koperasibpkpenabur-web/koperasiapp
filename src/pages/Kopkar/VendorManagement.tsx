@@ -54,6 +54,18 @@ const inputStyle: React.CSSProperties = {
   backgroundColor: '#fff',
 };
 
+const getLevelRank = (lvl: string): number => {
+  const u = (lvl || '').toUpperCase().trim();
+  if (u === 'TK' || u === 'TKK') return 1;
+  if (u === 'SD' || u === 'SDK') return 2;
+  if (u === 'SMP' || u === 'SMPK') return 3;
+  if (u === 'SMA' || u === 'SMAK' || u === 'SMK' || u === 'SMKF') return 4;
+  if (u === 'SD-SPK' || u === 'SPK-SD' || u.includes('PRIMARY')) return 5;
+  if (u === 'SMP-SPK' || u === 'SPK-SMP' || u.includes('LOWER')) return 6;
+  if (u === 'SMA-SPK' || u === 'SPK-SMA' || u.includes('UPPER')) return 7;
+  return 99;
+};
+
 const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: '0.85rem',
@@ -1178,7 +1190,20 @@ const VendorManagement = () => {
       return;
     }
 
-    const exportData = filteredPlottings.map((p, idx) => {
+    const sortedPlottings = [...filteredPlottings].sort((a, b) => {
+      const schA = schools.find((item) => item.id === a.school_user_id);
+      const schB = schools.find((item) => item.id === b.school_user_id);
+      const lvlA = a.app_users?.school_level || schA?.level || '';
+      const lvlB = b.app_users?.school_level || schB?.level || '';
+      const rankA = getLevelRank(lvlA);
+      const rankB = getLevelRank(lvlB);
+      if (rankA !== rankB) return rankA - rankB;
+      const sNameA = a.app_users?.school_name || schA?.school_name || '';
+      const sNameB = b.app_users?.school_name || schB?.school_name || '';
+      return sNameA.localeCompare(sNameB, 'id', { numeric: true, sensitivity: 'base' });
+    });
+
+    const exportData = sortedPlottings.map((p, idx) => {
       const v = vendors.find((item) => item.id === p.vendor_id);
       const sch = schools.find((item) => item.id === p.school_user_id);
       const sName = p.app_users?.school_name || sch?.school_name || '-';
@@ -2445,7 +2470,7 @@ const VendorManagement = () => {
                   </label>
                   {/* Filter Jenjang */}
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                    {['ALL', 'TK', 'SD', 'SMP', 'SMA'].map((lvl) => (
+                    {['ALL', 'TK', 'SD', 'SMP', 'SMA', 'SD-SPK', 'SMP-SPK', 'SMA-SPK'].map((lvl) => (
                       <button
                         key={lvl}
                         type="button"
@@ -2898,7 +2923,7 @@ const VendorManagement = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <label style={labelStyle}>Pilih Sekolah (Akun Gmail Penjualan)</label>
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    {['ALL', 'TK', 'SD', 'SMP', 'SMA'].map((lvl) => (
+                    {['ALL', 'TK', 'SD', 'SMP', 'SMA', 'SD-SPK', 'SMP-SPK', 'SMA-SPK'].map((lvl) => (
                       <button
                         key={lvl}
                         type="button"
