@@ -2481,18 +2481,16 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           return a.code.localeCompare(b.code, 'id', { numeric: true });
         });
 
-        // Kumpulkan jenis barang: standar jenjang (TK: Kotak - Kotak Putri, Kotak - Kotak Putra, 1 Set Olahraga, dll.) + barang lain yang di-plot
+        // 1. Kumpulkan seluruh candidate items yang berpotensi dikerjakan vendor ini
         const itemMap = new Map<string, string>(); // formattedName -> originalName
 
-        // Masukkan item standar terlebih dahulu
-        const standardItems = getStandardItemsForLevel(lvl);
-        standardItems.forEach((std) => {
-          itemMap.set(std, std);
-        });
-
-        // Masukkan item tambahan yang di-plot untuk vendor ini pada jenjang ini
+        // Masukkan item dari lvlPlottings
         lvlPlottings.forEach((p) => {
-          if (p.clothing_type && p.clothing_type !== 'Semua Jenis Baju') {
+          if (p.clothing_type === 'Semua Jenis Baju') {
+            getStandardItemsForLevel(lvl).forEach((std) => {
+              itemMap.set(std, std);
+            });
+          } else if (p.clothing_type) {
             p.clothing_type.split(',').forEach((raw) => {
               const trimmed = raw.trim();
               if (trimmed && isItemAllowedForLevel(trimmed, lvl)) {
@@ -2505,6 +2503,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           }
         });
 
+        // Masukkan item dari vendorAlloc.items
         vendorAlloc.items
           .filter((it) => it.level.toUpperCase().trim() === lvl)
           .forEach((it) => {
@@ -2516,65 +2515,98 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             }
           });
 
-        const items = Array.from(itemMap.keys()).sort((a, b) => {
+        if (itemMap.size === 0) return;
+
+        // Helper pengecekan apakah item ditugaskan ke vendor ini pada sekolah tertentu
+        const checkIsAssigned = (sch: { id: string; name: string }, formattedName: string, origName: string): boolean => {
+          const pMatch = lvlPlottings.find(
+            (p) =>
+              p.school_user_id === sch.id ||
+              (p.app_users?.school_name && p.app_users.school_name.toLowerCase().trim() === sch.name.toLowerCase().trim())
+          );
+
+          if (pMatch) {
+            if (pMatch.clothing_type === 'Semua Jenis Baju') {
+              return true;
+            } else if (pMatch.clothing_type) {
+              const types = pMatch.clothing_type.split(',').map((t) => t.trim());
+              const match = types.some(
+                (pt) =>
+                  pt === 'Semua Jenis Baju' ||
+                  isClothingTypeMatch(origName, pt) ||
+                  isClothingTypeMatch(formattedName, pt) ||
+                  pt.toLowerCase().includes(formattedName.toLowerCase()) ||
+                  formattedName.toLowerCase().includes(pt.toLowerCase())
+              );
+              if (match) return true;
+            }
+          }
+
+          const allocItem = vendorAlloc.items.find(
+            (it) =>
+              it.level.toUpperCase().trim() === lvl &&
+              (it.uniformName.toLowerCase() === origName.toLowerCase() ||
+                formatItemDisplayName(it.uniformName, lvl) === formattedName ||
+                isClothingTypeMatch(it.uniformName, origName) ||
+                isClothingTypeMatch(it.uniformName, formattedName))
+          );
+          if (allocItem && allocItem.schoolsForItem?.some((sn) => sn.toLowerCase().trim() === sch.name.toLowerCase().trim())) {
+            return true;
+          }
+
+          return false;
+        };
+
+        // 2. Evaluasi kecocokan item dan sekolah:
+        //    HANYA simpan baris & kolom yang BENAR-BENAR dikerjakan oleh vendor ini (tanpa baris/kolom kosong)
+        const candidateItems = Array.from(itemMap.keys()).sort((a, b) => {
           const pA = getItemPriority(a, lvl);
           const pB = getItemPriority(b, lvl);
           if (pA !== pB) return pA - pB;
           return a.localeCompare(b);
         });
 
-        if (items.length === 0) return;
+        const activeSchoolIds = new Set<string>();
+        const validItemRows: Array<{ formattedName: string; origName: string; assignedSchoolIds: Set<string> }> = [];
 
-        const headColumns = ['JENIS', ...schoolList.map((s) => s.code)];
-        const tableRows: any[] = [];
-        let totalAssignedCellsInLevel = 0;
-
-        items.forEach((formattedName) => {
+        candidateItems.forEach((formattedName) => {
           const origName = itemMap.get(formattedName) || formattedName;
+          const assignedSchools = new Set<string>();
+
+          schoolList.forEach((sch) => {
+            if (checkIsAssigned(sch, formattedName, origName)) {
+              assignedSchools.add(sch.id);
+              activeSchoolIds.add(sch.id);
+            }
+          });
+
+          // HANYA masukkan jika vendor ini BENAR-BENAR mengerjakan seragam ini pada setidaknya satu sekolah
+          if (assignedSchools.size > 0) {
+            validItemRows.push({
+              formattedName,
+              origName,
+              assignedSchoolIds: assignedSchools,
+            });
+          }
+        });
+
+        // Jika tidak ada satu pun seragam yang dikerjakan vendor di jenjang ini, jangan buat tabelnya sama sekali!
+        if (validItemRows.length === 0 || activeSchoolIds.size === 0) return;
+
+        // Filter kolom sekolah: HANYA sertakan sekolah yang memang memesan seragam ke vendor ini
+        const activeSchoolList = schoolList.filter((sch) => activeSchoolIds.has(sch.id));
+        if (activeSchoolList.length === 0) return;
+
+        const headColumns = ['JENIS', ...activeSchoolList.map((s) => s.code)];
+        const tableRows: any[] = [];
+
+        validItemRows.forEach(({ formattedName, assignedSchoolIds }) => {
           const rowCells: any[] = [formattedName];
           let assignedCount = 0;
 
-          schoolList.forEach((sch) => {
-            const pMatch = lvlPlottings.find(
-              (p) =>
-                p.school_user_id === sch.id ||
-                (p.app_users?.school_name && p.app_users.school_name.toLowerCase().trim() === sch.name.toLowerCase().trim())
-            );
-
-            let isAssigned = false;
-            if (pMatch) {
-              if (pMatch.clothing_type === 'Semua Jenis Baju') {
-                isAssigned = true;
-              } else if (pMatch.clothing_type) {
-                const types = pMatch.clothing_type.split(',').map((t) => t.trim());
-                isAssigned = types.some(
-                  (pt) =>
-                    pt === 'Semua Jenis Baju' ||
-                    isClothingTypeMatch(origName, pt) ||
-                    isClothingTypeMatch(formattedName, pt) ||
-                    pt.toLowerCase().includes(formattedName.toLowerCase()) ||
-                    formattedName.toLowerCase().includes(pt.toLowerCase())
-                );
-              }
-            }
-
-            if (!isAssigned) {
-              const allocItem = vendorAlloc.items.find(
-                (it) =>
-                  it.level.toUpperCase().trim() === lvl &&
-                  (it.uniformName.toLowerCase() === origName.toLowerCase() ||
-                    formatItemDisplayName(it.uniformName, lvl) === formattedName ||
-                    isClothingTypeMatch(it.uniformName, origName) ||
-                    isClothingTypeMatch(it.uniformName, formattedName))
-              );
-              if (allocItem && allocItem.schoolsForItem?.some((sn) => sn.toLowerCase().trim() === sch.name.toLowerCase().trim())) {
-                isAssigned = true;
-              }
-            }
-
-            if (isAssigned) {
+          activeSchoolList.forEach((sch) => {
+            if (assignedSchoolIds.has(sch.id)) {
               assignedCount++;
-              totalAssignedCellsInLevel++;
               rowCells.push(vendorLabel);
             } else {
               rowCells.push('');
@@ -2583,26 +2615,24 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
           // Baris khusus: Jika seluruh sekolah jenjang ini di-handle untuk OLAHRAGA, merge kolom
           if (
-            assignedCount === schoolList.length &&
-            schoolList.length > 2 &&
+            assignedCount === activeSchoolList.length &&
+            activeSchoolList.length > 2 &&
             formattedName.toUpperCase().includes('OLAHRAGA')
           ) {
             tableRows.push([
               formattedName,
               {
                 content: `Semua Sekolah ${headerTitle}`,
-                colSpan: schoolList.length,
+                colSpan: activeSchoolList.length,
                 styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 250, 252] },
               },
             ]);
-          } else if (assignedCount > 0 || standardItems.includes(formattedName)) {
-            // Tampilkan baris jika ada sel yang di-plot, atau merupakan seragam standar jenjang tersebut
+          } else {
             tableRows.push(rowCells);
           }
         });
 
-        // Jangan render tabel jenjang jika tidak ada satupun sel yang di-plot untuk vendor ini
-        if (totalAssignedCellsInLevel === 0) return;
+        if (tableRows.length === 0) return;
 
         // Cek sisa tinggi halaman, bila kurang dari 65mm buat halaman baru
         if (currentY > 140 && tablesCreated > 0) {
