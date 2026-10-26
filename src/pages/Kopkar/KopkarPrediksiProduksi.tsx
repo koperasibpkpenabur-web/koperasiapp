@@ -398,20 +398,22 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     const u = (rawItemName || '').toUpperCase();
     const lvl = (level || '').toUpperCase().trim();
 
-    // Level TK: Hanya KOTAK-KOTAK PUTRA/PUTRI, OLAHRAGA, TOPI KUNING, RENANG
+    // Level TK: Hanya KOTAK-KOTAK PUTRA/PUTRI, 1 SET OLAHRAGA, TOPI KUNING, RENANG
     if (lvl === 'TK') {
       if (u.includes('SIAGA') || u.includes('PENGGALANG') || u.includes('PENEGAK')) return false;
       if (u.includes('KLS') || u.includes('KELAS')) return false;
       if (u.includes('MERAH') || u.includes('BIRU') || u.includes('ABU')) return false;
       if (u.includes('JAS LAB')) return false;
       if (u.includes('ROMPI')) return false;
+      if (u.includes('KAOS OLAHRAGA') || u.includes('CELANA OR')) return false;
       return true;
     }
 
-    // Level SD: Tidak boleh ada seragam TK (KOTAK-KOTAK PUTRA/PUTRI), SMP (BIRU), SMA (ABU, PENEGAK, JAS LAB)
+    // Level SD: Tidak boleh ada seragam TK (KOTAK-KOTAK PUTRA/PUTRI), 1 SET OLAHRAGA, SMP (BIRU), SMA (ABU, PENEGAK, JAS LAB)
     if (lvl === 'SD') {
       if (u.includes('KOTAK-KOTAK PUTRA') || u.includes('KOTAK-KOTAK PUTRI') || u.includes('KOTAK PUTRA') || u.includes('KOTAK PUTRI')) return false;
       if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
+      if (u.includes('SET OLAHRAGA') || (u.includes('OLAHRAGA') && !u.includes('KAOS') && !u.includes('CELANA'))) return false;
       if (u.includes('TOPI KUNING')) return false;
       if (u.includes('BIRU') || u.includes('ABU')) return false;
       if (u.includes('PENEGAK') || u.includes('JAS LAB')) return false;
@@ -419,10 +421,11 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return true;
     }
 
-    // Level SMP: Tidak boleh ada seragam TK (KOTAK-KOTAK PUTRA/PUTRI), SD (SIAGA, KLS 1-6, MERAH), SMA (ABU, PENEGAK, JAS LAB)
+    // Level SMP: Tidak boleh ada seragam TK (KOTAK-KOTAK PUTRA/PUTRI), 1 SET OLAHRAGA, SD (SIAGA, KLS 1-6, MERAH), SMA (ABU, PENEGAK, JAS LAB)
     if (lvl === 'SMP') {
       if (u.includes('KOTAK-KOTAK PUTRA') || u.includes('KOTAK-KOTAK PUTRI') || u.includes('KOTAK PUTRA') || u.includes('KOTAK PUTRI')) return false;
       if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
+      if (u.includes('SET OLAHRAGA') || (u.includes('OLAHRAGA') && !u.includes('KAOS') && !u.includes('CELANA'))) return false;
       if (u.includes('TOPI KUNING')) return false;
       if (u.includes('SIAGA')) return false;
       if (u.includes('KLS 1') || u.includes('KLS 2') || u.includes('KLS 3-6') || u.includes('KLS 3-4') || u.includes('KLS 5-6')) return false;
@@ -431,10 +434,11 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return true;
     }
 
-    // Level SMA: Tidak boleh ada seragam TK (KOTAK-KOTAK PUTRA/PUTRI), SD (SIAGA, PENGGALANG, KLS 1-6, MERAH), SMP (BIRU)
+    // Level SMA: Tidak boleh ada seragam TK (KOTAK-KOTAK PUTRA/PUTRI), 1 SET OLAHRAGA, SD (SIAGA, PENGGALANG, KLS 1-6, MERAH), SMP (BIRU)
     if (lvl === 'SMA') {
       if (u.includes('KOTAK-KOTAK PUTRA') || u.includes('KOTAK-KOTAK PUTRI') || u.includes('KOTAK PUTRA') || u.includes('KOTAK PUTRI')) return false;
       if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
+      if (u.includes('SET OLAHRAGA') || (u.includes('OLAHRAGA') && !u.includes('KAOS') && !u.includes('CELANA'))) return false;
       if (u.includes('TOPI KUNING')) return false;
       if (u.includes('SIAGA') || u.includes('PENGGALANG')) return false;
       if (u.includes('KLS 1-2') || u.includes('KLS 3-6') || u.includes('KLS 1-4') || u.includes('KLS 5-6') || u.includes('KLS 7') || u.includes('KLS 8') || u.includes('KLS 9')) return false;
@@ -493,7 +497,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           'Kemeja Pramuka Penggalang Putri',
           'Celana Pramuka Penggalang',
           'Kulot Pramuka Penggalang',
-          '1 Set Olahraga',
+          'Kaos Olahraga',
+          'Celana OR Putra',
+          'Celana OR Putri',
         ].forEach((it) => uniqueSet.add(it));
       } else if (lvl === 'SMP' || lvl === 'SPK-SMP') {
         [
@@ -506,7 +512,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           'Kemeja Pramuka Penggalang Putri',
           'Celana Pramuka Penggalang',
           'Kulot Pramuka Penggalang',
-          '1 Set Olahraga',
+          'Kaos Olahraga',
+          'Celana OR Putra',
+          'Celana OR Putri',
         ].forEach((it) => uniqueSet.add(it));
       } else if (lvl === 'SMA' || lvl === 'SPK-SMA') {
         [
@@ -519,7 +527,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           'Celana Pramuka Penegak',
           'Kulot Pramuka Penegak',
           'Jas Lab',
-          '1 Set Olahraga',
+          'Kaos Olahraga',
+          'Celana OR Putra',
+          'Celana OR Putri',
         ].forEach((it) => uniqueSet.add(it));
       }
     }
@@ -547,7 +557,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     }
 
     if (lvl === 'SD') {
-      if (u.includes('SET OLAHRAGA') || u === 'OLAHRAGA' || u.includes('1 SET OLAHRAGA') || u.includes('KAOS OLAHRAGA')) return '1 Set Olahraga';
+      if (u.includes('KAOS OLAHRAGA') || u === 'KAOS OR') return 'Kaos Olahraga';
+      if (u.includes('CELANA OR PUTRA') || (u.includes('CELANA') && u.includes('PUTRA') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putra';
+      if (u.includes('CELANA OR PUTRI') || (u.includes('CELANA') && u.includes('PUTRI') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putri';
       if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG') || u === 'KEMEJA') return 'Kemeja Putih';
       if (u.includes('CELANA KOTAK')) return 'Celana Kotak';
       if (u.includes('CELANA POLOS') || u.includes('CELANA MERAH')) return 'Celana Polos';
@@ -570,7 +582,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     }
 
     if (lvl === 'SMP') {
-      if (u.includes('SET OLAHRAGA') || u === 'OLAHRAGA' || u.includes('1 SET OLAHRAGA') || u.includes('KAOS OLAHRAGA')) return '1 Set Olahraga';
+      if (u.includes('KAOS OLAHRAGA') || u === 'KAOS OR') return 'Kaos Olahraga';
+      if (u.includes('CELANA OR PUTRA') || (u.includes('CELANA') && u.includes('PUTRA') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putra';
+      if (u.includes('CELANA OR PUTRI') || (u.includes('CELANA') && u.includes('PUTRI') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putri';
       if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG') || u === 'KEMEJA') return 'Kemeja Putih';
       if (u.includes('CELANA PANJANG BIRU')) return 'Celana Panjang Biru';
       if (u.includes('CELANA BIRU') || u.includes('CELANA PENDEK BIRU')) return 'Celana Biru';
@@ -586,7 +600,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     }
 
     if (lvl === 'SMA') {
-      if (u.includes('SET OLAHRAGA') || u === 'OLAHRAGA' || u.includes('1 SET OLAHRAGA') || u.includes('KAOS OLAHRAGA')) return '1 Set Olahraga';
+      if (u.includes('KAOS OLAHRAGA') || u === 'KAOS OR') return 'Kaos Olahraga';
+      if (u.includes('CELANA OR PUTRA') || (u.includes('CELANA') && u.includes('PUTRA') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putra';
+      if (u.includes('CELANA OR PUTRI') || (u.includes('CELANA') && u.includes('PUTRI') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putri';
       if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG') || u === 'KEMEJA') return 'Kemeja Putih';
       if (u.includes('CELANA PANJANG ABU') || u.includes('CELANA ABU')) return 'Celana Panjang Abu';
       if (u.includes('ROK ABU')) return 'Rok Abu';
@@ -639,7 +655,10 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (s.includes('KACU')) return 40;
     if (s.includes('NAME TAG')) return 50;
     if (s.includes('GUDEP')) return 51;
-    if (s.includes('SET OLAHRAGA') || s.includes('OLAHRAGA')) return 90;
+    if (s.includes('KAOS OLAHRAGA')) return 90;
+    if (s.includes('CELANA OR PUTRA') || s.includes('CELANA OLAHRAGA PUTRA')) return 91;
+    if (s.includes('CELANA OR PUTRI') || s.includes('CELANA OLAHRAGA PUTRI')) return 92;
+    if (s.includes('SET OLAHRAGA') || s.includes('OLAHRAGA')) return 93;
     return 30;
   };
 
@@ -739,12 +758,57 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       if (!tNorm.includes('VELCRO') && !tNorm.includes('PHANTOM')) return true;
     }
 
-    // Olahraga (Vania, Kanio, Deltara, Harmoni, Sumak)
-    if (tNorm.includes('OLAHRAGA') && pNorm.includes('OLAHRAGA')) {
-      if (tNorm.includes('KAOS') && pNorm.includes('KAOS')) return true;
-      if (tNorm.includes('CELANA') && (pNorm.includes('CELANA') || pNorm.includes('CELANA OR'))) return true;
-      if (pNorm.includes('1 SET OLAHRAGA') || tNorm.includes('1 SET OLAHRAGA')) return true;
-      return true;
+    // Olahraga (TK: 1 Set Olahraga vs SD/SMP/SMA: Kaos Olahraga, Celana OR Putra, Celana OR Putri)
+    const isOrT =
+      tRaw.includes('OLAHRAGA') ||
+      tRaw.includes(' OR ') ||
+      tRaw.endsWith(' OR') ||
+      tRaw.startsWith('OR ') ||
+      tRaw.includes('CELANA OR') ||
+      tRaw.includes('KAOS OR');
+    const isOrP =
+      pRaw.includes('OLAHRAGA') ||
+      pRaw.includes(' OR ') ||
+      pRaw.endsWith(' OR') ||
+      pRaw.startsWith('OR ') ||
+      pRaw.includes('CELANA OR') ||
+      pRaw.includes('KAOS OR');
+
+    if (isOrT || isOrP) {
+      if (!isOrT || !isOrP) return false;
+
+      const isSetT = (tRaw.includes('SET') || tRaw === 'OLAHRAGA') && !tRaw.includes('KAOS') && !tRaw.includes('CELANA');
+      const isSetP = (pRaw.includes('SET') || pRaw === 'OLAHRAGA') && !pRaw.includes('KAOS') && !pRaw.includes('CELANA');
+
+      const isKaosT = tRaw.includes('KAOS');
+      const isKaosP = pRaw.includes('KAOS');
+
+      const isCelanaT = tRaw.includes('CELANA');
+      const isCelanaP = pRaw.includes('CELANA');
+
+      const isPutraT = tRaw.includes('PUTRA');
+      const isPutraP = pRaw.includes('PUTRA');
+      const isPutriT = tRaw.includes('PUTRI');
+      const isPutriP = pRaw.includes('PUTRI');
+
+      // 1 Set Olahraga (khusus TK) - TIDAK BOLEH mencocokkan Kaos atau Celana Olahraga
+      if (isSetT && isSetP) return true;
+      if (isSetT || isSetP) return false;
+
+      // Kaos Olahraga (SD / SMP / SMA) - TIDAK BOLEH mencocokkan Celana Olahraga
+      if (isKaosT && isKaosP) return true;
+      if (isKaosT || isKaosP) return false;
+
+      // Celana OR Putra / Putri (SD / SMP / SMA)
+      if (isCelanaT && isCelanaP) {
+        if (isPutraT && isPutriP) return false;
+        if (isPutriT && isPutraP) return false;
+        if (isPutraT && isPutraP) return true;
+        if (isPutriT && isPutriP) return true;
+        return true;
+      }
+
+      return false;
     }
 
     // Topi / Dasi (Supatno, Fortuna)
