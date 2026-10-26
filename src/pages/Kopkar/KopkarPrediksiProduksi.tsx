@@ -263,10 +263,22 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     return '';
   };
 
+  const getLevelPrefix = (level?: string, schoolName?: string): string => {
+    const lvl = (level || '').toUpperCase().trim();
+    const n = (schoolName || '').toLowerCase().trim();
+
+    if (lvl.includes('TK') || lvl.includes('TKK') || n.startsWith('tkk') || n.includes(' tk ') || n.startsWith('tk ')) return 'K';
+    if (lvl.includes('SD') || lvl.includes('SDK') || n.startsWith('sdk') || n.includes(' sd ') || n.startsWith('sd ')) return 'D';
+    if (lvl.includes('SMP') || lvl.includes('SMPK') || n.startsWith('smpk') || n.includes(' smp ') || n.startsWith('smp ')) return 'P';
+    if (lvl.includes('SMA') || lvl.includes('SMAK') || lvl.includes('SMK') || n.startsWith('smak') || n.startsWith('smk') || n.includes(' sma ') || n.startsWith('sma ')) return 'A';
+
+    return 'D';
+  };
+
   const getSchoolDisplayCode = (schoolName: string, email?: string, level?: string): string => {
     const n = (schoolName || '').toLowerCase().trim();
     const e = (email || '').toLowerCase().trim();
-    const lvl = (level || '').toUpperCase().trim();
+    const prefix = getLevelPrefix(level, schoolName);
 
     // 1. PIS (PENABUR International School): PIS KG untuk Kelapa Gading dan PIS TD untuk Tanjung Duren
     if (n.includes('international') || n.includes('pis') || e.includes('pis')) {
@@ -280,50 +292,41 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (n.includes('tirtamarta 2') || n.includes('cinere') || e.includes('tirtamarta2') || e.includes('tirtamarta_2')) return 'TM 2';
     if (n.includes('tirtamarta')) return 'TM 1';
 
-    // 3. Gading Serpong: KGS (TK), DGS (SD), PGS (SMP), AGS (SMA)
-    if (n.includes('gading serpong') || e.includes('dgs') || e.includes('kgs') || e.includes('pgs') || e.includes('ags')) {
-      if (lvl.includes('TK')) return 'KGS';
-      if (lvl.includes('SD')) return 'DGS';
-      if (lvl.includes('SMP')) return 'PGS';
-      if (lvl.includes('SMA')) return 'AGS';
-      if (n.startsWith('tkk') || n.includes('tk')) return 'KGS';
-      if (n.startsWith('sdk') || n.includes('sd')) return 'DGS';
-      if (n.startsWith('smpk') || n.includes('smp')) return 'PGS';
-      if (n.startsWith('smak') || n.includes('sma')) return 'AGS';
-      return 'DGS';
-    }
-
-    // 4. Singkatan cabang lainnya:
-    // Bintaro Jaya = BJ
-    // Kota Wisata = KW
-    // Harapan Indah = HI
-    // Kota Modern = KM
-    // Agus Salim = AS
-    // Depok = DP
-    // Sumarecon Bekasi = SB
-    // Kota Jababeka = KJ
-    if (n.includes('bintaro jaya') || e.includes('dbj') || e.includes('kbj') || e.includes('pbj') || e.includes('abj')) return 'BJ';
-    if (n.includes('kota wisata') || e.includes('dkw') || e.includes('kkw') || e.includes('pkw') || e.includes('akw') || e.includes('kowis')) return 'KW';
-    if (n.includes('harapan indah') || e.includes('dhi') || e.includes('khi') || e.includes('phi') || e.includes('ahi')) return 'HI';
-    if (n.includes('kota modern') || e.includes('dkm') || e.includes('kkm') || e.includes('pkm') || e.includes('akm')) return 'KM';
-    if (n.includes('agus salim') || e.includes('das') || e.includes('kas') || e.includes('pas') || e.includes('aas')) return 'AS';
-    if (n.includes('depok') || e.includes('ddp') || e.includes('kdp') || e.includes('pdp') || e.includes('adp')) return 'DP';
-    if (n.includes('summarecon') || n.includes('sumarecon') || e.includes('dsb') || e.includes('ksb') || e.includes('psb') || e.includes('asb') || e.includes('sumbek')) return 'SB';
-    if (n.includes('jababeka') || e.includes('dkj') || e.includes('kkj') || e.includes('pkj') || e.includes('akj')) return 'KJ';
-    if (n.includes('kota tangerang') || e.includes('akt')) return 'KT';
+    // 3. SMK Farmasi & Kelapa Gading Indah
     if (n.includes('farmasi') || e.includes('smkf')) return 'SMKF';
     if (n.includes('kelapa gading indah') || e.includes('dkgi') || e.includes('kgi')) return 'DKGI';
+
+    // 4. Cabang Daerah dengan awalan jenjang (K: TK, D: SD, P: SMP, A: SMA):
+    // Gading Serpong: KGS, DGS, PGS, AGS
+    if (n.includes('gading serpong') || e.includes('dgs') || e.includes('kgs') || e.includes('pgs') || e.includes('ags')) return prefix + 'GS';
+    // Bintaro Jaya: KBJ, DBJ, PBJ, ABJ
+    if (n.includes('bintaro jaya') || e.includes('dbj') || e.includes('kbj') || e.includes('pbj') || e.includes('abj')) return prefix + 'BJ';
+    // Kota Wisata: KKW, DKW, PKW, AKW
+    if (n.includes('kota wisata') || e.includes('dkw') || e.includes('kkw') || e.includes('pkw') || e.includes('akw') || e.includes('kowis')) return prefix + 'KW';
+    // Harapan Indah: KHI, DHI, PHI, AHI
+    if (n.includes('harapan indah') || e.includes('dhi') || e.includes('khi') || e.includes('phi') || e.includes('ahi')) return prefix + 'HI';
+    // Kota Modern: KKM, DKM, PKM, AKM
+    if (n.includes('kota modern') || e.includes('dkm') || e.includes('kkm') || e.includes('pkm') || e.includes('akm')) return prefix + 'KM';
+    // Agus Salim: KAG (TK), DAS (SD), PAS (SMP), AAS (SMA)
+    if (n.includes('agus salim') || e.includes('das') || e.includes('kas') || e.includes('pas') || e.includes('aas')) {
+      if (prefix === 'K') return 'KAG';
+      return prefix + 'AS';
+    }
+    // Depok: KDP, DDP, PDP, ADP
+    if (n.includes('depok') || e.includes('ddp') || e.includes('kdp') || e.includes('pdp') || e.includes('adp')) return prefix + 'DP';
+    // Summarecon Bekasi: KSB, DSB, PSB, ASB
+    if (n.includes('summarecon') || n.includes('sumarecon') || e.includes('dsb') || e.includes('ksb') || e.includes('psb') || e.includes('asb') || e.includes('sumbek')) return prefix + 'SB';
+    // Kota Jababeka: KKJ, DKJ, PKJ, AKJ
+    if (n.includes('jababeka') || e.includes('dkj') || e.includes('kkj') || e.includes('pkj') || e.includes('akj')) return prefix + 'KJ';
+    // Kota Tangerang: AKT
+    if (n.includes('kota tangerang') || e.includes('akt')) return prefix + 'KT';
 
     // 5. Nomor urut: TKK 1 = K01, SDK 1 = D01, SMPK 1 = P01, SMAK 1 = A01
     const nameMatch = n.match(/(tkk|sdk|smpk|smak|tk|sd|smp|sma)\s*(\d+)/i);
     if (nameMatch) {
-      const prefixType = nameMatch[1].toUpperCase();
       const num = parseInt(nameMatch[2], 10);
       const numPad = num < 10 ? '0' + num : String(num);
-      if (prefixType.startsWith('TK')) return 'K' + numPad;
-      if (prefixType.startsWith('SD')) return 'D' + numPad;
-      if (prefixType.startsWith('SMP')) return 'P' + numPad;
-      if (prefixType.startsWith('SMA')) return 'A' + numPad;
+      return prefix + numPad;
     }
 
     const emailMatch = e.match(/penjualan\.([a-z0-9]+)@/);
@@ -333,10 +336,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       if (numMatch) {
         const num = parseInt(numMatch[1], 10);
         const numPad = num < 10 ? '0' + num : String(num);
-        if (code.startsWith('SDK') || code.startsWith('D')) return 'D' + numPad;
-        if (code.startsWith('SMPK') || code.startsWith('P')) return 'P' + numPad;
-        if (code.startsWith('SMAK') || code.startsWith('A')) return 'A' + numPad;
-        if (code.startsWith('TKK') || code.startsWith('K')) return 'K' + numPad;
+        return prefix + numPad;
       }
     }
 
