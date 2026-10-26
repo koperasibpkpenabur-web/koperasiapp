@@ -42,46 +42,75 @@ const KopkarPesanan = () => {
 
   const fetchOrders = useCallback(async (silent = false) => {
     if (!silent) setLoadingOrders(true);
-    const { data, error } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false });
-    if (!error && data) {
-      setOrders(data.map((row: any) => ({
-        id: row.id,
-        schoolUserId: row.school_user_id,
-        schoolName: row.school_name,
-        schoolLevel: row.school_level,
-        orderPhase: row.order_phase,
-        items: (row.order_items || []).map((it: any) => ({
-          id: it.id,
-          productId: it.product_id,
-          name: it.name,
-          type: it.type,
-          size: it.size,
-          gender: it.gender,
-          quantity: it.quantity,
-          priceKopkar: Number(it.price_kopkar),
-          feeSchool: Number(it.fee_school),
-          priceStudent: Number(it.price_student),
-        })),
-        totalPriceKopkar: Number(row.total_price_kopkar),
-        totalFeeSchool: Number(row.total_fee_school),
-        totalPriceStudent: Number(row.total_price_student),
-        status: row.status,
-        rejectionReason: row.rejection_reason,
-        shippingInfo: row.shipping_info,
-        receiveInfo: row.receive_info,
-        cancellationInfo: row.cancellation_info,
-        paymentStatus: row.payment_status,
-        paidAt: row.paid_at,
-        paidNotes: row.paid_notes,
-        feeStatus: row.fee_status,
-        feeDisbursedAt: row.fee_disbursed_at,
-        feeDisbursedBy: row.fee_disbursed_by,
-        feeDisbursedNotes: row.fee_disbursed_notes,
-        createdAt: row.created_at,
-        processedAt: row.processed_at,
-        processedBy: row.processed_by,
-      })));
+    
+    // Pagination bertahap (range) agar tidak terpotong batas default 1.000 baris Supabase
+    const PAGE_SIZE = 1000;
+    let allRows: any[] = [];
+    let from = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) {
+        console.error('Error fetching orders:', error);
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allRows = allRows.concat(data);
+        if (data.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          from += PAGE_SIZE;
+        }
+      } else {
+        hasMore = false;
+      }
     }
+
+    setOrders(allRows.map((row: any) => ({
+      id: row.id,
+      schoolUserId: row.school_user_id,
+      schoolName: row.school_name,
+      schoolLevel: row.school_level,
+      orderPhase: row.order_phase,
+      items: (row.order_items || []).map((it: any) => ({
+        id: it.id,
+        productId: it.product_id,
+        name: it.name,
+        type: it.type,
+        size: it.size,
+        gender: it.gender,
+        quantity: it.quantity,
+        priceKopkar: Number(it.price_kopkar),
+        feeSchool: Number(it.fee_school),
+        priceStudent: Number(it.price_student),
+      })),
+      totalPriceKopkar: Number(row.total_price_kopkar),
+      totalFeeSchool: Number(row.total_fee_school),
+      totalPriceStudent: Number(row.total_price_student),
+      status: row.status,
+      rejectionReason: row.rejection_reason,
+      shippingInfo: row.shipping_info,
+      receiveInfo: row.receive_info,
+      cancellationInfo: row.cancellation_info,
+      paymentStatus: row.payment_status,
+      paidAt: row.paid_at,
+      paidNotes: row.paid_notes,
+      feeStatus: row.fee_status,
+      feeDisbursedAt: row.fee_disbursed_at,
+      feeDisbursedBy: row.fee_disbursed_by,
+      feeDisbursedNotes: row.fee_disbursed_notes,
+      createdAt: row.created_at,
+      processedAt: row.processed_at,
+      processedBy: row.processed_by,
+    })));
+
     if (!silent) setLoadingOrders(false);
   }, []);
 

@@ -449,3 +449,51 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ============================================================================
+-- 5. ATOMIC ORDER ID GENERATOR RPC
+-- Menjamin keunikan nomor pesanan ORD-YYYYMMDD-XXX tanpa bentrok / race condition
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.generate_order_id()
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_date_str text;
+  v_prefix text;
+  v_max_seq int := 0;
+  v_next_seq text;
+  v_order_id text;
+BEGIN
+  -- Dapatkan tanggal hari ini dalam format YYYYMMDD (WIB / Asia/Jakarta)
+  v_date_str := to_char(now() AT TIME ZONE 'Asia/Jakarta', 'YYYYMMDD');
+  v_prefix := 'ORD-' || v_date_str || '-';
+
+  -- Advisory lock level transaksi agar aman dari konkurensi simultan
+  PERFORM pg_advisory_xact_lock(hashtext('order_id_generation_' || v_date_str));
+
+  -- Cari urutan angka tertinggi pada hari ini
+  SELECT COALESCE(
+    MAX(
+      CASE 
+        WHEN id ~ ('^' || v_prefix || '[0-9]+$') 
+        THEN substring(id from ('^' || v_prefix || '([0-9]+)$'))::int 
+        ELSE 0 
+      END
+    ), 
+    0
+  ) INTO v_max_seq
+  FROM public.orders
+  WHERE id LIKE v_prefix || '%';
+
+  v_next_seq := lpad((v_max_seq + 1)::text, 3, '0');
+  v_order_id := v_prefix || v_next_seq;
+
+  RETURN v_order_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.generate_order_id() TO anon, authenticated, service_role;
+

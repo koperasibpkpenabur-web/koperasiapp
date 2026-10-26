@@ -129,26 +129,45 @@ const SchoolRekap = () => {
   const fetchAllForExport = async () => {
     if (!user?.id) return [];
     
-    let query = supabase
-      .from('orders')
-      .select('*, order_items(*)')
-      .eq('school_user_id', user.id);
+    const PAGE_SIZE = 1000;
+    let allOrdersData: any[] = [];
+    let from = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      let query = supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('school_user_id', user.id);
+        
+      if (statusFilter === 'all_active') {
+        query = query.in('status', ['pending', 'approved', 'shipped', 'received']);
+      } else {
+        query = query.eq('status', statusFilter);
+      }
       
-    if (statusFilter === 'all_active') {
-      query = query.in('status', ['pending', 'approved', 'shipped', 'received']);
-    } else {
-      query = query.eq('status', statusFilter);
+      if (phaseFilter !== 'all') {
+        query = query.eq('order_phase', phaseFilter);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false }).range(from, from + PAGE_SIZE - 1);
+      if (error) break;
+      if (data && data.length > 0) {
+        allOrdersData = allOrdersData.concat(data);
+        if (data.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          from += PAGE_SIZE;
+        }
+      } else {
+        hasMore = false;
+      }
     }
     
-    if (phaseFilter !== 'all') {
-      query = query.eq('order_phase', phaseFilter);
-    }
-    
-    const { data, error } = await query;
-    if (error || !data) return [];
+    if (allOrdersData.length === 0) return [];
     
     const rows: any[] = [];
-    data.forEach((o: any) => {
+    allOrdersData.forEach((o: any) => {
       (o.order_items || []).forEach((it: any) => {
         if (it.quantity > 0) {
           rows.push({

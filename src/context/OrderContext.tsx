@@ -52,34 +52,48 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       }
 
       const now = new Date().toISOString();
-      const localDate = new Date();
-      const year = localDate.getFullYear();
-      const month = String(localDate.getMonth() + 1).padStart(2, '0');
-      const day = String(localDate.getDate()).padStart(2, '0');
-      const dateForId = `${year}${month}${day}`;
-      
-      // Ambil seluruh ID pesanan yang berawalan tanggal hari ini untuk menentukan nomor urut tertinggi
-      const prefix = `ORD-${dateForId}-`;
-      const { data: todayOrders } = await supabase
-        .from('orders')
-        .select('id')
-        .like('id', `${prefix}%`);
+      // 1. Coba dapatkan nomor order secara atomic melalui RPC Postgres (anti-bentrok / race condition)
+      let newOrderId = '';
+      try {
+        const { data: rpcOrderId, error: rpcError } = await supabase.rpc('generate_order_id');
+        if (!rpcError && rpcOrderId && typeof rpcOrderId === 'string' && rpcOrderId.startsWith('ORD-')) {
+          newOrderId = rpcOrderId;
+        }
+      } catch (e) {
+        console.warn('RPC generate_order_id fallback to client-side:', e);
+      }
+
+      // 2. Fallback aman jika RPC belum di-execute di Supabase
+      if (!newOrderId) {
+        const localDate = new Date();
+        const year = localDate.getFullYear();
+        const month = String(localDate.getMonth() + 1).padStart(2, '0');
+        const day = String(localDate.getDate()).padStart(2, '0');
+        const dateForId = `${year}${month}${day}`;
         
-      let maxSeq = 0;
-      if (todayOrders && todayOrders.length > 0) {
-        for (const row of todayOrders) {
-          const parts = (row.id || '').split('-');
-          if (parts.length >= 3) {
-            const num = parseInt(parts[2], 10);
-            if (!isNaN(num) && num > maxSeq) {
-              maxSeq = num;
+        // Ambil seluruh ID pesanan yang berawalan tanggal hari ini untuk menentukan nomor urut tertinggi
+        const prefix = `ORD-${dateForId}-`;
+        const { data: todayOrders } = await supabase
+          .from('orders')
+          .select('id')
+          .like('id', `${prefix}%`);
+          
+        let maxSeq = 0;
+        if (todayOrders && todayOrders.length > 0) {
+          for (const row of todayOrders) {
+            const parts = (row.id || '').split('-');
+            if (parts.length >= 3) {
+              const num = parseInt(parts[2], 10);
+              if (!isNaN(num) && num > maxSeq) {
+                maxSeq = num;
+              }
             }
           }
         }
+          
+        const seq = String(maxSeq + 1).padStart(3, '0');
+        newOrderId = `ORD-${dateForId}-${seq}`;
       }
-        
-      const seq = String(maxSeq + 1).padStart(3, '0');
-      const newOrderId = `ORD-${dateForId}-${seq}`;
 
       const finalStatus = initialStatus || 'pending';
       const orderPayload: any = {

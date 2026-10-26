@@ -27,23 +27,45 @@ const PengurusDashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('orders')
-        .select('status, school_name, school_level, order_phase, total_price_student, total_price_kopkar, total_fee_school, payment_status, fee_status');
-        
-      if (!error && data) {
-        setOrders(data.map((r: any) => ({
-          status: r.status,
-          schoolName: r.school_name,
-          schoolLevel: r.school_level,
-          orderPhase: r.order_phase,
-          totalPriceStudent: Number(r.total_price_student) || 0,
-          totalPriceKopkar: Number(r.total_price_kopkar) || 0,
-          totalFeeSchool: Number(r.total_fee_school) || 0,
-          paymentStatus: r.payment_status,
-          feeStatus: r.fee_status,
-        })));
+      const PAGE_SIZE = 1000;
+      let allRows: any[] = [];
+      let from = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('status, school_name, school_level, order_phase, total_price_student, total_price_kopkar, total_fee_school, payment_status, fee_status')
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error) {
+          console.error('Error fetching pengurus orders:', error);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allRows = allRows.concat(data);
+          if (data.length < PAGE_SIZE) {
+            hasMore = false;
+          } else {
+            from += PAGE_SIZE;
+          }
+        } else {
+          hasMore = false;
+        }
       }
+
+      setOrders(allRows.map((r: any) => ({
+        status: r.status,
+        schoolName: r.school_name,
+        schoolLevel: r.school_level,
+        orderPhase: r.order_phase,
+        totalPriceStudent: Number(r.total_price_student) || 0,
+        totalPriceKopkar: Number(r.total_price_kopkar) || 0,
+        totalFeeSchool: Number(r.total_fee_school) || 0,
+        paymentStatus: r.payment_status,
+        feeStatus: r.fee_status,
+      })));
       setLoading(false);
     };
     fetchData();
