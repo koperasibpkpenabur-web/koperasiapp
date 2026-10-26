@@ -600,6 +600,25 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return raw;
     }
 
+    if (u.includes('NAME TAG')) return 'Name Tag 1set=6 ( coklat 1, putih 5)';
+    if (u.includes('CLEMEK')) return 'Clemek (Tata Boga)';
+    if (u.includes('KACU')) return 'Kacu Katun + Ring Rotan';
+    if (u.includes('TOPI PRAMUKA PUTRA')) return 'Topi Pramuka Putra';
+    if (u.includes('TOPI PRAMUKA PUTRI')) return 'Topi Pramuka Putri';
+    if (u.includes('TOPI KUNING')) return 'Topi Kuning';
+    if (u.includes('TOPI MERAH')) return 'Topi Merah';
+    if (u.includes('TOPI BIRU')) return 'Topi Biru';
+    if (u.includes('TOPI ABU')) return 'Topi Abu';
+    if (u.includes('DASI MERAH')) return 'Dasi Merah';
+    if (u.includes('DASI BIRU')) return 'Dasi Biru';
+    if (u.includes('DASI ABU PUTRA')) return 'Dasi Abu Putra';
+    if (u.includes('DASI ABU PUTRI')) return 'Dasi Abu Putri';
+    if (u.includes('DASI ABU')) return 'Dasi Abu';
+    if (u.includes('SEPATU')) return u.includes('VELCRO') ? 'Sepatu Velcro' : 'Sepatu Phantom';
+    if (u.includes('KAOS KAKI HITAM')) return 'Kaos Kaki Hitam';
+    if (u.includes('KAOS KAKI PUTIH')) return 'Kaos Kaki Putih';
+    if (u.includes('AMBALAN') && !u.includes('KEMEJA')) return 'Gudep Ambalan';
+
     return raw;
   };
 
@@ -2633,21 +2652,34 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         // 1. Kumpulkan seluruh candidate items yang berpotensi dikerjakan vendor ini
         const itemMap = new Map<string, string>(); // formattedName -> originalName
 
+        const addItemToMap = (rawItem: string) => {
+          const trimmed = (rawItem || '').trim();
+          if (!trimmed || !isItemAllowedForLevel(trimmed, lvl)) return;
+          const formatted = formatItemDisplayName(trimmed, lvl);
+          if (!isItemAllowedForLevel(formatted, lvl)) return;
+
+          // Cek apakah item sudah ada di itemMap (secara nama tampilan, case-insensitive, atau kecocokan seragam)
+          const alreadyExists = Array.from(itemMap.keys()).some(
+            (k) =>
+              k.toLowerCase() === formatted.toLowerCase() ||
+              normalizeItemName(k) === normalizeItemName(formatted) ||
+              isClothingTypeMatch(k, formatted)
+          );
+
+          if (!alreadyExists) {
+            itemMap.set(formatted, trimmed);
+          }
+        };
+
         // Masukkan item dari lvlPlottings
         lvlPlottings.forEach((p) => {
           if (p.clothing_type === 'Semua Jenis Baju') {
             getStandardItemsForLevel(lvl).forEach((std) => {
-              itemMap.set(std, std);
+              addItemToMap(std);
             });
           } else if (p.clothing_type) {
             splitClothingTypes(p.clothing_type).forEach((raw) => {
-              const trimmed = raw.trim();
-              if (trimmed && isItemAllowedForLevel(trimmed, lvl)) {
-                const formatted = formatItemDisplayName(trimmed, lvl);
-                if (isItemAllowedForLevel(formatted, lvl) && !itemMap.has(formatted)) {
-                  itemMap.set(formatted, trimmed);
-                }
-              }
+              addItemToMap(raw);
             });
           }
         });
@@ -2656,12 +2688,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         vendorAlloc.items
           .filter((it) => it.level.toUpperCase().trim() === lvl)
           .forEach((it) => {
-            if (isItemAllowedForLevel(it.uniformName, lvl)) {
-              const formatted = formatItemDisplayName(it.uniformName, lvl);
-              if (isItemAllowedForLevel(formatted, lvl) && !itemMap.has(formatted)) {
-                itemMap.set(formatted, it.uniformName);
-              }
-            }
+            addItemToMap(it.uniformName);
           });
 
         if (itemMap.size === 0) return;
