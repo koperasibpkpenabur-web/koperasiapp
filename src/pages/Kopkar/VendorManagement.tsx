@@ -399,6 +399,26 @@ const VendorManagement = () => {
       list.sort((a, b) => a.school_name.localeCompare(b.school_name, 'id', { numeric: true, sensitivity: 'base' }));
       setSchools(list);
       schoolsLoadedRef.current = true;
+
+      // Sinkronkan data sekolah ke plottings jika app_users belum terisi
+      setPlottings((prev) =>
+        prev.map((p) => {
+          if (!p.app_users?.school_name) {
+            const sch = list.find((s) => s.id === p.school_user_id);
+            if (sch) {
+              return {
+                ...p,
+                app_users: {
+                  school_name: sch.school_name,
+                  username: sch.email || '',
+                  school_level: sch.level || '',
+                },
+              };
+            }
+          }
+          return p;
+        })
+      );
     } catch (err) {
       console.error('Error fetching schools:', err);
     }
@@ -411,6 +431,18 @@ const VendorManagement = () => {
       .select('*, vendors(name, contact_person, phone), app_users(school_name, username, school_level)');
 
     if (!error && data) {
+      data.forEach((p) => {
+        if (!p.app_users?.school_name) {
+          const sch = schools.find((s) => s.id === p.school_user_id);
+          if (sch) {
+            p.app_users = {
+              school_name: sch.school_name,
+              username: sch.email || '',
+              school_level: sch.level || '',
+            };
+          }
+        }
+      });
       data.sort((a, b) =>
         (a.app_users?.school_name || '').localeCompare(b.app_users?.school_name || '', 'id', { numeric: true, sensitivity: 'base' })
       );
@@ -1148,11 +1180,14 @@ const VendorManagement = () => {
 
     const exportData = filteredPlottings.map((p, idx) => {
       const v = vendors.find((item) => item.id === p.vendor_id);
+      const sch = schools.find((item) => item.id === p.school_user_id);
+      const sName = p.app_users?.school_name || sch?.school_name || '-';
+      const sLvl = p.app_users?.school_level || sch?.level || '-';
       return {
         'No.': idx + 1,
         'Nama Vendor': p.vendors?.name || v?.name || '-',
-        'Sekolah yang Dikerjakan': p.app_users?.school_name || '-',
-        Jenjang: p.app_users?.school_level || '-',
+        'Sekolah yang Dikerjakan': sName,
+        Jenjang: sLvl,
         'Jenis Barang yang Dikerjakan': p.clothing_type || 'Semua Jenis Baju',
       };
     });
