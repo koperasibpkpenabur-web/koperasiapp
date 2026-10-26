@@ -88,6 +88,18 @@ export const getLevelRank = (lvl: string): number => {
   return 99;
 };
 
+export const normalizeLevel = (lvl: string): string => {
+  const u = (lvl || '').toUpperCase().trim();
+  if (u === 'TK' || u === 'TKK') return 'TK';
+  if (u === 'SD' || u === 'SDK') return 'SD';
+  if (u === 'SMP' || u === 'SMPK') return 'SMP';
+  if (u === 'SMA' || u === 'SMAK' || u === 'SMK' || u === 'SMKF') return 'SMA';
+  if (u === 'SD-SPK' || u === 'SPK-SD' || u.includes('PRIMARY')) return 'SPK-SD';
+  if (u === 'SMP-SPK' || u === 'SPK-SMP' || u.includes('LOWER')) return 'SPK-SMP';
+  if (u === 'SMA-SPK' || u === 'SPK-SMA' || u.includes('UPPER')) return 'SPK-SMA';
+  return u;
+};
+
 export const getLevelDisplayTitle = (lvl: string): string => {
   const u = (lvl || '').toUpperCase().trim();
   if (u === 'SPK-SD' || u === 'SD-SPK') return 'SPK-SD (Primary)';
@@ -434,63 +446,90 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   };
 
   const getStandardItemsForLevel = (level: string): string[] => {
-    const lvl = (level || '').toUpperCase().trim();
-    if (lvl === 'TK') {
-      return ['Kotak - Kotak Putri', 'Kotak - Kotak Putra', '1 Set Olahraga'];
+    const lvl = normalizeLevel(level);
+
+    // Ambil jenis seragam unik secara dinamis langsung dari Master Manajemen Barang (props products)
+    const dbItems = (products || [])
+      .filter((p) => {
+        const isSeragam = !p.category || p.category.toLowerCase() === 'seragam';
+        if (!isSeragam) return false;
+        const pLvl = normalizeLevel(p.level || '');
+        return pLvl === lvl || pLvl === 'SEMUA';
+      })
+      .map((p) => (p.name || '').trim())
+      .filter(Boolean);
+
+    const uniqueSet = new Set<string>();
+
+    if (dbItems.length > 0) {
+      dbItems.forEach((name) => {
+        if (isItemAllowedForLevel(name, lvl)) {
+          uniqueSet.add(formatItemDisplayName(name, lvl));
+        }
+      });
     }
-    if (lvl === 'SD') {
-      return [
-        'Kemeja Putih',
-        'Celana Kotak',
-        'Celana Polos',
-        'Rok Kotak kls 1-2',
-        'Rok Polos kls 1-2',
-        'Kulot Kotak kls 3-6',
-        'Kulot Polos kls 3-6',
-        'Rompi Kotak',
-        'Kemeja Pramuka Siaga Putra',
-        'Kemeja Pramuka Siaga Putri',
-        'Celana Pramuka Siaga',
-        'Rok Pramuka Siaga kls 1-2',
-        'Kulot Pramuka Siaga kls 3-4',
-        'Kemeja Pramuka Penggalang Putra',
-        'Kemeja Pramuka Penggalang Putri',
-        'Celana Pramuka Penggalang',
-        'Kulot Pramuka Penggalang',
-        '1 Set Olahraga',
-      ];
+
+    // Jika di Master Manajemen Barang belum ada produk terinput untuk jenjang ini (misal SPK belum diisi di database),
+    // baru gunakan fallback standar baku agar tampilan awal dan ekspor tetap memiliki struktur lengkap
+    if (uniqueSet.size === 0) {
+      if (lvl === 'TK') {
+        ['Kotak - Kotak Putri', 'Kotak - Kotak Putra', '1 Set Olahraga'].forEach((it) => uniqueSet.add(it));
+      } else if (lvl === 'SD' || lvl === 'SPK-SD') {
+        [
+          'Kemeja Putih',
+          'Celana Kotak',
+          'Celana Polos',
+          'Rok Kotak kls 1-2',
+          'Rok Polos kls 1-2',
+          'Kulot Kotak kls 3-6',
+          'Kulot Polos kls 3-6',
+          'Rompi Kotak',
+          'Kemeja Pramuka Siaga Putra',
+          'Kemeja Pramuka Siaga Putri',
+          'Celana Pramuka Siaga',
+          'Rok Pramuka Siaga kls 1-2',
+          'Kulot Pramuka Siaga kls 3-4',
+          'Kemeja Pramuka Penggalang Putra',
+          'Kemeja Pramuka Penggalang Putri',
+          'Celana Pramuka Penggalang',
+          'Kulot Pramuka Penggalang',
+          '1 Set Olahraga',
+        ].forEach((it) => uniqueSet.add(it));
+      } else if (lvl === 'SMP' || lvl === 'SPK-SMP') {
+        [
+          'Kemeja Putih',
+          'Celana Biru',
+          'Celana Panjang Biru',
+          'Kulot Biru',
+          'Rompi Kotak',
+          'Kemeja Pramuka Penggalang Putra',
+          'Kemeja Pramuka Penggalang Putri',
+          'Celana Pramuka Penggalang',
+          'Kulot Pramuka Penggalang',
+          '1 Set Olahraga',
+        ].forEach((it) => uniqueSet.add(it));
+      } else if (lvl === 'SMA' || lvl === 'SPK-SMA') {
+        [
+          'Kemeja Putih',
+          'Celana Panjang Abu',
+          'Kulot Abu',
+          'Rompi Kotak',
+          'Kemeja Pramuka Penegak Putra',
+          'Kemeja Pramuka Penegak Putri',
+          'Celana Pramuka Penegak',
+          'Kulot Pramuka Penegak',
+          'Jas Lab',
+          '1 Set Olahraga',
+        ].forEach((it) => uniqueSet.add(it));
+      }
     }
-    if (lvl === 'SMP') {
-      return [
-        'Kemeja Putih',
-        'Celana Biru',
-        'Celana Panjang Biru',
-        'Rok Biru',
-        'Kulot Biru',
-        'Rompi Kotak',
-        'Kemeja Pramuka Penggalang Putra',
-        'Kemeja Pramuka Penggalang Putri',
-        'Celana Pramuka Penggalang',
-        'Kulot Pramuka Penggalang',
-        '1 Set Olahraga',
-      ];
-    }
-    if (lvl === 'SMA') {
-      return [
-        'Kemeja Putih',
-        'Celana Panjang Abu',
-        'Rok Abu',
-        'Kulot Abu',
-        'Rompi Kotak',
-        'Kemeja Pramuka Penegak Putra',
-        'Kemeja Pramuka Penegak Putri',
-        'Celana Pramuka Penegak',
-        'Kulot Pramuka Penegak',
-        'Jas Lab',
-        '1 Set Olahraga',
-      ];
-    }
-    return [];
+
+    return Array.from(uniqueSet).sort((a, b) => {
+      const prioA = getItemPriority(a, lvl);
+      const prioB = getItemPriority(b, lvl);
+      if (prioA !== prioB) return prioA - prioB;
+      return a.localeCompare(b);
+    });
   };
 
   const formatItemDisplayName = (itemName: string, level?: string): string => {
@@ -2753,14 +2792,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   //    Baris: No urut, Nama Seragam baku/Supabase, Kolom Sekolah berisikan nama vendor
   // =========================================================================
   const handleExportSupplierMatrixExcel = async () => {
-    const normalizeLevel = (lvl: string): string => {
-      const u = (lvl || '').toUpperCase().trim();
-      if (u === 'SD-SPK' || u === 'SPK-SD') return 'SPK-SD';
-      if (u === 'SMP-SPK' || u === 'SPK-SMP') return 'SPK-SMP';
-      if (u === 'SMA-SPK' || u === 'SPK-SMA') return 'SPK-SMA';
-      return u;
-    };
-
     // 1. Kumpulkan semua jenjang yang ada di sekolah maupun plottings
     const activeLevelSet = new Set<string>();
 

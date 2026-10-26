@@ -54,6 +54,18 @@ const inputStyle: React.CSSProperties = {
   backgroundColor: '#fff',
 };
 
+const normalizeLevel = (lvl: string): string => {
+  const u = (lvl || '').toUpperCase().trim();
+  if (u === 'TK' || u === 'TKK') return 'TK';
+  if (u === 'SD' || u === 'SDK') return 'SD';
+  if (u === 'SMP' || u === 'SMPK') return 'SMP';
+  if (u === 'SMA' || u === 'SMAK' || u === 'SMK' || u === 'SMKF') return 'SMA';
+  if (u === 'SD-SPK' || u === 'SPK-SD' || u.includes('PRIMARY')) return 'SPK-SD';
+  if (u === 'SMP-SPK' || u === 'SPK-SMP' || u.includes('LOWER')) return 'SPK-SMP';
+  if (u === 'SMA-SPK' || u === 'SPK-SMA' || u.includes('UPPER')) return 'SPK-SMA';
+  return u;
+};
+
 const getLevelRank = (lvl: string): number => {
   const u = (lvl || '').toUpperCase().trim();
   if (u === 'TK' || u === 'TKK') return 1;
@@ -1053,28 +1065,32 @@ const VendorManagement = () => {
         new Set(
           schools
             .filter((s) => plotSchoolIds.includes(s.id))
-            .map((s) => (s.level || '').toUpperCase())
+            .map((s) => normalizeLevel(s.level || ''))
             .filter(Boolean)
         )
       );
     }
     if (plotLevelFilter !== 'ALL') {
-      return [plotLevelFilter.toUpperCase()];
+      return [normalizeLevel(plotLevelFilter)];
     }
     return [];
   }, [schools, plotSchoolIds, plotLevelFilter]);
 
   // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah terpilih
+  // Langsung tersinkronisasi dinamis dengan Master Manajemen Barang (products)
   const availableClothingTypes = useMemo(() => {
     return Array.from(
       new Set(
         products
-          .filter(
-            (p) =>
-              p.category === 'seragam' &&
-              (selectedPlotLevels.length === 0 || selectedPlotLevels.includes((p.level || '').toUpperCase()))
-          )
-          .map((p) => p.name.trim())
+          .filter((p) => {
+            const isSeragam = !p.category || p.category.toLowerCase() === 'seragam';
+            if (!isSeragam) return false;
+            if (selectedPlotLevels.length === 0) return true;
+            const pNorm = normalizeLevel(p.level || '');
+            return pNorm === 'SEMUA' || selectedPlotLevels.includes(pNorm);
+          })
+          .map((p) => (p.name || '').trim())
+          .filter(Boolean)
       )
     ).sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
   }, [products, selectedPlotLevels]);
@@ -1136,18 +1152,24 @@ const VendorManagement = () => {
   const selectedEditPlotSchool = schools.find((s) => s.id === editPlotSchoolId);
 
   // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah yang dipilih di modal edit plotting
-  const editAvailableClothingTypes = Array.from(
-    new Set(
-      products
-        .filter(
-          (p) =>
-            selectedEditPlotSchool &&
-            p.level?.toUpperCase() === selectedEditPlotSchool.level?.toUpperCase() &&
-            p.category === 'seragam'
-        )
-        .map((p) => p.name.trim())
-    )
-  ).sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
+  // Langsung tersinkronisasi dinamis dengan Master Manajemen Barang (products)
+  const editAvailableClothingTypes = useMemo(() => {
+    if (!selectedEditPlotSchool) return [];
+    const targetLvl = normalizeLevel(selectedEditPlotSchool.level || '');
+    return Array.from(
+      new Set(
+        products
+          .filter((p) => {
+            const isSeragam = !p.category || p.category.toLowerCase() === 'seragam';
+            if (!isSeragam) return false;
+            const pNorm = normalizeLevel(p.level || '');
+            return pNorm === 'SEMUA' || pNorm === targetLvl;
+          })
+          .map((p) => (p.name || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
+  }, [products, selectedEditPlotSchool]);
 
   // Jenis baju terfilter berdasarkan search di modal edit plotting
   const filteredEditAvailableClothingTypes = useMemo(() => {
