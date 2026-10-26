@@ -665,7 +665,32 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (!tNorm || !pNorm) return false;
     if (tNorm === pNorm) return true;
 
-    // 0. Cegah pencocokan silang warna jenjang yang berbeda: MERAH (SD) vs BIRU (SMP) vs ABU (SMA)
+    // 0. Cegah pencocokan silang Pramuka vs Non-Pramuka
+    const isPramukaT = tNorm.includes('PRAMUKA');
+    const isPramukaP = pNorm.includes('PRAMUKA');
+    if (isPramukaT !== isPramukaP) {
+      const isAccPramukaT =
+        tNorm.includes('BARET') ||
+        tNorm.includes('LAKEN') ||
+        tNorm.includes('KACU') ||
+        tNorm.includes('SIAGA') ||
+        tNorm.includes('PENGGALANG') ||
+        tNorm.includes('PENEGAK') ||
+        tNorm.includes('AMBALAN');
+      const isAccPramukaP =
+        pNorm.includes('BARET') ||
+        pNorm.includes('LAKEN') ||
+        pNorm.includes('KACU') ||
+        pNorm.includes('SIAGA') ||
+        pNorm.includes('PENGGALANG') ||
+        pNorm.includes('PENEGAK') ||
+        pNorm.includes('AMBALAN');
+      if (!isAccPramukaT && !isAccPramukaP) {
+        return false;
+      }
+    }
+
+    // 0a. Cegah pencocokan silang warna jenjang yang berbeda: MERAH (SD) vs BIRU (SMP) vs ABU (SMA)
     const hasMerahT = tNorm.includes('MERAH');
     const hasBiruT = tNorm.includes('BIRU');
     const hasAbuT = tNorm.includes('ABU');
@@ -713,8 +738,17 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     // Celana / Rok / Kulot Merah (SD)
     if (tNorm.includes('CELANA MERAH') && (pNorm.includes('CELANA MERAH') || pNorm.includes('CELANA POLOS MERAH'))) return true;
+    if (tNorm.includes('CELANA POLOS') && (pNorm.includes('CELANA POLOS') || pNorm.includes('CELANA MERAH') || pNorm.includes('CELANA POLOS MERAH'))) return true;
     if (tNorm.includes('KULOT MERAH') && (pNorm.includes('KULOT MERAH') || pNorm.includes('KULOT POLOS MERAH'))) return true;
+    if (tNorm.includes('KULOT POLOS') && (pNorm.includes('KULOT POLOS') || pNorm.includes('KULOT MERAH') || pNorm.includes('KULOT POLOS MERAH'))) return true;
     if (tNorm.includes('ROK MERAH') && (pNorm.includes('ROK MERAH') || pNorm.includes('ROK POLOS MERAH'))) return true;
+    if (tNorm.includes('ROK POLOS') && (pNorm.includes('ROK POLOS') || pNorm.includes('ROK MERAH') || pNorm.includes('ROK POLOS MERAH'))) return true;
+
+    if (tNorm.includes('CELANA KOTAK') && pNorm.includes('CELANA KOTAK')) return true;
+    if (tNorm.includes('ROK KOTAK') && pNorm.includes('ROK KOTAK')) return true;
+    if (tNorm.includes('KULOT KOTAK') && pNorm.includes('KULOT KOTAK')) return true;
+
+    if (tNorm.includes('KEMEJA PUTIH') && pNorm.includes('KEMEJA PUTIH')) return true;
 
     // Celana / Rok / Kulot Biru (SMP)
     if (tNorm.includes('CELANA BIRU') && pNorm.includes('CELANA BIRU')) return true;
@@ -791,35 +825,64 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return false;
     }
 
-    // Topi / Dasi (Supatno, Fortuna)
+    // Topi Pramuka (Putra & Putri)
+    if (tNorm.includes('TOPI PRAMUKA PUTRA') && pNorm.includes('TOPI PRAMUKA PUTRA')) return true;
+    if (tNorm.includes('TOPI PRAMUKA PUTRI') && pNorm.includes('TOPI PRAMUKA PUTRI')) return true;
+    if (tNorm === 'TOPI PRAMUKA' && pNorm.includes('TOPI PRAMUKA')) return true;
+
+    // Topi Reguler (Kuning, Merah, Biru, Abu)
     if (tNorm.includes('TOPI KUNING') && pNorm.includes('TOPI KUNING')) return true;
     if (tNorm.includes('TOPI MERAH') && pNorm.includes('TOPI MERAH')) return true;
-    if (tNorm.includes('DASI MERAH') && pNorm.includes('DASI MERAH')) return true;
     if (tNorm.includes('TOPI BIRU') && pNorm.includes('TOPI BIRU')) return true;
-    if (tNorm.includes('DASI BIRU') && pNorm.includes('DASI BIRU')) return true;
     if (tNorm.includes('TOPI ABU') && pNorm.includes('TOPI ABU')) return true;
+
+    // Topi Siaga (SD)
+    if (tNorm.includes('TOPI SIAGA PUTRA') && pNorm.includes('TOPI SIAGA PUTRA')) return true;
+    if (tNorm.includes('TOPI SIAGA PUTRI') && pNorm.includes('TOPI SIAGA PUTRI')) return true;
+
+    // Dasi Reguler
+    if (tNorm.includes('DASI MERAH') && pNorm.includes('DASI MERAH')) return true;
+    if (tNorm.includes('DASI BIRU') && pNorm.includes('DASI BIRU')) return true;
+    if (tNorm.includes('DASI ABU PUTRA') && pNorm.includes('DASI ABU PUTRA')) return true;
+    if (tNorm.includes('DASI ABU PUTRI') && pNorm.includes('DASI ABU PUTRI')) return true;
     if (tNorm.includes('DASI ABU') && pNorm.includes('DASI ABU')) return true;
-    if (tNorm.includes('TOPI') && pNorm.includes('TOPI')) return true;
-    if (tNorm.includes('DASI') && pNorm.includes('DASI')) return true;
+
+    // Dasi Spesifik SPK
+    if (tNorm.includes('DASI MERAH TUMPUL') && pNorm.includes('DASI MERAH TUMPUL')) return true;
+    if (tNorm.includes('DASI KOTAK TUMPUL') && pNorm.includes('DASI KOTAK TUMPUL')) return true;
+    if (tNorm.includes('DASI KOTAK') && pNorm.includes('DASI KOTAK')) {
+      if (tNorm.includes('PUTRA') && pNorm.includes('PUTRA')) return true;
+      if (tNorm.includes('PUTRI') && pNorm.includes('PUTRI')) return true;
+      if (!tNorm.includes('PUTRA') && !tNorm.includes('PUTRI')) return true;
+    }
 
     // Pramuka
     if (tNorm.includes('PRAMUKA') && pNorm.includes('PRAMUKA')) {
-      if (tNorm.includes('KEMEJA') && pNorm.includes('KEMEJA')) return true;
+      if (tNorm.includes('KEMEJA') && pNorm.includes('KEMEJA')) {
+        if (tNorm.includes('PUTRA') && pNorm.includes('PUTRI')) return false;
+        if (tNorm.includes('PUTRI') && pNorm.includes('PUTRA')) return false;
+        return true;
+      }
       if (tNorm.includes('CELANA') && pNorm.includes('CELANA')) return true;
       if (tNorm.includes('ROK') && pNorm.includes('ROK')) return true;
       if (tNorm.includes('KULOT') && pNorm.includes('KULOT')) return true;
-      if (tNorm.includes('BARET') && pNorm.includes('BARET')) return true;
-      if (tNorm.includes('LAKEN') && pNorm.includes('LAKEN')) return true;
-      if (tNorm.includes('KACU') && pNorm.includes('KACU')) return true;
     }
 
-    // Jas Lab & Baju Renang
+    if (tNorm.includes('BARET') && pNorm.includes('BARET')) return true;
+    if (tNorm.includes('LAKEN') && pNorm.includes('LAKEN')) return true;
+    if (tNorm.includes('KACU') && pNorm.includes('KACU')) return true;
+    if (tNorm.includes('NAME TAG') && pNorm.includes('NAME TAG')) return true;
+    if (tNorm.includes('CLEMEK') && pNorm.includes('CLEMEK')) return true;
+    if (tNorm.includes('AMBALAN') && pNorm.includes('AMBALAN')) return true;
+
     if (tNorm.includes('JAS LAB') && pNorm.includes('JAS LAB')) return true;
     if (tNorm.includes('BAJU RENANG') && pNorm.includes('BAJU RENANG')) return true;
 
-    // Substring fallback jika teks cukup spesifik
-    if (tNorm.length >= 7 && pNorm.length >= 7) {
-      if (tNorm.includes(pNorm) || pNorm.includes(tNorm)) return true;
+    // Substring fallback HANYA jika bukan TOPI / DASI (karena topi/dasi memiliki nama spesifik per warna)
+    if (!tNorm.includes('TOPI') && !pNorm.includes('TOPI') && !tNorm.includes('DASI') && !pNorm.includes('DASI')) {
+      if (tNorm.length >= 7 && pNorm.length >= 7) {
+        if (tNorm.includes(pNorm) || pNorm.includes(tNorm)) return true;
+      }
     }
 
     return false;
@@ -2616,9 +2679,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                 (pt) =>
                   pt === 'Semua Jenis Baju' ||
                   isClothingTypeMatch(origName, pt) ||
-                  isClothingTypeMatch(formattedName, pt) ||
-                  pt.toLowerCase().includes(formattedName.toLowerCase()) ||
-                  formattedName.toLowerCase().includes(pt.toLowerCase())
+                  isClothingTypeMatch(formattedName, pt)
               );
               if (match) return true;
             }
