@@ -264,111 +264,83 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   };
 
   const getSchoolDisplayCode = (schoolName: string, email?: string, level?: string): string => {
-    const n = (schoolName || '').toLowerCase();
-    const e = (email || '').toLowerCase();
-    const lvl = (level || '').toUpperCase();
+    const n = (schoolName || '').toLowerCase().trim();
+    const e = (email || '').toLowerCase().trim();
+    const lvl = (level || '').toUpperCase().trim();
 
-    // Tirtamarta
-    if (n.includes('tirtamarta 1') || n.includes('pondok indah') || e.includes('tirtamarta1')) return 'TM1';
-    if (n.includes('tirtamarta 2') || n.includes('cinere') || e.includes('tirtamarta2')) return 'TM2';
+    // 1. PIS (PENABUR International School): PIS KG untuk Kelapa Gading dan PIS TD untuk Tanjung Duren
+    if (n.includes('international') || n.includes('pis') || e.includes('pis')) {
+      if (n.includes('gading') || e.includes('pis.kg') || e.includes('pis_kg')) return 'PIS KG';
+      if (n.includes('duren') || e.includes('pis.td') || e.includes('pis_td')) return 'PIS TD';
+      return 'PIS';
+    }
 
-    // Kelapa Gading Indah
-    if (n.includes('kelapa gading indah') || e.includes('dkgi') || e.includes('kgi')) return 'DKGI';
+    // 2. Tirtamarta: Tirtamarta 1 = TM 1, Tirtamarta 2 = TM 2
+    if (n.includes('tirtamarta 1') || n.includes('pondok indah') || e.includes('tirtamarta1') || e.includes('tirtamarta_1')) return 'TM 1';
+    if (n.includes('tirtamarta 2') || n.includes('cinere') || e.includes('tirtamarta2') || e.includes('tirtamarta_2')) return 'TM 2';
+    if (n.includes('tirtamarta')) return 'TM 1';
 
-    // Area Sekolah dengan singkatan 3 huruf baku
+    // 3. Gading Serpong: KGS (TK), DGS (SD), PGS (SMP), AGS (SMA)
     if (n.includes('gading serpong') || e.includes('dgs') || e.includes('kgs') || e.includes('pgs') || e.includes('ags')) {
       if (lvl.includes('TK')) return 'KGS';
       if (lvl.includes('SD')) return 'DGS';
       if (lvl.includes('SMP')) return 'PGS';
       if (lvl.includes('SMA')) return 'AGS';
+      if (n.startsWith('tkk') || n.includes('tk')) return 'KGS';
+      if (n.startsWith('sdk') || n.includes('sd')) return 'DGS';
+      if (n.startsWith('smpk') || n.includes('smp')) return 'PGS';
+      if (n.startsWith('smak') || n.includes('sma')) return 'AGS';
+      return 'DGS';
     }
-    if (n.includes('bintaro jaya') || e.includes('dbj') || e.includes('kbj') || e.includes('pbj') || e.includes('abj')) {
-      if (lvl.includes('TK')) return 'KBJ';
-      if (lvl.includes('SD')) return 'DBJ';
-      if (lvl.includes('SMP')) return 'PBJ';
-      if (lvl.includes('SMA')) return 'ABJ';
-    }
-    if (n.includes('kota modern') || e.includes('dkm') || e.includes('kkm') || e.includes('pkm') || e.includes('akm')) {
-      if (lvl.includes('TK')) return 'KKM';
-      if (lvl.includes('SD')) return 'DKM';
-      if (lvl.includes('SMP')) return 'PKM';
-      if (lvl.includes('SMA')) return 'AKM';
-    }
-    if (n.includes('agus salim') || e.includes('das') || e.includes('kas') || e.includes('pas') || e.includes('aas')) {
-      if (lvl.includes('TK')) return 'KAS';
-      if (lvl.includes('SD')) return 'DAS';
-      if (lvl.includes('SMP')) return 'PAS';
-      if (lvl.includes('SMA')) return 'AAS';
-    }
-    if (n.includes('depok') || e.includes('ddp') || e.includes('kdp') || e.includes('pdp') || e.includes('adp')) {
-      if (lvl.includes('TK')) return 'KDP';
-      if (lvl.includes('SD')) return 'DDP';
-      if (lvl.includes('SMP')) return 'PDP';
-      if (lvl.includes('SMA')) return 'ADP';
-    }
-    if (n.includes('jababeka') || e.includes('dkj') || e.includes('kkj') || e.includes('pkj') || e.includes('akj')) {
-      if (lvl.includes('TK')) return 'KKJ';
-      if (lvl.includes('SD')) return 'DKJ';
-      if (lvl.includes('SMP')) return 'PKJ';
-      if (lvl.includes('SMA')) return 'AKJ';
-    }
-    if (n.includes('harapan indah') || e.includes('dhi') || e.includes('khi') || e.includes('phi') || e.includes('ahi')) {
-      if (lvl.includes('TK')) return 'KHI';
-      if (lvl.includes('SD')) return 'DHI';
-      if (lvl.includes('SMP')) return 'PHI';
-      if (lvl.includes('SMA')) return 'AHI';
-    }
-    if (n.includes('summarecon') || e.includes('dsb') || e.includes('ksb') || e.includes('psb') || e.includes('asb') || e.includes('sumbek')) {
-      if (lvl.includes('TK')) return 'KSB';
-      if (lvl.includes('SD')) return 'DSB';
-      if (lvl.includes('SMP')) return 'PSB';
-      if (lvl.includes('SMA')) return 'ASB';
-    }
-    if (n.includes('kota wisata') || e.includes('dkw') || e.includes('kkw') || e.includes('pkw') || e.includes('akw') || e.includes('kowis')) {
-      if (lvl.includes('TK')) return 'KKW';
-      if (lvl.includes('SD')) return 'DKW';
-      if (lvl.includes('SMP')) return 'PKW';
-      if (lvl.includes('SMA')) return 'AKW';
-    }
-    if (n.includes('kota tangerang') || e.includes('akt')) {
-      if (lvl.includes('SMA')) return 'AKT';
-    }
+
+    // 4. Singkatan cabang lainnya:
+    // Bintaro Jaya = BJ
+    // Kota Wisata = KW
+    // Harapan Indah = HI
+    // Kota Modern = KM
+    // Agus Salim = AS
+    // Depok = DP
+    // Sumarecon Bekasi = SB
+    // Kota Jababeka = KJ
+    if (n.includes('bintaro jaya') || e.includes('dbj') || e.includes('kbj') || e.includes('pbj') || e.includes('abj')) return 'BJ';
+    if (n.includes('kota wisata') || e.includes('dkw') || e.includes('kkw') || e.includes('pkw') || e.includes('akw') || e.includes('kowis')) return 'KW';
+    if (n.includes('harapan indah') || e.includes('dhi') || e.includes('khi') || e.includes('phi') || e.includes('ahi')) return 'HI';
+    if (n.includes('kota modern') || e.includes('dkm') || e.includes('kkm') || e.includes('pkm') || e.includes('akm')) return 'KM';
+    if (n.includes('agus salim') || e.includes('das') || e.includes('kas') || e.includes('pas') || e.includes('aas')) return 'AS';
+    if (n.includes('depok') || e.includes('ddp') || e.includes('kdp') || e.includes('pdp') || e.includes('adp')) return 'DP';
+    if (n.includes('summarecon') || n.includes('sumarecon') || e.includes('dsb') || e.includes('ksb') || e.includes('psb') || e.includes('asb') || e.includes('sumbek')) return 'SB';
+    if (n.includes('jababeka') || e.includes('dkj') || e.includes('kkj') || e.includes('pkj') || e.includes('akj')) return 'KJ';
+    if (n.includes('kota tangerang') || e.includes('akt')) return 'KT';
     if (n.includes('farmasi') || e.includes('smkf')) return 'SMKF';
+    if (n.includes('kelapa gading indah') || e.includes('dkgi') || e.includes('kgi')) return 'DKGI';
 
-    const match = e.match(/penjualan\.([a-z0-9]+)@/);
-    if (match) {
-      let code = match[1].toUpperCase();
-      if (code.startsWith('SDK')) {
-        const num = parseInt(code.replace('SDK', ''), 10);
-        if (!isNaN(num)) return 'D' + (num < 10 ? '0' + num : num);
-      }
-      if (code.startsWith('SMPK')) {
-        const num = parseInt(code.replace('SMPK', ''), 10);
-        if (!isNaN(num)) return 'P' + (num < 10 ? '0' + num : num);
-      }
-      if (code.startsWith('SMAK')) {
-        const num = parseInt(code.replace('SMAK', ''), 10);
-        if (!isNaN(num)) return 'A' + (num < 10 ? '0' + num : num);
-      }
-      if (code.startsWith('TKK')) {
-        const num = parseInt(code.replace('TKK', ''), 10);
-        if (!isNaN(num)) return 'K' + (num < 10 ? '0' + num : num);
-      }
-      if (code.startsWith('D') && code.length === 3 && !isNaN(parseInt(code.slice(1)))) return code;
-      if (code.startsWith('K') && code.length === 3 && !isNaN(parseInt(code.slice(1)))) return code;
-      if (code.startsWith('P') && code.length === 3 && !isNaN(parseInt(code.slice(1)))) return code;
-      if (code.startsWith('A') && code.length === 3 && !isNaN(parseInt(code.slice(1)))) return code;
-      return code;
+    // 5. Nomor urut: TKK 1 = K01, SDK 1 = D01, SMPK 1 = P01, SMAK 1 = A01
+    const nameMatch = n.match(/(tkk|sdk|smpk|smak|tk|sd|smp|sma)\s*(\d+)/i);
+    if (nameMatch) {
+      const prefixType = nameMatch[1].toUpperCase();
+      const num = parseInt(nameMatch[2], 10);
+      const numPad = num < 10 ? '0' + num : String(num);
+      if (prefixType.startsWith('TK')) return 'K' + numPad;
+      if (prefixType.startsWith('SD')) return 'D' + numPad;
+      if (prefixType.startsWith('SMP')) return 'P' + numPad;
+      if (prefixType.startsWith('SMA')) return 'A' + numPad;
     }
 
-    const numMatch = n.match(/(?:tkk|sdk|smpk|smak)\s+(\d+)/i);
-    if (numMatch) {
-      const num = parseInt(numMatch[1], 10);
-      const prefix = lvl.includes('TK') ? 'K' : lvl.includes('SD') ? 'D' : lvl.includes('SMP') ? 'P' : 'A';
-      return prefix + (num < 10 ? '0' + num : num);
+    const emailMatch = e.match(/penjualan\.([a-z0-9]+)@/);
+    if (emailMatch) {
+      const code = emailMatch[1].toUpperCase();
+      const numMatch = code.match(/(\d+)/);
+      if (numMatch) {
+        const num = parseInt(numMatch[1], 10);
+        const numPad = num < 10 ? '0' + num : String(num);
+        if (code.startsWith('SDK') || code.startsWith('D')) return 'D' + numPad;
+        if (code.startsWith('SMPK') || code.startsWith('P')) return 'P' + numPad;
+        if (code.startsWith('SMAK') || code.startsWith('A')) return 'A' + numPad;
+        if (code.startsWith('TKK') || code.startsWith('K')) return 'K' + numPad;
+      }
     }
 
-    return schoolName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase();
+    return schoolName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || schoolName;
   };
 
   const getVendorShortCode = (name: string): string => {
@@ -2561,12 +2533,17 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         const schoolList = Array.from(schoolMap.values());
         if (schoolList.length === 0) return;
 
-        // Urutkan kolom sekolah: angka (D08, D09, D10, D11), cabang (DAS, DKJ, DHI, DSB...), TM1/TM2, DKGI paling akhir
+        // Urutkan kolom sekolah: angka (P01, P02...), cabang (PGS, BJ, KW...), TM 1/TM 2, PIS KG/TD, DKGI
         schoolList.sort((a, b) => {
           const isDkgiA = a.code === 'DKGI';
           const isDkgiB = b.code === 'DKGI';
           if (isDkgiA) return 1;
           if (isDkgiB) return -1;
+
+          const isPisA = a.code.startsWith('PIS');
+          const isPisB = b.code.startsWith('PIS');
+          if (isPisA && !isPisB) return 1;
+          if (!isPisA && isPisB) return -1;
 
           const isTmA = a.code.startsWith('TM');
           const isTmB = b.code.startsWith('TM');

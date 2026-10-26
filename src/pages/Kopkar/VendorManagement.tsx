@@ -450,21 +450,36 @@ const VendorManagement = () => {
 
   const fetchPlottings = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('vendor_school_assignments')
-      .select('*, vendors(name, contact_person, phone), app_users(school_name, username, school_level)');
+    const [assignmentsRes, schoolsRes] = await Promise.all([
+      supabase
+        .from('vendor_school_assignments')
+        .select('*, vendors(name, contact_person, phone), app_users(school_name, username, school_level)'),
+      supabase
+        .from('school_whitelist')
+        .select('*'),
+    ]);
 
-    if (!error && data) {
+    const data = assignmentsRes.data;
+    const wl = schoolsRes.data || [];
+    const wlMap = new Map<string, any>();
+    wl.forEach((w) => {
+      wlMap.set(String(w.id), w);
+      if (w.email) wlMap.set(w.email.toLowerCase().trim(), w);
+    });
+
+    if (!assignmentsRes.error && data) {
       data.forEach((p) => {
         if (!p.app_users?.school_name) {
-          const sch = schools.find((s) => s.id === p.school_user_id);
+          const sch = schools.find((s) => s.id === p.school_user_id) || wlMap.get(String(p.school_user_id));
           if (sch) {
             p.app_users = {
-              school_name: sch.school_name,
+              school_name: sch.school_name || sch.nama_sekolah || sch.Nama_Sekolah || '',
               username: sch.email || '',
-              school_level: sch.level || '',
+              school_level: normalizeLevel(sch.level || sch.Jenjang || sch.jenjang || ''),
             };
           }
+        } else if (p.app_users.school_level) {
+          p.app_users.school_level = normalizeLevel(p.app_users.school_level);
         }
       });
       data.sort((a, b) =>
@@ -1010,7 +1025,7 @@ const VendorManagement = () => {
         const matchesVendor = plotVendorFilter === 'ALL' || p.vendor_id === plotVendorFilter;
         const matchesLevel =
           plotLevelFilterTable === 'ALL' ||
-          (p.app_users?.school_level || '').toUpperCase() === plotLevelFilterTable.toUpperCase();
+          normalizeLevel(p.app_users?.school_level || '') === normalizeLevel(plotLevelFilterTable);
         const q = searchQuery.toLowerCase().trim();
         const matchesSearch =
           !q ||
@@ -1684,10 +1699,22 @@ const VendorManagement = () => {
                               fontWeight: 600,
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '4px',
+                              gap: '6px',
                             }}
                           >
-                            🏫 {item.app_users?.school_name || 'Sekolah'}
+                            <span
+                              style={{
+                                fontSize: '0.72rem',
+                                background: '#e2e8f0',
+                                color: '#475569',
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {item.app_users?.school_level || 'SD'}
+                            </span>
+                            <span>{item.app_users?.school_name || 'Sekolah'}</span>
                           </span>
                         ))}
                         {g.items.length > 4 ? (
