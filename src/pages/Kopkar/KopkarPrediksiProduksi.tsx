@@ -938,8 +938,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
       // Cari plotting-plotting yang sesuai jenjang DAN jenis barang ini
       const matchedPlottings = effectivePlottings.filter((p) => {
-        const pLevel = (p.app_users?.school_level || '').toUpperCase().trim();
-        if (pLevel !== itemLevel) return false;
+        const pLevel = normalizeLevel(p.app_users?.school_level || '');
+        const iLevel = normalizeLevel(itemLevel);
+        if (pLevel !== iLevel) return false;
 
         const plottedTypes = splitClothingTypes(p.clothing_type);
 
@@ -1772,9 +1773,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     // 2. Dari plottings database untuk vendor ini pada jenjang ini
     effectivePlottings.forEach((p) => {
       if (p.vendor_id === va.vendorId) {
-        const pLvl = (p.app_users?.school_level || '').toUpperCase().trim();
+        const pLvl = normalizeLevel(p.app_users?.school_level || '');
         const sName = p.app_users?.school_name || '';
-        if (sName && pLvl === lvl) {
+        if (sName && pLvl === normalizeLevel(lvl)) {
           levelSchoolsSet.add(sName);
         }
       }
