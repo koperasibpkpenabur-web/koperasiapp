@@ -894,14 +894,37 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     // Pramuka
     if (tNorm.includes('PRAMUKA') && pNorm.includes('PRAMUKA')) {
-      if (tNorm.includes('KEMEJA') && pNorm.includes('KEMEJA')) {
+      const isTopiT = tNorm.includes('TOPI');
+      const isTopiP = pNorm.includes('TOPI');
+      if (isTopiT !== isTopiP) return false;
+
+      const isKemejaT = tNorm.includes('KEMEJA');
+      const isKemejaP = pNorm.includes('KEMEJA');
+      if (isKemejaT !== isKemejaP) return false;
+
+      const isCelanaT = tNorm.includes('CELANA');
+      const isCelanaP = pNorm.includes('CELANA');
+      if (isCelanaT !== isCelanaP) return false;
+
+      const isRokT = tNorm.includes('ROK');
+      const isRokP = pNorm.includes('ROK');
+      if (isRokT !== isRokP) return false;
+
+      const isKulotT = tNorm.includes('KULOT');
+      const isKulotP = pNorm.includes('KULOT');
+      if (isKulotT !== isKulotP) return false;
+
+      if (isKemejaT && isKemejaP) {
         if (tNorm.includes('PUTRA') && pNorm.includes('PUTRI')) return false;
         if (tNorm.includes('PUTRI') && pNorm.includes('PUTRA')) return false;
         return true;
       }
-      if (tNorm.includes('CELANA') && (pNorm.includes('CELANA') || pNorm.includes('KULOT') || pNorm.includes('KEMEJA'))) return true;
-      if (tNorm.includes('ROK') && pNorm.includes('ROK')) return true;
-      if (tNorm.includes('KULOT') && pNorm.includes('KULOT')) return true;
+      if (isCelanaT && isCelanaP) return true;
+      if (isRokT && isRokP) return true;
+      if (isKulotT && isKulotP) return true;
+      if (isTopiT && isTopiP) return true;
+
+      return false;
     }
 
     if (tNorm.includes('BARET') && pNorm.includes('BARET')) return true;
@@ -909,7 +932,12 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (tNorm.includes('KACU') && pNorm.includes('KACU')) return true;
     if (tNorm.includes('NAME TAG') && pNorm.includes('NAME TAG')) return true;
     if (tNorm.includes('CLEMEK') && pNorm.includes('CLEMEK')) return true;
-    if (tNorm.includes('AMBALAN') && pNorm.includes('AMBALAN')) return true;
+    if (tNorm.includes('AMBALAN') && pNorm.includes('AMBALAN')) {
+      const isKemejaT = tNorm.includes('KEMEJA');
+      const isKemejaP = pNorm.includes('KEMEJA');
+      if (isKemejaT !== isKemejaP) return false;
+      return true;
+    }
 
     if (tNorm.includes('JAS LAB') && pNorm.includes('JAS LAB')) return true;
     if (tNorm.includes('BAJU RENANG') && pNorm.includes('BAJU RENANG')) return true;
