@@ -622,11 +622,20 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (u.includes('TOPI MERAH')) return 'Topi Merah';
     if (u.includes('TOPI BIRU')) return 'Topi Biru';
     if (u.includes('TOPI ABU')) return 'Topi Abu';
-    if (u.includes('DASI MERAH')) return 'Dasi Merah';
-    if (u.includes('DASI BIRU')) return 'Dasi Biru';
+    // Dasi SPK & Reguler sesuai Master Manajemen Barang
+    if (u.includes('DASI MERAH TUMPUL')) return 'Dasi Merah Tumpul Berlogo';
+    if (u.includes('DASI KOTAK TUMPUL')) return 'Dasi Kotak Tumpul Berlogo';
+    if (u.includes('DASI BIRU POLOS PUTRA')) return 'Dasi Biru Polos Putra';
+    if (u.includes('DASI KOTAK PANJANG PUTRA')) return 'Dasi Kotak Panjang Putra';
+    if (u.includes('DASI BIRU KUPU2 PUTRI') || u.includes('DASI BIRU KUPU')) return 'Dasi Biru Kupu2 Putri';
+    if (u.includes('DASI KOTAK KUPU2 PUTRI') || u.includes('DASI KOTAK KUPU')) return 'Dasi Kotak Kupu2 Putri';
+    if (u.includes('DASI KOTAK PUTRA')) return 'Dasi Kotak Putra';
+    if (u.includes('DASI KOTAK PUTRI')) return 'Dasi Kotak Putri';
     if (u.includes('DASI ABU PUTRA')) return 'Dasi Abu Putra';
     if (u.includes('DASI ABU PUTRI')) return 'Dasi Abu Putri';
     if (u.includes('DASI ABU')) return 'Dasi Abu';
+    if (u.includes('DASI MERAH')) return 'Dasi Merah';
+    if (u.includes('DASI BIRU')) return 'Dasi Biru';
     if (u.includes('SEPATU')) return u.includes('VELCRO') ? 'Sepatu Velcro' : 'Sepatu Phantom';
     if (u.includes('KAOS KAKI HITAM')) return 'Kaos Kaki Hitam';
     if (u.includes('KAOS KAKI PUTIH')) return 'Kaos Kaki Putih';
@@ -880,23 +889,72 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return true;
     }
 
-    // Dasi Reguler
-    if (tNorm.includes('DASI MERAH') && pNorm.includes('DASI MERAH')) return true;
-    if (tNorm.includes('DASI BIRU') && pNorm.includes('DASI BIRU')) return true;
-    if (tNorm.includes('DASI ABU') && pNorm.includes('DASI ABU')) {
-      if (tNorm.includes('PUTRA') && pNorm.includes('PUTRI')) return false;
-      if (tNorm.includes('PUTRI') && pNorm.includes('PUTRA')) return false;
-      return true;
-    }
+    // Dasi (Reguler & SPK) diselaraskan presisi dengan Master Manajemen Barang
+    const isDasiT = tNorm.includes('DASI');
+    const isDasiP = pNorm.includes('DASI');
+    if (isDasiT || isDasiP) {
+      if (!isDasiT || !isDasiP) return false;
 
-    // Dasi Spesifik SPK
-    if (tNorm.includes('DASI MERAH TUMPUL') && pNorm.includes('DASI MERAH TUMPUL')) return true;
-    if (tNorm.includes('DASI KOTAK TUMPUL') && pNorm.includes('DASI KOTAK TUMPUL')) return true;
-    if (tNorm.includes('DASI KOTAK') && (pNorm.includes('DASI KOTAK') || pNorm === 'DASI' || pNorm.includes('DASI'))) {
-      if (tNorm.includes('PUTRA') && pNorm.includes('PUTRA')) return true;
-      if (tNorm.includes('PUTRI') && pNorm.includes('PUTRI')) return true;
-      if (!tNorm.includes('PUTRA') && !tNorm.includes('PUTRI')) return true;
-      if (pNorm === 'DASI' || pNorm === 'DASI BIRU') return true;
+      // Pemisah gender: Putra vs Putri tidak boleh saling mencocokkan
+      const isPutraT = tNorm.includes('PUTRA');
+      const isPutraP = pNorm.includes('PUTRA');
+      const isPutriT = tNorm.includes('PUTRI');
+      const isPutriP = pNorm.includes('PUTRI');
+      if (isPutraT && isPutriP) return false;
+      if (isPutriT && isPutraP) return false;
+
+      // Pemisah motif/warna
+      const isMerahT = tNorm.includes('MERAH');
+      const isMerahP = pNorm.includes('MERAH');
+      const isBiruT = tNorm.includes('BIRU');
+      const isBiruP = pNorm.includes('BIRU');
+      const isAbuT = tNorm.includes('ABU');
+      const isAbuP = pNorm.includes('ABU');
+      const isKotakT = tNorm.includes('KOTAK');
+      const isKotakP = pNorm.includes('KOTAK');
+
+      // Tumpul Berlogo (khusus SPK-SD)
+      const isTumpulT = tNorm.includes('TUMPUL');
+      const isTumpulP = pNorm.includes('TUMPUL');
+      if (isTumpulT !== isTumpulP) return false;
+
+      // Mencegah silang warna/motif
+      if (isMerahT && !isMerahP) return false;
+      if (isBiruT && !isBiruP) return false;
+      if (isAbuT && !isAbuP) return false;
+      if (isKotakT && !isKotakP) return false;
+
+      // 1. Dasi Abu (SMA & SPK-SMA: Dasi Abu Putra, Dasi Abu Putri)
+      if (isAbuT && isAbuP) {
+        if (isPutraT && isPutraP) return true;
+        if (isPutriT && isPutriP) return true;
+        if (!isPutraT && !isPutriT) return true;
+        if (!isPutraP && !isPutriP) return true;
+        return false;
+      }
+
+      // 2. Dasi Merah (SD: Dasi Merah, SPK-SD: Dasi Merah Tumpul Berlogo)
+      if (isMerahT && isMerahP) return true;
+
+      // 3. Dasi Biru (SMP: Dasi Biru, SPK-SMP: Dasi Biru Polos Putra & Dasi Biru Kupu2 Putri)
+      if (isBiruT && isBiruP) {
+        if (isPutraT && isPutraP) return true;
+        if (isPutriT && isPutriP) return true;
+        if (!isPutraT && !isPutriT) return true;
+        if (!isPutraP && !isPutriP) return true;
+        return false;
+      }
+
+      // 4. Dasi Kotak (SPK-SD: Tumpul Berlogo, SPK-SMP: Panjang Putra & Kupu2 Putri, SPK-SMA: Putra & Putri)
+      if (isKotakT && isKotakP) {
+        if (isPutraT && isPutraP) return true;
+        if (isPutriT && isPutriP) return true;
+        if (!isPutraT && !isPutriT) return true;
+        if (!isPutraP && !isPutriP) return true;
+        return false;
+      }
+
+      return false;
     }
 
     // Pramuka
