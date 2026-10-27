@@ -861,9 +861,11 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     }
 
     // Topi Pramuka (Putra & Putri)
-    if (tNorm.includes('TOPI PRAMUKA PUTRA') && pNorm.includes('TOPI PRAMUKA PUTRA')) return true;
-    if (tNorm.includes('TOPI PRAMUKA PUTRI') && pNorm.includes('TOPI PRAMUKA PUTRI')) return true;
-    if (tNorm === 'TOPI PRAMUKA' && pNorm.includes('TOPI PRAMUKA')) return true;
+    if (tNorm.includes('TOPI PRAMUKA') && pNorm.includes('TOPI PRAMUKA')) {
+      if (tNorm.includes('PUTRA') && pNorm.includes('PUTRI')) return false;
+      if (tNorm.includes('PUTRI') && pNorm.includes('PUTRA')) return false;
+      return true;
+    }
 
     // Topi Reguler (Kuning, Merah, Biru, Abu)
     if (tNorm.includes('TOPI KUNING') && pNorm.includes('TOPI KUNING')) return true;
@@ -872,15 +874,20 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (tNorm.includes('TOPI ABU') && pNorm.includes('TOPI ABU')) return true;
 
     // Topi Siaga (SD)
-    if (tNorm.includes('TOPI SIAGA PUTRA') && pNorm.includes('TOPI SIAGA PUTRA')) return true;
-    if (tNorm.includes('TOPI SIAGA PUTRI') && pNorm.includes('TOPI SIAGA PUTRI')) return true;
+    if (tNorm.includes('TOPI SIAGA') && pNorm.includes('TOPI SIAGA')) {
+      if (tNorm.includes('PUTRA') && pNorm.includes('PUTRI')) return false;
+      if (tNorm.includes('PUTRI') && pNorm.includes('PUTRA')) return false;
+      return true;
+    }
 
     // Dasi Reguler
     if (tNorm.includes('DASI MERAH') && pNorm.includes('DASI MERAH')) return true;
     if (tNorm.includes('DASI BIRU') && pNorm.includes('DASI BIRU')) return true;
-    if (tNorm.includes('DASI ABU PUTRA') && pNorm.includes('DASI ABU PUTRA')) return true;
-    if (tNorm.includes('DASI ABU PUTRI') && pNorm.includes('DASI ABU PUTRI')) return true;
-    if (tNorm.includes('DASI ABU') && pNorm.includes('DASI ABU')) return true;
+    if (tNorm.includes('DASI ABU') && pNorm.includes('DASI ABU')) {
+      if (tNorm.includes('PUTRA') && pNorm.includes('PUTRI')) return false;
+      if (tNorm.includes('PUTRI') && pNorm.includes('PUTRA')) return false;
+      return true;
+    }
 
     // Dasi Spesifik SPK
     if (tNorm.includes('DASI MERAH TUMPUL') && pNorm.includes('DASI MERAH TUMPUL')) return true;
