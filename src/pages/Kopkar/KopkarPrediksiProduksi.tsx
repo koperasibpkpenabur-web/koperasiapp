@@ -2270,12 +2270,21 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     summarySheet.getCell(2, 1).value = `Tahun Ajaran: ${targetYear} | PIC: ${vendorAlloc.contactPerson || '-'} | No. Telp: ${vendorAlloc.phone || '-'}`;
     summarySheet.getCell(2, 1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } };
 
-    const headers = ['NO', 'JENJANG', 'NAMA SHEET', 'JUMLAH SEKOLAH', 'DAFTAR SEKOLAH', 'JUMLAH ITEM', 'TOTAL TARGET (PCS)'];
+    const headers = [
+      'NO',
+      'JENJANG',
+      'NAMA SHEET',
+      'JUMLAH SEKOLAH',
+      'DAFTAR SEKOLAH',
+      'JENIS ITEM',
+      'UKURAN',
+      'TOTAL TARGET (PCS)',
+    ];
     summarySheet.getRow(4).height = 24;
     headers.forEach((h, idx) => {
       const cell = summarySheet.getCell(4, idx + 1);
       cell.value = h;
-      cell.font = { name: 'Calibri', size: 10, bold: true };
+      cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
       cell.border = thinBorder;
       cell.fill = headerFill;
@@ -2291,28 +2300,100 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       totalPcsAllLevels += levelPcs;
 
       const schoolList = levelSchools.length > 0 ? levelSchools : ['-'];
-      const rowCount = schoolList.length;
+
+      // Susun daftar rincian item beserta ukurannya
+      interface ItemSizeEntry {
+        itemName: string;
+        size: string;
+        total: number;
+        isFirstOfItem: boolean;
+        itemRowCount: number;
+      }
+
+      const itemSizeList: ItemSizeEntry[] = [];
+
+      if (levelItems.length > 0) {
+        levelItems.forEach((it) => {
+          const rawSizes = Object.keys(it.sizes || {}).filter((s) => s && s.trim() !== '' && s !== 'TOTAL');
+          const sortedSizes = rawSizes.sort((a, b) => {
+            const idxA = STANDARD_SIZE_ORDER.indexOf(a);
+            const idxB = STANDARD_SIZE_ORDER.indexOf(b);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.localeCompare(b, undefined, { numeric: true });
+          });
+
+          const sizesToRender = sortedSizes.length > 0 ? sortedSizes : ['ALL SIZE'];
+          sizesToRender.forEach((sz, sIdx) => {
+            const qty =
+              sz === 'ALL SIZE' && (!it.sizes || it.sizes['ALL SIZE'] === undefined)
+                ? (it.total || 0)
+                : (it.sizes[sz] || 0);
+
+            itemSizeList.push({
+              itemName: it.uniformName,
+              size: sz,
+              total: qty,
+              isFirstOfItem: sIdx === 0,
+              itemRowCount: sizesToRender.length,
+            });
+          });
+        });
+      } else {
+        itemSizeList.push({
+          itemName: '-',
+          size: '-',
+          total: 0,
+          isFirstOfItem: true,
+          itemRowCount: 1,
+        });
+      }
+
+      const rowCount = Math.max(schoolList.length, itemSizeList.length);
       const startRow = sRow;
       const endRow = startRow + rowCount - 1;
 
-      schoolList.forEach((sName, subIdx) => {
+      for (let subIdx = 0; subIdx < rowCount; subIdx++) {
         const r = startRow + subIdx;
         summarySheet.getRow(r).height = 20;
 
-        // Siapkan seluruh cell di baris r dengan border dan font dasar
-        for (let c = 1; c <= 7; c++) {
+        // Inisialisasi seluruh cell di baris r dengan border dan font dasar
+        for (let c = 1; c <= 8; c++) {
           const cell = summarySheet.getCell(r, c);
           cell.font = { name: 'Calibri', size: 10 };
           cell.border = thinBorder;
         }
 
         // Kolom 5: Daftar Sekolah (tiap sekolah di baris/cell sendiri)
-        const cellSch = summarySheet.getCell(r, 5);
-        cellSch.value = sName;
-        cellSch.alignment = { vertical: 'middle', horizontal: 'left' };
-      });
+        if (subIdx < schoolList.length) {
+          const cellSch = summarySheet.getCell(r, 5);
+          cellSch.value = schoolList[subIdx];
+          cellSch.alignment = { vertical: 'middle', horizontal: 'left' };
+        }
 
-      // Set value dan styling untuk kolom data di baris pertama (startRow)
+        // Kolom 6, 7, 8: Jenis Item, Ukuran, dan Total Target
+        if (subIdx < itemSizeList.length) {
+          const itEntry = itemSizeList[subIdx];
+
+          const cellItem = summarySheet.getCell(r, 6);
+          cellItem.value = itEntry.itemName;
+          cellItem.font = { name: 'Calibri', size: 10, bold: true };
+          cellItem.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+          const cellSz = summarySheet.getCell(r, 7);
+          cellSz.value = itEntry.size;
+          cellSz.alignment = { vertical: 'middle', horizontal: 'center' };
+
+          const cellPcs = summarySheet.getCell(r, 8);
+          cellPcs.value = itEntry.total > 0 ? itEntry.total : 0;
+          cellPcs.font = { name: 'Calibri', size: 10, bold: true };
+          cellPcs.alignment = { vertical: 'middle', horizontal: 'right' };
+          cellPcs.numFmt = '#,##0';
+        }
+      }
+
+      // Set value dan styling untuk kolom data jenjang di baris pertama (startRow)
       const cellNo = summarySheet.getCell(startRow, 1);
       cellNo.value = idx + 1;
       cellNo.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -2331,25 +2412,36 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       cellCount.value = levelSchools.length;
       cellCount.alignment = { vertical: 'middle', horizontal: 'center' };
 
-      const cellItems = summarySheet.getCell(startRow, 6);
-      cellItems.value = levelItems.length;
-      cellItems.alignment = { vertical: 'middle', horizontal: 'center' };
-
-      const cellPcs = summarySheet.getCell(startRow, 7);
-      cellPcs.value = levelPcs;
-      cellPcs.font = { name: 'Calibri', size: 10, bold: true };
-      cellPcs.alignment = { vertical: 'middle', horizontal: 'right' };
-      cellPcs.numFmt = '#,##0';
-
-      // Jika jumlah sekolah > 1, merge vertikal kolom 1, 2, 3, 4, 6, 7
+      // Merge vertikal kolom data jenjang (Kolom 1, 2, 3, 4) jika baris > 1
       if (endRow > startRow) {
         summarySheet.mergeCells(startRow, 1, endRow, 1);
         summarySheet.mergeCells(startRow, 2, endRow, 2);
         summarySheet.mergeCells(startRow, 3, endRow, 3);
         summarySheet.mergeCells(startRow, 4, endRow, 4);
-        // Kolom 5 (Daftar Sekolah) sengaja TIDAK di-merge agar tiap sekolah menempati cell baris sendiri
+
+        // Jika hanya 1 sekolah dalam jenjang ini, merge kolom 5 secara vertikal agar rapi
+        if (schoolList.length === 1) {
+          summarySheet.mergeCells(startRow, 5, endRow, 5);
+        }
+      }
+
+      // Merge vertikal Kolom 6 (Jenis Item) untuk setiap item yang memiliki lebih dari 1 ukuran
+      if (itemSizeList.length === 1 && endRow > startRow) {
         summarySheet.mergeCells(startRow, 6, endRow, 6);
         summarySheet.mergeCells(startRow, 7, endRow, 7);
+        summarySheet.mergeCells(startRow, 8, endRow, 8);
+      } else {
+        let currItemStart = startRow;
+        for (let i = 0; i < itemSizeList.length; i++) {
+          const entry = itemSizeList[i];
+          if (entry.isFirstOfItem) {
+            currItemStart = startRow + i;
+            const currItemEnd = currItemStart + entry.itemRowCount - 1;
+            if (currItemEnd > currItemStart && currItemEnd <= endRow) {
+              summarySheet.mergeCells(currItemStart, 6, currItemEnd, 6);
+            }
+          }
+        }
       }
 
       sRow = endRow + 1;
@@ -2358,18 +2450,18 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     // Total row
     summarySheet.getRow(sRow).height = 22;
     summarySheet.getCell(sRow, 1).value = 'TOTAL KESELURUHAN';
-    summarySheet.mergeCells(sRow, 1, sRow, 6);
+    summarySheet.mergeCells(sRow, 1, sRow, 7);
     const totLabel = summarySheet.getCell(sRow, 1);
     totLabel.font = { name: 'Calibri', size: 10, bold: true };
     totLabel.alignment = { vertical: 'middle', horizontal: 'center' };
     totLabel.fill = totalFill;
     totLabel.border = thinBorder;
-    for (let c = 2; c <= 6; c++) {
+    for (let c = 2; c <= 7; c++) {
       summarySheet.getCell(sRow, c).fill = totalFill;
       summarySheet.getCell(sRow, c).border = thinBorder;
     }
 
-    const totValCell = summarySheet.getCell(sRow, 7);
+    const totValCell = summarySheet.getCell(sRow, 8);
     totValCell.value = totalPcsAllLevels;
     totValCell.font = { name: 'Calibri', size: 10, bold: true };
     totValCell.alignment = { vertical: 'middle', horizontal: 'right' };
@@ -2381,9 +2473,10 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     summarySheet.getColumn(2).width = 16;
     summarySheet.getColumn(3).width = 16;
     summarySheet.getColumn(4).width = 18;
-    summarySheet.getColumn(5).width = 45;
-    summarySheet.getColumn(6).width = 16;
-    summarySheet.getColumn(7).width = 22;
+    summarySheet.getColumn(5).width = 42;
+    summarySheet.getColumn(6).width = 30;
+    summarySheet.getColumn(7).width = 14;
+    summarySheet.getColumn(8).width = 22;
 
     // Buat Sheet per Jenjang untuk vendor ini (SD, SMP, SMA, TK, SPK-SD, dll)
     const usedSheetNames = new Set<string>(['ringkasan_jenjang']);
