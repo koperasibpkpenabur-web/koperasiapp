@@ -1145,15 +1145,13 @@ const VendorManagement = () => {
     return [];
   }, [schools, plotSchoolIds, plotLevelFilter]);
 
-  // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah terpilih
-  // Langsung tersinkronisasi dinamis dengan Master Manajemen Barang (products)
+  // Daftar jenis barang unik (tanpa ukuran) berdasarkan jenjang sekolah terpilih
+  // Langsung tersinkronisasi dinamis dengan Master Manajemen Barang (products), termasuk seragam & buku
   const availableClothingTypes = useMemo(() => {
     return Array.from(
       new Set(
         products
           .filter((p) => {
-            const isSeragam = !p.category || p.category.toLowerCase() === 'seragam';
-            if (!isSeragam) return false;
             if (selectedPlotLevels.length === 0) return true;
             const pNorm = normalizeLevel(p.level || '');
             return pNorm === 'SEMUA' || selectedPlotLevels.includes(pNorm);
@@ -1220,8 +1218,8 @@ const VendorManagement = () => {
   // Deteksi sekolah terpilih di modal edit plotting
   const selectedEditPlotSchool = schools.find((s) => s.id === editPlotSchoolId);
 
-  // Daftar jenis baju unik (tanpa ukuran) berdasarkan jenjang sekolah yang dipilih di modal edit plotting
-  // Langsung tersinkronisasi dinamis dengan Master Manajemen Barang (products)
+  // Daftar jenis barang unik (tanpa ukuran) berdasarkan jenjang sekolah yang dipilih di modal edit plotting
+  // Langsung tersinkronisasi dinamis dengan Master Manajemen Barang (products), termasuk seragam & buku
   const editAvailableClothingTypes = useMemo(() => {
     if (!selectedEditPlotSchool) return [];
     const targetLvl = normalizeLevel(selectedEditPlotSchool.level || '');
@@ -1229,8 +1227,6 @@ const VendorManagement = () => {
       new Set(
         products
           .filter((p) => {
-            const isSeragam = !p.category || p.category.toLowerCase() === 'seragam';
-            if (!isSeragam) return false;
             const pNorm = normalizeLevel(p.level || '');
             return pNorm === 'SEMUA' || pNorm === targetLvl;
           })

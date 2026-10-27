@@ -446,11 +446,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   const getStandardItemsForLevel = (level: string): string[] => {
     const lvl = normalizeLevel(level);
 
-    // Ambil jenis seragam unik secara dinamis langsung dari Master Manajemen Barang (props products)
+    // Ambil jenis barang unik secara dinamis langsung dari Master Manajemen Barang (props products), termasuk seragam & buku
     const dbItems = (products || [])
       .filter((p) => {
-        const isSeragam = !p.category || p.category.toLowerCase() === 'seragam';
-        if (!isSeragam) return false;
         const pLvl = normalizeLevel(p.level || '');
         return pLvl === lvl || pLvl === 'SEMUA';
       })
