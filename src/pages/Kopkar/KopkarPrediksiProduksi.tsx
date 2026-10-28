@@ -683,6 +683,14 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (s.includes('CELANA OR PUTRA') || s.includes('CELANA OLAHRAGA PUTRA')) return 91;
     if (s.includes('CELANA OR PUTRI') || s.includes('CELANA OLAHRAGA PUTRI')) return 92;
     if (s.includes('SET OLAHRAGA') || s.includes('OLAHRAGA')) return 93;
+    if (
+      s.includes('BUKU') ||
+      s.includes('AGENDA') ||
+      s.includes('KERTAS') ||
+      s.includes('MAP')
+    ) {
+      return 200;
+    }
     return 30;
   };
 
@@ -1070,6 +1078,12 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       const itemLevel = fcItem.level.toUpperCase().trim();
 
       // Cari plotting-plotting yang sesuai jenjang DAN jenis barang ini
+      const isBookItem =
+        fcItem.uniformName.toUpperCase().includes('BUKU') ||
+        fcItem.uniformName.toUpperCase().includes('AGENDA') ||
+        fcItem.uniformName.toUpperCase().includes('KERTAS') ||
+        fcItem.uniformName.toUpperCase().includes('MAP');
+
       const matchedPlottings = effectivePlottings.filter((p) => {
         const pLevel = normalizeLevel(p.app_users?.school_level || '');
         const iLevel = normalizeLevel(itemLevel);
@@ -1077,7 +1091,10 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
         const plottedTypes = splitClothingTypes(p.clothing_type);
 
-        return plottedTypes.some((pt) => pt === 'Semua Jenis Baju' || isClothingTypeMatch(fcItem.uniformName, pt));
+        return plottedTypes.some((pt) => {
+          if (pt === 'Semua Jenis Baju') return !isBookItem;
+          return isClothingTypeMatch(fcItem.uniformName, pt);
+        });
       });
 
       if (matchedPlottings.length === 0) {
@@ -1614,230 +1631,302 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processExcelFile(e.target.files[0]);
+      e.target.value = '';
     }
   };
 
   // =========================================================================
-  // 3. GENERATOR TEMPLATE EXCEL RESMI MULTI-SHEET (SD, SMP, SMA, TK)
+  // 3. GENERATOR TEMPLATE EXCEL & EKSPOR RENCANA GLOBAL MULTI-SHEET
   //    Format: Baris = Item per Ukuran, Kolom = Nama Sekolah
   // =========================================================================
-  const handleDownloadTemplate = () => {
-    // 1. Ambil daftar sekolah unik per jenjang dari database (props schools)
-    const getSchoolsForLevel = (levelKey: string, fallbackList: string[]): string[] => {
-      const filtered = schools.filter((s) => {
-        const lvl = (s.level || '').toUpperCase().trim();
-        const sName = (s.school_name || '').toUpperCase().trim();
-        const isSpk = lvl.startsWith('SPK') || sName.includes('PIS') || sName.includes('INTERNATIONAL');
 
-        if (levelKey === 'SPK-SD') {
-          return lvl === 'SPK-SD' || (isSpk && (lvl.includes('SD') || lvl.includes('PRIMARY') || sName.includes('PRIMARY') || sName.includes('SD')));
-        }
-        if (levelKey === 'SPK-SMP') {
-          return lvl === 'SPK-SMP' || (isSpk && (lvl.includes('SMP') || lvl.includes('LOWER') || sName.includes('LOWER') || sName.includes('SMP')));
-        }
-        if (levelKey === 'SPK-SMA') {
-          return lvl === 'SPK-SMA' || (isSpk && (lvl.includes('SMA') || lvl.includes('UPPER') || sName.includes('UPPER') || sName.includes('SMA') || sName.includes('JC')));
-        }
+  // Sekolah fallback jika database sekolah belum terisi
+  const fallbackSchools: Record<string, string[]> = {
+    SD: [
+      'SDK 1 PENABUR', 'SDK 2 PENABUR', 'SDK 3 PENABUR', 'SDK 4 PENABUR', 'SDK 6 PENABUR',
+      'SDK 8 PENABUR', 'SDK 9 PENABUR', 'SDK 10 PENABUR', 'SDK 11 PENABUR',
+      'SDK PENABUR Depok', 'SDK PENABUR Bintaro Jaya', 'SDK PENABUR Gading Serpong',
+      'SDK PENABUR Kota Modern', 'SDK PENABUR Kota Wisata', 'SDK PENABUR Harapan Indah',
+      'SDK PENABUR Summarecon Bekasi', 'SDK PENABUR Agus Salim', 'SDK PENABUR Kota Jababeka',
+      'SDK Tirtamarta 1', 'SDK Tirtamarta 2'
+    ],
+    SMP: [
+      'SMPK 1 PENABUR Jakarta', 'SMPK 2 PENABUR Jakarta', 'SMPK 3 PENABUR Jakarta',
+      'SMPK 4 PENABUR Jakarta', 'SMPK 5 PENABUR Jakarta', 'SMPK 6 PENABUR Jakarta',
+      'SMPK 7 PENABUR Jakarta', 'SMPK PENABUR Bintaro Jaya', 'SMPK PENABUR Gading Serpong',
+      'SMPK PENABUR Kota Modern', 'SMPK PENABUR Harapan Indah', 'SMPK PENABUR Kota Wisata',
+      'SMPK PENABUR Kota Depok', 'SMPK PENABUR Kota Jababeka', 'SMPK PENABUR Summarecon Bekasi',
+      'SMPK Tirtamarta 1', 'SMPK Tirtamarta 2'
+    ],
+    SMA: [
+      'SMAK 1 PENABUR', 'SMAK 2 PENABUR', 'SMAK 3 PENABUR', 'SMAK 4 PENABUR',
+      'SMAK 5 PENABUR', 'SMAK 6 PENABUR', 'SMAK 7 PENABUR', 'SMAK SUMMARECON BEKASI',
+      'SMAK KOTA JABABEKA', 'SMAK HARAPAN INDAH', 'SMAK KOTA TANGERANG',
+      'SMAK BINTARO JAYA', 'SMAK GADING SERPONG', 'SMAK KOTA WISATA', 'SMK FARMASI PENABUR',
+      'SMAK Tirtamarta 1', 'SMAK Tirtamarta 2'
+    ],
+    TK: [
+      'TKK 1 PENABUR', 'TKK 2 PENABUR', 'TKK 3 PENABUR', 'TKK 5 PENABUR',
+      'TKK 6 PENABUR', 'TKK 7 PENABUR', 'TKK 8 PENABUR', 'TKK 9 PENABUR',
+      'TKK 10 PENABUR', 'TKK 11 PENABUR', 'TKK PENABUR Bintaro Jaya',
+      'TKK PENABUR Gading Serpong', 'TKK PENABUR Kota Modern', 'TKK PENABUR Kota Jababeka',
+      'TKK PENABUR Harapan Indah', 'TKK PENABUR Bekasi Agus Salim', 'TKK PENABUR Kota Wisata',
+      'TKK PENABUR Summarecon Bekasi', 'TKK PENABUR Depok',
+      'TKK Tirtamarta 1', 'TKK Tirtamarta 2'
+    ],
+    'SPK-SD': [
+      'PIS Kelapa Gading (Primary)'
+    ],
+    'SPK-SMP': [
+      'PIS Kelapa Gading (Lower Secondary)',
+      'PIS Tanjung Duren (Lower Secondary)'
+    ],
+    'SPK-SMA': [
+      'PIS Kelapa Gading (Upper Secondary)',
+      'PIS Tanjung Duren (Upper Secondary)'
+    ]
+  };
 
-        // Untuk jenjang Nasional, jangan masukkan sekolah SPK / International
-        if (isSpk) return false;
+  const standardLetterSizes = ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', '4L', '5L', '6L', 'KHUSUS'];
+  const standardPantsSizes = ['25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'];
 
-        if (levelKey === 'SD') {
-          return lvl === 'SD' || sName.includes('SDK ') || sName.includes('SD ');
+  // Daftar buku dan perlengkapan belajar standar BPK PENABUR
+  const standardBooksSD = [
+    'AGENDA SISWA (SMT 1 & 2)',
+    'BUKU GAMBAR BESAR',
+    'BUKU GAMBAR KECIL',
+    'BUKU GARIS LIMA',
+    'BUKU IBADAH',
+    'BUKU MANDARIN',
+    'BUKU MUSIK',
+    'BUKU TULIS 1 PAK (@20pcs)',
+    'KERTAS ULANGAN',
+    'MAP PLASTIK (@2pcs)',
+  ];
+
+  const standardBooksSpkSD = [
+    'AGENDA SISWA (SMT 1 & 2)',
+    'BUKU GAMBAR BESAR',
+    'BUKU GAMBAR KECIL',
+    'BUKU GARIS LIMA',
+    'BUKU IBADAH',
+    'BUKU MANDARIN',
+    'BUKU MUSIK',
+    'BUKU TULIS 1PCS',
+    'KERTAS ULANGAN',
+  ];
+
+  // Daftar seragam & perlengkapan fallback jika database barang belum terisi untuk jenjang tertentu
+  const fallbackUniformDefinitions: Record<string, Array<{ name: string; sizes: string[] }>> = {
+    SD: [
+      { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
+      { name: 'CELANA MERAH', sizes: standardLetterSizes },
+      { name: 'KULOT MERAH', sizes: standardLetterSizes },
+      { name: 'ROMPI KOTAK', sizes: standardLetterSizes },
+      { name: 'KEMEJA PRAMUKA SD', sizes: standardLetterSizes },
+      { name: 'CELANA PRAMUKA SD', sizes: standardLetterSizes },
+      { name: 'KULOT PRAMUKA SD', sizes: standardLetterSizes },
+      { name: 'KAOS OLAHRAGA SD', sizes: standardLetterSizes },
+      // Buku & Perlengkapan Belajar SD
+      { name: 'AGENDA SISWA (SMT 1 & 2)', sizes: ['ALL SIZE'] },
+      { name: 'BUKU GAMBAR BESAR', sizes: ['ALL SIZE'] },
+      { name: 'BUKU GAMBAR KECIL', sizes: ['ALL SIZE'] },
+      { name: 'BUKU GARIS LIMA', sizes: ['ALL SIZE'] },
+      { name: 'BUKU IBADAH', sizes: ['ALL SIZE'] },
+      { name: 'BUKU MANDARIN', sizes: ['ALL SIZE'] },
+      { name: 'BUKU MUSIK', sizes: ['ALL SIZE'] },
+      { name: 'BUKU TULIS 1 PAK (@20pcs)', sizes: ['ALL SIZE'] },
+      { name: 'KERTAS ULANGAN', sizes: ['ALL SIZE'] },
+      { name: 'MAP PLASTIK (@2pcs)', sizes: ['ALL SIZE'] },
+    ],
+    SMP: [
+      { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
+      { name: 'CELANA BIRU', sizes: standardPantsSizes },
+      { name: 'ROK BIRU', sizes: standardLetterSizes },
+      { name: 'KEMEJA PRAMUKA SMP', sizes: standardLetterSizes },
+      { name: 'CELANA PENDEK PRAMUKA', sizes: standardPantsSizes },
+      { name: 'ROK PRAMUKA SMP', sizes: standardLetterSizes },
+      { name: 'KAOS OLAHRAGA SMP', sizes: standardLetterSizes },
+    ],
+    SMA: [
+      { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
+      { name: 'CELANA ABU', sizes: ['27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'] },
+      { name: 'ROK ABU', sizes: standardLetterSizes },
+      { name: 'KEMEJA PRAMUKA SMA', sizes: standardLetterSizes },
+      { name: 'CELANA PRAMUKA SMA', sizes: ['27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'] },
+      { name: 'ROK PRAMUKA SMA', sizes: standardLetterSizes },
+      { name: 'KAOS OLAHRAGA SMA', sizes: standardLetterSizes },
+    ],
+    TK: [
+      { name: 'KOTAK-KOTAK PUTRA', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
+      { name: 'KOTAK-KOTAK PUTRI', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
+      { name: 'KAOS OLAHRAGA TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
+      { name: 'BAJU RENANG TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
+    ],
+    'SPK-SD': [
+      { name: 'AGENDA SISWA (SMT 1 & 2)', sizes: ['ALL SIZE'] },
+      { name: 'BUKU GAMBAR BESAR', sizes: ['ALL SIZE'] },
+      { name: 'BUKU GAMBAR KECIL', sizes: ['ALL SIZE'] },
+      { name: 'BUKU GARIS LIMA', sizes: ['ALL SIZE'] },
+      { name: 'BUKU IBADAH', sizes: ['ALL SIZE'] },
+      { name: 'BUKU MANDARIN', sizes: ['ALL SIZE'] },
+      { name: 'BUKU MUSIK', sizes: ['ALL SIZE'] },
+      { name: 'BUKU TULIS 1PCS', sizes: ['ALL SIZE'] },
+      { name: 'KERTAS ULANGAN', sizes: ['ALL SIZE'] },
+    ],
+    'SPK-SMP': [],
+    'SPK-SMA': [],
+  };
+
+  // Helper mendapatkan daftar sekolah unik untuk suatu jenjang
+  const getSchoolsForLevel = (levelKey: string, fallbackList: string[]): string[] => {
+    const filtered = schools.filter((s) => {
+      const lvl = (s.level || '').toUpperCase().trim();
+      const sName = (s.school_name || '').toUpperCase().trim();
+      const isSpk = lvl.startsWith('SPK') || sName.includes('PIS') || sName.includes('INTERNATIONAL');
+
+      if (levelKey === 'SPK-SD') {
+        return lvl === 'SPK-SD' || (isSpk && (lvl.includes('SD') || lvl.includes('PRIMARY') || sName.includes('PRIMARY') || sName.includes('SD')));
+      }
+      if (levelKey === 'SPK-SMP') {
+        return lvl === 'SPK-SMP' || (isSpk && (lvl.includes('SMP') || lvl.includes('LOWER') || sName.includes('LOWER') || sName.includes('SMP')));
+      }
+      if (levelKey === 'SPK-SMA') {
+        return lvl === 'SPK-SMA' || (isSpk && (lvl.includes('SMA') || lvl.includes('UPPER') || sName.includes('UPPER') || sName.includes('SMA') || sName.includes('JC')));
+      }
+
+      // Untuk jenjang Nasional, jangan masukkan sekolah SPK / International
+      if (isSpk) return false;
+
+      if (levelKey === 'SD') {
+        return lvl === 'SD' || sName.includes('SDK ') || sName.includes('SD ');
+      }
+      if (levelKey === 'SMP') {
+        return lvl === 'SMP' || sName.includes('SMPK ') || sName.includes('SMP ');
+      }
+      if (levelKey === 'SMA') {
+        return lvl === 'SMA' || lvl.includes('SMK') || sName.includes('SMAK ') || sName.includes('SMA ') || sName.includes('SMK ');
+      }
+      if (levelKey === 'TK') {
+        return lvl === 'TK' || lvl.includes('KINDER') || sName.includes('TKK ') || sName.includes('TK ');
+      }
+      return lvl === levelKey;
+    });
+
+    if (filtered.length > 0) {
+      const uniqueNames = Array.from(new Set(filtered.map((s) => s.school_name.trim())));
+      return uniqueNames.sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
+    }
+    return fallbackList;
+  };
+
+  // Helper mengambil daftar barang (seragam & buku) beserta variasi ukurannya per jenjang
+  const getItemsAndSizesForLevel = (lvl: string): Array<{ name: string; sizes: string[] }> => {
+    const fbKey = (lvl === 'SD-SPK' || lvl === 'SPK-SD') ? 'SPK-SD' : (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') ? 'SPK-SMP' : (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') ? 'SPK-SMA' : lvl;
+
+    // Ambil seluruh produk (seragam, buku, map, agenda, kertas, aksesoris) dari database barang (props products)
+    const dbItemsForLevel = products.filter((p) => {
+      const pLvl = (p.level || '').toUpperCase().trim();
+      const pName = (p.name || '').toUpperCase();
+
+      if (lvl === 'SD-SPK' || lvl === 'SPK-SD') {
+        return pLvl === 'SD-SPK' || pLvl === 'SPK-SD' || (pLvl.includes('SPK') && (pLvl.includes('SD') || pLvl.includes('PRIMARY') || pName.includes('PRIMARY') || pName.includes('SD')));
+      }
+      if (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') {
+        return pLvl === 'SMP-SPK' || pLvl === 'SPK-SMP' || (pLvl.includes('SPK') && (pLvl.includes('SMP') || pLvl.includes('LOWER') || pName.includes('LOWER') || pName.includes('SMP')));
+      }
+      if (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') {
+        return pLvl === 'SMA-SPK' || pLvl === 'SPK-SMA' || (pLvl.includes('SPK') && (pLvl.includes('SMA') || pLvl.includes('UPPER') || pName.includes('UPPER') || pName.includes('SMA') || pName.includes('JC')));
+      }
+      if (pLvl.includes('SPK') || pName.includes('SPK ') || pName.includes('PIS ')) return false;
+
+      if (lvl === 'SD') return pLvl === 'SD';
+      if (lvl === 'SMP') return pLvl === 'SMP';
+      if (lvl === 'SMA') return pLvl === 'SMA' || pLvl === 'SMK';
+      if (lvl === 'TK') return pLvl === 'TK';
+      return pLvl === lvl;
+    });
+
+    const groupedMap = new Map<string, Set<string>>();
+
+    if (dbItemsForLevel.length > 0) {
+      dbItemsForLevel.forEach((p) => {
+        const pName = (p.name || '').toUpperCase().trim();
+        if (!pName) return;
+        if (!groupedMap.has(pName)) groupedMap.set(pName, new Set());
+        if (p.size && p.size.trim()) {
+          groupedMap.get(pName)!.add(p.size.trim().toUpperCase());
         }
-        if (levelKey === 'SMP') {
-          return lvl === 'SMP' || sName.includes('SMPK ') || sName.includes('SMP ');
+      });
+    }
+
+    // Pastikan buku-buku standar SD dan SPK-SD selalu ada di groupedMap
+    if (lvl === 'SD') {
+      standardBooksSD.forEach((bk) => {
+        if (!groupedMap.has(bk)) groupedMap.set(bk, new Set());
+      });
+    } else if (lvl === 'SD-SPK' || lvl === 'SPK-SD') {
+      standardBooksSpkSD.forEach((bk) => {
+        if (!groupedMap.has(bk)) groupedMap.set(bk, new Set());
+      });
+    }
+
+    // Jika database kosong, gunakan fallback
+    if (groupedMap.size === 0) {
+      const fbList = fallbackUniformDefinitions[fbKey] || fallbackUniformDefinitions[lvl] || [];
+      fbList.forEach((it) => {
+        if (!groupedMap.has(it.name)) {
+          groupedMap.set(it.name, new Set(it.sizes));
         }
-        if (levelKey === 'SMA') {
-          return lvl === 'SMA' || lvl.includes('SMK') || sName.includes('SMAK ') || sName.includes('SMA ') || sName.includes('SMK ');
+      });
+    }
+
+    const uniformList: Array<{ name: string; sizes: string[] }> = [];
+    groupedMap.forEach((sizesSet, pName) => {
+      const cleanSizes = new Set<string>();
+      sizesSet.forEach((s) => {
+        const clean = s.trim().toUpperCase();
+        if (clean && clean !== '-' && clean !== 'NULL' && clean !== 'UNDEFINED') {
+          cleanSizes.add(clean);
         }
-        if (levelKey === 'TK') {
-          return lvl === 'TK' || lvl.includes('KINDER') || sName.includes('TKK ') || sName.includes('TK ');
-        }
-        return lvl === levelKey;
       });
 
-      if (filtered.length > 0) {
-        // Urutkan secara natural (angka kecil ke besar, misal SDK 1 sebelum SDK 2 dst)
-        const uniqueNames = Array.from(new Set(filtered.map((s) => s.school_name.trim())));
-        return uniqueNames.sort((a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' }));
+      let sizesArray = Array.from(cleanSizes);
+      if (sizesArray.length === 0) {
+        sizesArray = ['ALL SIZE'];
+      } else {
+        sizesArray.sort((a, b) => {
+          const idxA = STANDARD_SIZE_ORDER.indexOf(a);
+          const idxB = STANDARD_SIZE_ORDER.indexOf(b);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.localeCompare(b, undefined, { numeric: true });
+        });
       }
-      return fallbackList;
-    };
+      uniformList.push({ name: pName, sizes: sizesArray });
+    });
 
-    // Sekolah fallback jika database sekolah belum terisi
-    const fallbackSchools: Record<string, string[]> = {
-      SD: [
-        'SDK 1 PENABUR', 'SDK 2 PENABUR', 'SDK 3 PENABUR', 'SDK 4 PENABUR', 'SDK 6 PENABUR',
-        'SDK 8 PENABUR', 'SDK 9 PENABUR', 'SDK 10 PENABUR', 'SDK 11 PENABUR',
-        'SDK PENABUR Depok', 'SDK PENABUR Bintaro Jaya', 'SDK PENABUR Gading Serpong',
-        'SDK PENABUR Kota Modern', 'SDK PENABUR Kota Wisata', 'SDK PENABUR Harapan Indah',
-        'SDK PENABUR Summarecon Bekasi', 'SDK PENABUR Agus Salim', 'SDK PENABUR Kota Jababeka',
-        'SDK Tirtamarta 1', 'SDK Tirtamarta 2'
-      ],
-      SMP: [
-        'SMPK 1 PENABUR Jakarta', 'SMPK 2 PENABUR Jakarta', 'SMPK 3 PENABUR Jakarta',
-        'SMPK 4 PENABUR Jakarta', 'SMPK 5 PENABUR Jakarta', 'SMPK 6 PENABUR Jakarta',
-        'SMPK 7 PENABUR Jakarta', 'SMPK PENABUR Bintaro Jaya', 'SMPK PENABUR Gading Serpong',
-        'SMPK PENABUR Kota Modern', 'SMPK PENABUR Harapan Indah', 'SMPK PENABUR Kota Wisata',
-        'SMPK PENABUR Kota Depok', 'SMPK PENABUR Kota Jababeka', 'SMPK PENABUR Summarecon Bekasi',
-        'SMPK Tirtamarta 1', 'SMPK Tirtamarta 2'
-      ],
-      SMA: [
-        'SMAK 1 PENABUR', 'SMAK 2 PENABUR', 'SMAK 3 PENABUR', 'SMAK 4 PENABUR',
-        'SMAK 5 PENABUR', 'SMAK 6 PENABUR', 'SMAK 7 PENABUR', 'SMAK SUMMARECON BEKASI',
-        'SMAK KOTA JABABEKA', 'SMAK HARAPAN INDAH', 'SMAK KOTA TANGERANG',
-        'SMAK BINTARO JAYA', 'SMAK GADING SERPONG', 'SMAK KOTA WISATA', 'SMK FARMASI PENABUR',
-        'SMAK Tirtamarta 1', 'SMAK Tirtamarta 2'
-      ],
-      TK: [
-        'TKK 1 PENABUR', 'TKK 2 PENABUR', 'TKK 3 PENABUR', 'TKK 5 PENABUR',
-        'TKK 6 PENABUR', 'TKK 7 PENABUR', 'TKK 8 PENABUR', 'TKK 9 PENABUR',
-        'TKK 10 PENABUR', 'TKK 11 PENABUR', 'TKK PENABUR Bintaro Jaya',
-        'TKK PENABUR Gading Serpong', 'TKK PENABUR Kota Modern', 'TKK PENABUR Kota Jababeka',
-        'TKK PENABUR Harapan Indah', 'TKK PENABUR Bekasi Agus Salim', 'TKK PENABUR Kota Wisata',
-        'TKK PENABUR Summarecon Bekasi', 'TKK PENABUR Depok',
-        'TKK Tirtamarta 1', 'TKK Tirtamarta 2'
-      ],
-      'SPK-SD': [
-        'PIS Kelapa Gading (Primary)'
-      ],
-      'SPK-SMP': [
-        'PIS Kelapa Gading (Lower Secondary)',
-        'PIS Tanjung Duren (Lower Secondary)'
-      ],
-      'SPK-SMA': [
-        'PIS Kelapa Gading (Upper Secondary)',
-        'PIS Tanjung Duren (Upper Secondary)'
-      ]
-    };
+    // Urutkan seragam dahulu, kemudian buku-buku & perlengkapan belajar di bagian bawah
+    uniformList.sort((a, b) => {
+      const prioA = getItemPriority(a.name, lvl);
+      const prioB = getItemPriority(b.name, lvl);
+      if (prioA !== prioB) return prioA - prioB;
+      return a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' });
+    });
 
-    // 2. Daftar seragam dan rentang ukuran standar per jenjang
-    const standardLetterSizes = ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', '4L', '5L', '6L', 'KHUSUS'];
-    const standardPantsSizes = ['25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'];
+    return uniformList;
+  };
 
-    // 2. Daftar seragam fallback jika database barang belum terisi untuk jenjang tertentu
-    const fallbackUniformDefinitions: Record<string, Array<{ name: string; sizes: string[] }>> = {
-      SD: [
-        { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
-        { name: 'CELANA MERAH', sizes: standardLetterSizes },
-        { name: 'KULOT MERAH', sizes: standardLetterSizes },
-        { name: 'ROMPI KOTAK', sizes: standardLetterSizes },
-        { name: 'KEMEJA PRAMUKA SD', sizes: standardLetterSizes },
-        { name: 'CELANA PRAMUKA SD', sizes: standardLetterSizes },
-        { name: 'KULOT PRAMUKA SD', sizes: standardLetterSizes },
-        { name: 'KAOS OLAHRAGA SD', sizes: standardLetterSizes },
-      ],
-      SMP: [
-        { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
-        { name: 'CELANA BIRU', sizes: standardPantsSizes },
-        { name: 'ROK BIRU', sizes: standardLetterSizes },
-        { name: 'KEMEJA PRAMUKA SMP', sizes: standardLetterSizes },
-        { name: 'CELANA PENDEK PRAMUKA', sizes: standardPantsSizes },
-        { name: 'ROK PRAMUKA SMP', sizes: standardLetterSizes },
-        { name: 'KAOS OLAHRAGA SMP', sizes: standardLetterSizes },
-      ],
-      SMA: [
-        { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
-        { name: 'CELANA ABU', sizes: ['27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'] },
-        { name: 'ROK ABU', sizes: standardLetterSizes },
-        { name: 'KEMEJA PRAMUKA SMA', sizes: standardLetterSizes },
-        { name: 'CELANA PRAMUKA SMA', sizes: ['27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'] },
-        { name: 'ROK PRAMUKA SMA', sizes: standardLetterSizes },
-        { name: 'KAOS OLAHRAGA SMA', sizes: standardLetterSizes },
-      ],
-      TK: [
-        { name: 'KOTAK-KOTAK PUTRA', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
-        { name: 'KOTAK-KOTAK PUTRI', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
-        { name: 'KAOS OLAHRAGA TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
-        { name: 'BAJU RENANG TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
-      ],
-      'SPK-SD': [],
-      'SPK-SMP': [],
-      'SPK-SMA': [],
-    };
-
+  // 1. Download Template Kosong (Termasuk Seragam & Buku)
+  const handleDownloadTemplate = () => {
     const workbook = XLSX.utils.book_new();
-
-    // Buat sheet terurut: TK, SD, SMP, SMA, SD-SPK, SMP-SPK, SMA-SPK
     const sheetOrder = ['TK', 'SD', 'SMP', 'SMA', 'SD-SPK', 'SMP-SPK', 'SMA-SPK'];
 
     sheetOrder.forEach((lvl) => {
       const fbKey = (lvl === 'SD-SPK' || lvl === 'SPK-SD') ? 'SPK-SD' : (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') ? 'SPK-SMP' : (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') ? 'SPK-SMA' : lvl;
       const schoolList = getSchoolsForLevel(lvl, fallbackSchools[fbKey] || fallbackSchools[lvl]);
-
-      // Ambil seluruh produk (seragam, kaos kaki, sepatu, topi, dasi, aksesoris) kecuali buku langsung dari database barang (props products)
-      const dbItemsForLevel = products.filter((p) => {
-        const isBuku = p.category && p.category.toLowerCase() === 'buku';
-        if (isBuku) return false;
-        const pLvl = (p.level || '').toUpperCase().trim();
-        const pName = (p.name || '').toUpperCase();
-
-        if (lvl === 'SD-SPK' || lvl === 'SPK-SD') {
-          return pLvl === 'SD-SPK' || pLvl === 'SPK-SD' || (pLvl.includes('SPK') && (pLvl.includes('SD') || pLvl.includes('PRIMARY') || pName.includes('PRIMARY') || pName.includes('SD')));
-        }
-        if (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') {
-          return pLvl === 'SMP-SPK' || pLvl === 'SPK-SMP' || (pLvl.includes('SPK') && (pLvl.includes('SMP') || pLvl.includes('LOWER') || pName.includes('LOWER') || pName.includes('SMP')));
-        }
-        if (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') {
-          return pLvl === 'SMA-SPK' || pLvl === 'SPK-SMA' || (pLvl.includes('SPK') && (pLvl.includes('SMA') || pLvl.includes('UPPER') || pName.includes('UPPER') || pName.includes('SMA') || pName.includes('JC')));
-        }
-        if (pLvl.includes('SPK') || pName.includes('SPK ') || pName.includes('PIS ')) return false;
-
-        if (lvl === 'SD') return pLvl === 'SD';
-        if (lvl === 'SMP') return pLvl === 'SMP';
-        if (lvl === 'SMA') return pLvl === 'SMA' || pLvl === 'SMK';
-        if (lvl === 'TK') return pLvl === 'TK';
-        return pLvl === lvl;
-      });
-
-      let uniformList: Array<{ name: string; sizes: string[] }> = [];
-
-      if (dbItemsForLevel.length > 0) {
-        // Ambil nama barang unik dan kumpulkan seluruh ukuran fisik yang ada di database barang
-        const groupedMap = new Map<string, Set<string>>();
-        dbItemsForLevel.forEach((p) => {
-          const pName = (p.name || '').toUpperCase().trim();
-          if (!pName) return;
-          if (!groupedMap.has(pName)) groupedMap.set(pName, new Set());
-          if (p.size && p.size.trim()) {
-            groupedMap.get(pName)!.add(p.size.trim().toUpperCase());
-          }
-        });
-
-        groupedMap.forEach((sizesSet, pName) => {
-          // Bersihkan variasi ukuran
-          const cleanSizes = new Set<string>();
-          sizesSet.forEach((s) => {
-            const clean = s.trim().toUpperCase();
-            if (clean && clean !== '-' && clean !== 'NULL' && clean !== 'UNDEFINED') {
-              cleanSizes.add(clean);
-            }
-          });
-
-          let sizesArray = Array.from(cleanSizes);
-          if (sizesArray.length === 0) {
-            // Jika di database barang memang tidak memiliki ukuran (misal: Baret & Emblem, Dasi, Topi, Sabuk, dll.),
-            // cukup buat 1 baris saja dengan ukuran 'ALL SIZE' (bukan dipecah ke SS s/d 6L)
-            sizesArray = ['ALL SIZE'];
-          } else {
-            sizesArray.sort((a, b) => {
-              const idxA = STANDARD_SIZE_ORDER.indexOf(a);
-              const idxB = STANDARD_SIZE_ORDER.indexOf(b);
-              if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-              if (idxA !== -1) return -1;
-              if (idxB !== -1) return 1;
-              return a.localeCompare(b, undefined, { numeric: true });
-            });
-          }
-          uniformList.push({ name: pName, sizes: sizesArray });
-        });
-
-        uniformList.sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }));
-      } else {
-        // Hanya jika database barang benar-benar kosong untuk jenjang ini, gunakan fallback default
-        uniformList = fallbackUniformDefinitions[lvl] || [];
-      }
+      const uniformList = getItemsAndSizesForLevel(lvl);
 
       const rows: any[] = [];
 
@@ -1857,17 +1946,12 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
       const worksheet = XLSX.utils.json_to_sheet(rows);
 
-      // Tambahkan formula penjumlahan SUM otomatis ke kolom TOTAL (PCS)
-      // Kolom A = 0 (NAMA BARANG), Kolom B = 1 (SIZE)
-      // Kolom C = 2 (Sekolah pertama)
-      // Kolom terakhir sekolah = schoolList.length + 1
-      // Kolom TOTAL = schoolList.length + 2
       const firstSchoolCol = 'C';
       const lastSchoolCol = XLSX.utils.encode_col(schoolList.length + 1);
       const totalCol = XLSX.utils.encode_col(schoolList.length + 2);
 
       rows.forEach((_, idx) => {
-        const rowNum = idx + 2; // Row data mulai dari baris 2 (baris 1 header)
+        const rowNum = idx + 2;
         const cellRef = `${totalCol}${rowNum}`;
         worksheet[cellRef] = {
           t: 'n',
@@ -1875,18 +1959,140 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         };
       });
 
-      // Atur lebar kolom agar rapi dan teks sekolah tidak terpotong
       worksheet['!cols'] = [
-        { wch: 28 }, // NAMA BARANG
-        { wch: 10 }, // SIZE
-        ...schoolList.map(() => ({ wch: 24 })), // Kolom sekolah-sekolah
-        { wch: 15 }, // TOTAL (PCS)
+        { wch: 30 },
+        { wch: 10 },
+        ...schoolList.map(() => ({ wch: 24 })),
+        { wch: 15 },
       ];
 
       XLSX.utils.book_append_sheet(workbook, worksheet, lvl);
     });
 
     XLSX.writeFile(workbook, `Template_Prediksi_Produksi_${targetYear.replace('/', '_')}.xlsx`);
+  };
+
+  // 2. Ekspor Rencana Global Saat Ini (Termasuk Seragam, Buku, & Angka Prediksi Eksisting)
+  const handleExportGlobalPlan = () => {
+    const workbook = XLSX.utils.book_new();
+    const sheetOrder = ['TK', 'SD', 'SMP', 'SMA', 'SD-SPK', 'SMP-SPK', 'SMA-SPK'];
+
+    sheetOrder.forEach((lvl) => {
+      const fbKey = (lvl === 'SD-SPK' || lvl === 'SPK-SD') ? 'SPK-SD' : (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') ? 'SPK-SMP' : (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') ? 'SPK-SMA' : lvl;
+      const schoolList = getSchoolsForLevel(lvl, fallbackSchools[fbKey] || fallbackSchools[lvl]);
+      const uniformList = getItemsAndSizesForLevel(lvl);
+
+      const forecastForLevel = forecastItems.filter((it) => {
+        const itLvl = normalizeLevel(it.level);
+        const curLvl = normalizeLevel(lvl);
+        return itLvl === curLvl;
+      });
+
+      // Tambahkan item dari forecastItems jika ada yang belum tercover di uniformList
+      forecastForLevel.forEach((fi) => {
+        const fiName = fi.uniformName.trim().toUpperCase();
+        const existing = uniformList.find((u) => u.name.toUpperCase() === fiName);
+        const fiSizes = Object.keys(fi.sizes);
+        if (!existing) {
+          uniformList.push({
+            name: fi.uniformName.trim(),
+            sizes: fiSizes.length > 0 ? fiSizes : ['ALL SIZE'],
+          });
+        } else {
+          fiSizes.forEach((sz) => {
+            if (!existing.sizes.includes(sz)) {
+              existing.sizes.push(sz);
+            }
+          });
+          existing.sizes.sort((a, b) => {
+            const idxA = STANDARD_SIZE_ORDER.indexOf(a);
+            const idxB = STANDARD_SIZE_ORDER.indexOf(b);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.localeCompare(b, undefined, { numeric: true });
+          });
+        }
+      });
+
+      // Re-sort uniformList agar urutan seragam lalu buku tetap konsisten
+      uniformList.sort((a, b) => {
+        const prioA = getItemPriority(a.name, lvl);
+        const prioB = getItemPriority(b.name, lvl);
+        if (prioA !== prioB) return prioA - prioB;
+        return a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' });
+      });
+
+      const rows: any[] = [];
+      uniformList.forEach((item) => {
+        const fcItem = forecastForLevel.find(
+          (fi) => fi.uniformName.trim().toUpperCase() === item.name.toUpperCase()
+        );
+
+        item.sizes.forEach((sz) => {
+          const rowObj: Record<string, any> = {
+            'NAMA BARANG': item.name,
+            SIZE: sz,
+          };
+
+          let hasSchoolVal = false;
+          schoolList.forEach((sName) => {
+            let val: number | string = '';
+            if (fcItem?.schoolBreakdown) {
+              const sClean = sName.toLowerCase().replace(/[^a-z0-9]/g, '');
+              for (const [schKey, sizesObj] of Object.entries(fcItem.schoolBreakdown)) {
+                const kClean = schKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (kClean === sClean || kClean.includes(sClean) || sClean.includes(kClean)) {
+                  if (sizesObj && sizesObj[sz] !== undefined && sizesObj[sz] !== null && sizesObj[sz] > 0) {
+                    val = sizesObj[sz];
+                    hasSchoolVal = true;
+                    break;
+                  }
+                }
+              }
+            }
+            rowObj[sName] = val;
+          });
+
+          // Jika tidak ada data per sekolah tapi ada total di sizes:
+          if (!hasSchoolVal && fcItem?.sizes?.[sz] && fcItem.sizes[sz] > 0) {
+            rowObj['TOTAL (PCS)'] = fcItem.sizes[sz];
+          } else {
+            rowObj['TOTAL (PCS)'] = '';
+          }
+
+          rows.push(rowObj);
+        });
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+
+      const firstSchoolCol = 'C';
+      const lastSchoolCol = XLSX.utils.encode_col(schoolList.length + 1);
+      const totalCol = XLSX.utils.encode_col(schoolList.length + 2);
+
+      rows.forEach((row, idx) => {
+        const rowNum = idx + 2;
+        const cellRef = `${totalCol}${rowNum}`;
+        if (typeof row['TOTAL (PCS)'] !== 'number' || row['TOTAL (PCS)'] === 0) {
+          worksheet[cellRef] = {
+            t: 'n',
+            f: `SUM(${firstSchoolCol}${rowNum}:${lastSchoolCol}${rowNum})`,
+          };
+        }
+      });
+
+      worksheet['!cols'] = [
+        { wch: 30 },
+        { wch: 10 },
+        ...schoolList.map(() => ({ wch: 24 })),
+        { wch: 15 },
+      ];
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, lvl);
+    });
+
+    XLSX.writeFile(workbook, `Rencana_Produksi_Global_${targetYear.replace('/', '_')}.xlsx`);
   };
 
   // =========================================================================
@@ -3807,10 +4013,83 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
               e.currentTarget.style.background = '#f0f9ff';
               e.currentTarget.style.color = '#0284c7';
             }}
-            title="Unduh format Excel resmi untuk diisi rencana prediksi per ukuran"
+            title="Unduh format Excel resmi (termasuk daftar buku & seragam) untuk diisi rencana prediksi per ukuran"
           >
             <span>📥</span> Unduh Template Excel
           </button>
+
+          {/* Tombol Upload File Excel (Pengganti Kotak Dropzone) */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: isDragging ? '2px dashed #059669' : '1px solid #10b981',
+              background: isDragging ? '#ecfdf5' : '#f0fdf4',
+              color: '#059669',
+              fontSize: '0.86rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = '#10b981';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = isDragging ? '#ecfdf5' : '#f0fdf4';
+              e.currentTarget.style.color = '#059669';
+            }}
+            title="Pilih atau seret (drag & drop) file Excel rencana produksi (.xlsx / .xls) untuk diperbarui"
+          >
+            <span>📤</span> Upload File Excel
+          </button>
+
+          {/* Tombol Ekspor Rencana Global */}
+          <button
+            type="button"
+            onClick={handleExportGlobalPlan}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: '1px solid #6366f1',
+              background: '#eef2ff',
+              color: '#4f46e5',
+              fontSize: '0.86rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = '#6366f1';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = '#eef2ff';
+              e.currentTarget.style.color = '#4f46e5';
+            }}
+            title="Ekspor seluruh data rencana produksi global saat ini ke Excel untuk ditambahkan/diupdate offline"
+          >
+            <span>📊</span> Ekspor Rencana Global (.xlsx)
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleFileInputChange}
+            style={{ display: 'none' }}
+          />
         </div>
       </div>
 
@@ -3857,10 +4136,10 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           }}
         >
           <div>
-            <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Jenis Seragam Terdata</div>
+            <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Jenis Barang Terdata</div>
             <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#059669', marginTop: '2px' }}>
               {stats.totalItems}{' '}
-              <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400 }}>seragam</span>
+              <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 400 }}>barang</span>
             </div>
           </div>
           <span style={{ fontSize: '1.8rem', opacity: 0.85 }}>📋</span>
@@ -3909,42 +4188,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           </div>
           <span style={{ fontSize: '1.8rem', opacity: 0.85 }}>🏫</span>
         </div>
-      </div>
-
-      {/* DROPZONE DRAG & DROP FILE EXCEL */}
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        style={{
-          border: isDragging ? '2px dashed #0284c7' : '2px dashed #cbd5e1',
-          background: isDragging ? '#f0f9ff' : '#f8fafc',
-          borderRadius: '12px',
-          padding: '28px 20px',
-          textAlign: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.2s ease',
-          boxShadow: isDragging ? '0 4px 12px rgba(2,132,199,0.1)' : 'none',
-        }}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls,.csv"
-          onChange={handleFileInputChange}
-          style={{ display: 'none' }}
-        />
-        <div style={{ fontSize: '2.4rem', marginBottom: '8px' }}>📂</div>
-        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>
-          Tarik & Lepas (Drag & Drop) File Excel Rencana Produksi ke Sini
-        </div>
-        <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-          atau <span style={{ color: '#0284c7', textDecoration: 'underline', fontWeight: 600 }}>klik di sini</span> untuk memilih file dari komputer (.xlsx / .xls)
-        </p>
-        <p style={{ margin: '8px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
-          💡 Sistem akan otomatis membaca target per jenis seragam, per ukuran, dan langsung menghitung persentase alokasi tiap vendor.
-        </p>
       </div>
 
       {/* NOTIFIKASI BERHASIL SIMPAN */}
@@ -4062,7 +4305,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
                 <input
                   type="text"
-                  placeholder="🔍 Cari nama seragam..."
+                  placeholder="🔍 Cari nama barang / seragam..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{
@@ -4071,9 +4314,31 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                     border: '1px solid #cbd5e1',
                     fontSize: '0.86rem',
                     outline: 'none',
-                    minWidth: '180px',
+                    minWidth: '200px',
                   }}
                 />
+
+                <button
+                  type="button"
+                  onClick={handleExportGlobalPlan}
+                  style={{
+                    background: '#6366f1',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '7px 14px',
+                    fontSize: '0.86rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                  }}
+                  title="Ekspor seluruh data rencana produksi global saat ini ke Excel untuk ditambahkan/diupdate offline"
+                >
+                  <span>📊</span> Ekspor Rencana Global (.xlsx)
+                </button>
 
                 {forecastItems.length > 0 && (
                   <button
@@ -4216,7 +4481,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                     Belum ada data rencana produksi untuk tahun {targetYear}.
                   </p>
                   <p style={{ margin: '6px 0 0 0', fontSize: '0.86rem' }}>
-                    Silakan unduh template Excel di atas, isi angka per ukuran, lalu tarik & lepas (drag-and-drop) file Excel ke kotak di atas.
+                    Silakan unduh template Excel atau ekspor rencana global, isi/perbarui angka rencana produksi, lalu klik tombol <strong>Upload File Excel</strong> di atas.
                   </p>
                 </div>
               ) : (
@@ -4225,7 +4490,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                     <tr>
                       <th style={{ width: '45px', textAlign: 'center' }}>No</th>
                       <th style={{ width: '85px', textAlign: 'center' }}>Jenjang</th>
-                      <th style={{ minWidth: '220px' }}>Nama Jenis Seragam</th>
+                      <th style={{ minWidth: '220px' }}>Nama Barang / Seragam</th>
                       <th style={{ width: '100px', textAlign: 'center', background: '#f0f9ff', color: '#0369a1' }}>Total (Pcs)</th>
                       {detectedSizes.map((sz) => (
                         <th key={sz} style={{ width: '65px', textAlign: 'center' }}>
@@ -4303,7 +4568,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                 <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
                   Menampilkan {indexOfFirstItem + 1}-
                   {Math.min(indexOfLastItem, filteredForecastItems.length)} dari{' '}
-                  {filteredForecastItems.length} jenis seragam
+                  {filteredForecastItems.length} jenis barang
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.85rem', color: '#64748b', marginRight: '6px' }}>
