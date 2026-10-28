@@ -502,7 +502,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           'Rompi Kotak',
           'Kemeja Pramuka Penggalang Putra',
           'Kemeja Pramuka Penggalang Putri',
-          'Celana Pramuka Penggalang',
+          'Celana Pendek Pramuka',
           'Kulot Pramuka Penggalang',
           'Kaos Olahraga',
           'Celana OR Putra',
@@ -588,7 +588,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       if (u.includes('ROMPI KOTAK') || u === 'ROMPI') return 'Rompi Kotak';
       if (u.includes('PRAMUKA') && u.includes('PUTRA') && u.includes('KEMEJA')) return 'Kemeja Pramuka Penggalang Putra';
       if (u.includes('PRAMUKA') && u.includes('PUTRI') && u.includes('KEMEJA')) return 'Kemeja Pramuka Penggalang Putri';
-      if (u.includes('CELANA') && u.includes('PRAMUKA')) return 'Celana Pramuka Penggalang';
+      if (u.includes('CELANA') && u.includes('PRAMUKA')) return 'Celana Pendek Pramuka';
       if (u.includes('KULOT') && u.includes('PRAMUKA')) return 'Kulot Pramuka Penggalang';
       if (u.includes('BATIK')) return 'Batik SMP';
       if (u.includes('JAS LAB')) return 'Jas Lab';
@@ -984,7 +984,11 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         if (tNorm.includes('PUTRI') && pNorm.includes('PUTRA')) return false;
         return true;
       }
-      if (isCelanaT && isCelanaP) return true;
+      if (isCelanaT && isCelanaP) {
+        if (tNorm.includes('PANJANG') && pNorm.includes('PENDEK')) return false;
+        if (tNorm.includes('PENDEK') && pNorm.includes('PANJANG')) return false;
+        return true;
+      }
       if (isRokT && isRokP) return true;
       if (isKulotT && isKulotP) return true;
       if (isTopiT && isTopiP) return true;
@@ -1729,7 +1733,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         { name: 'CELANA BIRU', sizes: standardPantsSizes },
         { name: 'ROK BIRU', sizes: standardLetterSizes },
         { name: 'KEMEJA PRAMUKA SMP', sizes: standardLetterSizes },
-        { name: 'CELANA PRAMUKA SMP', sizes: standardPantsSizes },
+        { name: 'CELANA PENDEK PRAMUKA', sizes: standardPantsSizes },
         { name: 'ROK PRAMUKA SMP', sizes: standardLetterSizes },
         { name: 'KAOS OLAHRAGA SMP', sizes: standardLetterSizes },
       ],
@@ -3329,12 +3333,14 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       // 3. Buat Sheet untuk Jenjang ini
       const safeSheetName = level.replace(/[\\/?*[\]:]/g, '').slice(0, 31);
       const worksheet = workbook.addWorksheet(safeSheetName, {
-        views: [{ showGridLines: true, state: 'frozen', xSplit: 2, ySplit: 1 }],
+        views: [{ showGridLines: true, state: 'frozen', xSplit: 3, ySplit: 2 }],
       });
 
       totalSheetsCreated++;
 
-      // 4. Header Baris 1: No. | Jenis Seragam | [Nama Sekolah 1] | [Nama Sekolah 2] ...
+      const totalColIdx = 4 + levelSchools.length;
+
+      // 4. Header Baris 1: No. | Jenis Seragam | Rincian | [Nama Sekolah 1] | [Nama Sekolah 2] ... | TOTAL (PCS)
       const headerRow = worksheet.getRow(1);
       headerRow.height = 32;
 
@@ -3354,9 +3360,17 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       cellUniform.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
       cellUniform.border = thinBorder;
 
-      // Col 3..N: Nama Sekolah (mengikuti tabel di Supabase)
+      // Col 3: Rincian (Vendor / Pcs)
+      const cellRincian = worksheet.getCell(1, 3);
+      cellRincian.value = 'Rincian';
+      cellRincian.font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+      cellRincian.alignment = { vertical: 'middle', horizontal: 'center' };
+      cellRincian.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+      cellRincian.border = thinBorder;
+
+      // Col 4..N: Nama Sekolah
       levelSchools.forEach((school, sIdx) => {
-        const colIdx = 3 + sIdx;
+        const colIdx = 4 + sIdx;
         const cell = worksheet.getCell(1, colIdx);
         cell.value = school.school_name;
         cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
@@ -3365,34 +3379,97 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         cell.border = thinBorder;
       });
 
-      // 5. Isi Baris: Tiap Jenis Seragam dan Plotting Vendor di Setiap Sekolah
+      // Col Total: TOTAL (PCS)
+      const cellTotHeader = worksheet.getCell(1, totalColIdx);
+      cellTotHeader.value = 'TOTAL (PCS)';
+      cellTotHeader.font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+      cellTotHeader.alignment = { vertical: 'middle', horizontal: 'center' };
+      cellTotHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+      cellTotHeader.border = thinBorder;
+
+      // 5. Baris 2: TOTAL KESELURUHAN PENGERJAAN PER SEKOLAH (Tepat di bawah baris sekolah)
+      const totalRow = worksheet.getRow(2);
+      totalRow.height = 24;
+
+      worksheet.getCell(2, 1).value = 'TOTAL KESELURUHAN';
+      worksheet.mergeCells(2, 1, 2, 2);
+      for (let c = 1; c <= 2; c++) {
+        const cell = worksheet.getCell(2, c);
+        cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0369A1' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+        cell.border = thinBorder;
+      }
+
+      const cellTotPcsLabel = worksheet.getCell(2, 3);
+      cellTotPcsLabel.value = 'Pcs';
+      cellTotPcsLabel.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0369A1' } };
+      cellTotPcsLabel.alignment = { vertical: 'middle', horizontal: 'center' };
+      cellTotPcsLabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+      cellTotPcsLabel.border = thinBorder;
+
+      const schoolColumnTotals = new Array(levelSchools.length).fill(0);
+
+      // 6. Isi Baris: 2 Baris per Jenis Seragam (Baris 1: Vendor, Baris 2: Jumlah Pcs)
       uniformList.forEach((uniformItem, uIdx) => {
-        const rowIdx = 2 + uIdx;
-        const row = worksheet.getRow(rowIdx);
-        row.height = 24;
+        const rowVendorIdx = 3 + uIdx * 2;
+        const rowPcsIdx = rowVendorIdx + 1;
 
-        // Col 1: No. urut
-        const cNo = worksheet.getCell(rowIdx, 1);
-        cNo.value = uIdx + 1;
-        cNo.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
-        cNo.alignment = { vertical: 'middle', horizontal: 'center' };
-        cNo.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-        cNo.border = thinBorder;
+        worksheet.getRow(rowVendorIdx).height = 22;
+        worksheet.getRow(rowPcsIdx).height = 20;
 
-        // Col 2: Jenis Seragam
-        const cItem = worksheet.getCell(rowIdx, 2);
-        cItem.value = uniformItem;
-        cItem.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
-        cItem.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-        cItem.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-        cItem.border = thinBorder;
+        // Col 1: No. urut (Merged 2 baris vertikal)
+        worksheet.getCell(rowVendorIdx, 1).value = uIdx + 1;
+        worksheet.mergeCells(rowVendorIdx, 1, rowPcsIdx, 1);
+        for (let r = rowVendorIdx; r <= rowPcsIdx; r++) {
+          const cNo = worksheet.getCell(r, 1);
+          cNo.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+          cNo.alignment = { vertical: 'middle', horizontal: 'center' };
+          cNo.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+          cNo.border = thinBorder;
+        }
 
-        // Col 3..N: Vendor untuk masing-masing sekolah
+        // Col 2: Jenis Seragam (Merged 2 baris vertikal)
+        worksheet.getCell(rowVendorIdx, 2).value = uniformItem;
+        worksheet.mergeCells(rowVendorIdx, 2, rowPcsIdx, 2);
+        for (let r = rowVendorIdx; r <= rowPcsIdx; r++) {
+          const cItem = worksheet.getCell(r, 2);
+          cItem.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+          cItem.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          cItem.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+          cItem.border = thinBorder;
+        }
+
+        // Col 3: Keterangan Baris (Vendor / Pcs)
+        const cellVLabel = worksheet.getCell(rowVendorIdx, 3);
+        cellVLabel.value = 'Vendor';
+        cellVLabel.font = { name: 'Calibri', size: 9, bold: true, italic: true, color: { argb: 'FF475569' } };
+        cellVLabel.alignment = { vertical: 'middle', horizontal: 'center' };
+        cellVLabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+        cellVLabel.border = thinBorder;
+
+        const cellPLabel = worksheet.getCell(rowPcsIdx, 3);
+        cellPLabel.value = 'Pcs';
+        cellPLabel.font = { name: 'Calibri', size: 9, bold: true, color: { argb: 'FF0284C7' } };
+        cellPLabel.alignment = { vertical: 'middle', horizontal: 'center' };
+        cellPLabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+        cellPLabel.border = thinBorder;
+
+        // Ambil forecast item jika ada untuk acuan total & breakdown
+        const fcItem = forecastItems.find(
+          (it) =>
+            normalizeLevel(it.level) === level &&
+            (isClothingTypeMatch(uniformItem, it.uniformName) ||
+              formatItemDisplayName(it.uniformName, level).toLowerCase() === uniformItem.toLowerCase())
+        );
+
+        let rowTotalPcs = 0;
+
+        // Col 4..N: Vendor & Pcs untuk masing-masing sekolah
         levelSchools.forEach((school, sIdx) => {
-          const colIdx = 3 + sIdx;
-          const cVendor = worksheet.getCell(rowIdx, colIdx);
+          const colIdx = 4 + sIdx;
 
-          // Cari plotting yang cocok untuk sekolah dan seragam ini
+          // A. Cari plotting yang cocok untuk sekolah dan seragam ini
           const matchedPlottings = effectivePlottings.filter((p) => {
             const pLvl = normalizeLevel(p.app_users?.school_level || '');
             if (pLvl !== level) return false;
@@ -3414,8 +3491,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             );
           });
 
+          let displayedVendor = '';
+          let primaryVendor = '';
           if (matchedPlottings.length > 0) {
-            // Ambil nama vendor unik
             const vendorNames = Array.from(
               new Set(
                 matchedPlottings
@@ -3423,11 +3501,14 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                   .filter(Boolean)
               )
             );
+            displayedVendor = vendorNames.join(' / ');
+            primaryVendor = vendorNames[0] || '';
+          }
 
-            const displayedVendor = vendorNames.join(' / ');
-            const primaryVendor = vendorNames[0] || '';
+          // B. Baris 1: Nama Vendor
+          const cVendor = worksheet.getCell(rowVendorIdx, colIdx);
+          if (displayedVendor) {
             const style = getVendorExcelStyle(primaryVendor);
-
             cVendor.value = displayedVendor;
             cVendor.font = {
               name: 'Calibri',
@@ -3443,7 +3524,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             };
             cVendor.border = thinBorder;
           } else {
-            // Tidak ada plotting vendor untuk barang ini di sekolah ini
             cVendor.value = '';
             cVendor.fill = {
               type: 'pattern',
@@ -3452,17 +3532,139 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             };
             cVendor.border = thinBorder;
           }
+
+          // C. Baris 2: Hitung Kuantiti Pcs Pengerjaan untuk sekolah ini
+          let schoolItemQty = 0;
+          const cleanTarget = school.school_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+          // 1. Ambil dari vendorAllocations jika sudah terhitung
+          vendorAllocations.forEach((va) => {
+            va.items.forEach((it) => {
+              if (normalizeLevel(it.level) !== level) return;
+              if (
+                isClothingTypeMatch(uniformItem, it.uniformName) ||
+                formatItemDisplayName(it.uniformName, level).toLowerCase() === uniformItem.toLowerCase()
+              ) {
+                if (it.schoolBreakdown) {
+                  for (const [sKey, szMap] of Object.entries(it.schoolBreakdown)) {
+                    const cleanKey = sKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (cleanKey === cleanTarget || cleanKey.includes(cleanTarget) || cleanTarget.includes(cleanKey)) {
+                      const sumSz = Object.values(szMap).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+                      schoolItemQty += sumSz;
+                      break;
+                    }
+                  }
+                }
+              }
+            });
+          });
+
+          // 2. Fallback: dari forecastItems schoolBreakdown langsung
+          if (schoolItemQty === 0 && fcItem && fcItem.schoolBreakdown) {
+            for (const [sKey, szMap] of Object.entries(fcItem.schoolBreakdown)) {
+              const cleanKey = sKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (cleanKey === cleanTarget || cleanKey.includes(cleanTarget) || cleanTarget.includes(cleanKey)) {
+                schoolItemQty = Object.values(szMap).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+                break;
+              }
+            }
+          }
+
+          // 3. Fallback proporsional jika file input tidak memiliki kolom per-sekolah tapi ada vendor yang ditugaskan
+          if (schoolItemQty === 0 && displayedVendor && fcItem && fcItem.total > 0) {
+            const assignedSchools = levelSchools.filter((sc) => {
+              return effectivePlottings.some((p) => {
+                const pLvl = normalizeLevel(p.app_users?.school_level || '');
+                if (pLvl !== level) return false;
+                const sName = p.app_users?.school_name || '';
+                if (sName.toUpperCase().trim() !== sc.school_name.toUpperCase().trim()) return false;
+                const types = splitClothingTypes(p.clothing_type);
+                return types.some((t) => t === 'Semua Jenis Baju' || isClothingTypeMatch(uniformItem, t));
+              });
+            });
+
+            if (assignedSchools.length > 0) {
+              const base = Math.floor(fcItem.total / assignedSchools.length);
+              const rem = fcItem.total % assignedSchools.length;
+              const assignedIndex = assignedSchools.findIndex(
+                (sc) => sc.school_name.toUpperCase().trim() === school.school_name.toUpperCase().trim()
+              );
+              if (assignedIndex !== -1) {
+                schoolItemQty = base + (assignedIndex < rem ? 1 : 0);
+              }
+            }
+          }
+
+          rowTotalPcs += schoolItemQty;
+          schoolColumnTotals[sIdx] += schoolItemQty;
+
+          const cPcs = worksheet.getCell(rowPcsIdx, colIdx);
+          cPcs.value = schoolItemQty > 0 ? schoolItemQty : displayedVendor ? 0 : '';
+          cPcs.font = {
+            name: 'Calibri',
+            size: 10,
+            color: { argb: schoolItemQty > 0 ? 'FF0F172A' : 'FF94A3B8' },
+          };
+          cPcs.alignment = { vertical: 'middle', horizontal: 'right' };
+          if (typeof cPcs.value === 'number') cPcs.numFmt = '#,##0';
+          cPcs.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' },
+          };
+          cPcs.border = thinBorder;
         });
+
+        // Col Total (TOTAL (PCS))
+        const cellVTot = worksheet.getCell(rowVendorIdx, totalColIdx);
+        cellVTot.value = '-';
+        cellVTot.font = { name: 'Calibri', size: 10, color: { argb: 'FF94A3B8' } };
+        cellVTot.alignment = { vertical: 'middle', horizontal: 'center' };
+        cellVTot.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+        cellVTot.border = thinBorder;
+
+        const cellPTot = worksheet.getCell(rowPcsIdx, totalColIdx);
+        const finalItemTot = rowTotalPcs > 0 ? rowTotalPcs : fcItem ? fcItem.total : 0;
+        cellPTot.value = finalItemTot > 0 ? finalItemTot : 0;
+        cellPTot.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+        cellPTot.alignment = { vertical: 'middle', horizontal: 'right' };
+        cellPTot.numFmt = '#,##0';
+        cellPTot.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+        cellPTot.border = thinBorder;
       });
 
-      // 6. Atur Lebar Kolom
+      // 7. Masukkan Nilai Akumulasi ke Baris 2 (TOTAL KESELURUHAN)
+      levelSchools.forEach((_, sIdx) => {
+        const colIdx = 4 + sIdx;
+        const sTot = schoolColumnTotals[sIdx];
+        const cell = worksheet.getCell(2, colIdx);
+        cell.value = sTot > 0 ? sTot : 0;
+        cell.font = { name: 'Calibri', size: 10.5, bold: true, color: { argb: 'FF0369A1' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        cell.numFmt = '#,##0';
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+        cell.border = thinBorder;
+      });
+
+      const grandTotalAllSchools = schoolColumnTotals.reduce((a, b) => a + b, 0);
+      const cellGrandTot = worksheet.getCell(2, totalColIdx);
+      cellGrandTot.value = grandTotalAllSchools > 0 ? grandTotalAllSchools : 0;
+      cellGrandTot.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF0284C7' } };
+      cellGrandTot.alignment = { vertical: 'middle', horizontal: 'right' };
+      cellGrandTot.numFmt = '#,##0';
+      cellGrandTot.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBAE6FD' } };
+      cellGrandTot.border = thinBorder;
+
+      // 8. Atur Lebar Kolom
       worksheet.getColumn(1).width = 6;
       worksheet.getColumn(2).width = 30;
+      worksheet.getColumn(3).width = 10;
       levelSchools.forEach((school, sIdx) => {
-        const colIdx = 3 + sIdx;
+        const colIdx = 4 + sIdx;
         const colLen = school.school_name.length;
         worksheet.getColumn(colIdx).width = Math.max(16, Math.min(26, colLen + 2));
       });
+      worksheet.getColumn(totalColIdx).width = 16;
     });
 
     if (totalSheetsCreated === 0) {
