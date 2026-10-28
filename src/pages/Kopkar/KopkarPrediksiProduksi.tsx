@@ -116,6 +116,32 @@ export const splitClothingTypes = (raw?: string): string[] => {
     .filter(Boolean);
 };
 
+// Daftar buku dan perlengkapan belajar standar BPK PENABUR
+export const standardBooksSD = [
+  'AGENDA SISWA (SMT 1 & 2)',
+  'BUKU GAMBAR BESAR',
+  'BUKU GAMBAR KECIL',
+  'BUKU GARIS LIMA',
+  'BUKU IBADAH',
+  'BUKU MANDARIN',
+  'BUKU MUSIK',
+  'BUKU TULIS 1 PAK (@20pcs)',
+  'KERTAS ULANGAN',
+  'MAP PLASTIK (@2pcs)',
+];
+
+export const standardBooksSpkSD = [
+  'AGENDA SISWA (SMT 1 & 2)',
+  'BUKU GAMBAR BESAR',
+  'BUKU GAMBAR KECIL',
+  'BUKU GARIS LIMA',
+  'BUKU IBADAH',
+  'BUKU MANDARIN',
+  'BUKU MUSIK',
+  'BUKU TULIS 1PCS',
+  'KERTAS ULANGAN',
+];
+
 export const KopkarPrediksiProduksi: React.FC<Props> = ({
   vendors,
   plottings,
@@ -135,63 +161,84 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load data awal dari Supabase (app_settings) atau localStorage
-  useEffect(() => {
-    loadSavedForecast();
-  }, [targetYear]);
+  // Helper mendapatkan nama resmi barang dari Manajemen Barang (products)
+  const getCanonicalProductName = (rawName: string): string => {
+    const cleanRaw = (rawName || '').trim();
+    if (!cleanRaw) return '';
+    const upperKey = cleanRaw.toUpperCase();
 
-  const loadSavedForecast = async () => {
-    setLoading(true);
-    try {
-      const storageKey = `production_forecast_${targetYear.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('*')
-        .eq('key', storageKey)
-        .single();
-
-      if (!error && data?.value) {
-        try {
-          const parsed = JSON.parse(data.value);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const hasCorrupt = parsed.some((it: any) => Number(it.total) > 100000000 || Object.values(it.sizes || {}).some((s: any) => Number(s) > 100000000));
-            if (!hasCorrupt) {
-              setForecastItems(parsed);
-              setLoading(false);
-              return;
-            } else {
-              // Hapus data korup dari database
-              await supabase.from('app_settings').delete().eq('key', storageKey);
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing forecast json from DB:', e);
-        }
+    // 1. Cari kecocokan persis (case-insensitive) di Manajemen Barang (products)
+    if (products && products.length > 0) {
+      const matched = products.find(
+        (p) => (p.name || '').trim().toUpperCase() === upperKey
+      );
+      if (matched && matched.name) {
+        return matched.name.trim();
       }
-
-      // Fallback ke localStorage
-      const local = localStorage.getItem(storageKey);
-      if (local) {
-        try {
-          const parsedLocal = JSON.parse(local);
-          if (Array.isArray(parsedLocal) && parsedLocal.length > 0) {
-            const hasCorrupt = parsedLocal.some((it: any) => Number(it.total) > 100000000 || Object.values(it.sizes || {}).some((s: any) => Number(s) > 100000000));
-            if (!hasCorrupt) {
-              setForecastItems(parsedLocal);
-            } else {
-              localStorage.removeItem(storageKey);
-              setForecastItems([]);
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing forecast json from local:', e);
-        }
-      }
-    } catch (err) {
-      console.error('Error loading forecast:', err);
-    } finally {
-      setLoading(false);
     }
+
+    // 2. Cek di daftar buku standar SD
+    const matchedBookSD = standardBooksSD.find(
+      (b) => b.trim().toUpperCase() === upperKey
+    );
+    if (matchedBookSD) {
+      return matchedBookSD.trim();
+    }
+
+    // 3. Cek di daftar buku standar SPK-SD
+    const matchedBookSpk = standardBooksSpkSD.find(
+      (b) => b.trim().toUpperCase() === upperKey
+    );
+    if (matchedBookSpk) {
+      return matchedBookSpk.trim();
+    }
+
+    return cleanRaw;
+  };
+
+  // Normalisasi nama barang agar sesuai dengan Manajemen Barang dan tidak ada duplikasi casing
+  const normalizeLoadedItems = (items: any[]): ForecastItem[] => {
+    const itemMap = new Map<string, ForecastItem>();
+    items.forEach((it) => {
+      if (!it.uniformName || !it.level) return;
+      const uLevel = normalizeLevel(it.level);
+      const uNameRaw = String(it.uniformName).trim();
+      const canonicalName = getCanonicalProductName(uNameRaw);
+      const canonKey = canonicalName.toUpperCase();
+
+      const key = `${uLevel}___${canonKey}`;
+      if (!itemMap.has(key)) {
+        itemMap.set(key, {
+          ...it,
+          level: uLevel,
+          uniformName: canonicalName,
+          sizes: { ...(it.sizes || {}) },
+          schoolBreakdown: { ...(it.schoolBreakdown || {}) },
+        });
+      } else {
+        const existing = itemMap.get(key)!;
+        existing.uniformName = canonicalName;
+        // Merge sizes
+        Object.entries(it.sizes || {}).forEach(([sz, qty]) => {
+          const num = Number(qty) || 0;
+          existing.sizes[sz] = (existing.sizes[sz] || 0) + num;
+        });
+        existing.total = Object.values(existing.sizes).reduce((a, b) => a + b, 0);
+
+        // Merge schoolBreakdown
+        if (it.schoolBreakdown) {
+          if (!existing.schoolBreakdown) existing.schoolBreakdown = {};
+          Object.entries(it.schoolBreakdown).forEach(([sch, sizes]) => {
+            if (!existing.schoolBreakdown![sch]) existing.schoolBreakdown![sch] = {};
+            Object.entries(sizes as Record<string, number>).forEach(([sz, qty]) => {
+              const num = Number(qty) || 0;
+              existing.schoolBreakdown![sch][sz] = (existing.schoolBreakdown![sch][sz] || 0) + num;
+            });
+          });
+        }
+      }
+    });
+    return Array.from(itemMap.values());
   };
 
   // Simpan data forecast ke Supabase & localStorage
@@ -216,6 +263,80 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       alert('Gagal menyimpan data rencana produksi.');
     }
   };
+
+  const loadSavedForecast = async () => {
+    setLoading(true);
+    try {
+      const storageKey = `production_forecast_${targetYear.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('*')
+        .eq('key', storageKey)
+        .single();
+
+      if (!error && data?.value) {
+        try {
+          const parsed = JSON.parse(data.value);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const hasCorrupt = parsed.some((it: any) => Number(it.total) > 100000000 || Object.values(it.sizes || {}).some((s: any) => Number(s) > 100000000));
+            if (!hasCorrupt) {
+              setForecastItems(normalizeLoadedItems(parsed));
+              setLoading(false);
+              return;
+            } else {
+              // Hapus data korup dari database
+              await supabase.from('app_settings').delete().eq('key', storageKey);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing forecast json from DB:', e);
+        }
+      }
+
+      // Fallback ke localStorage
+      const local = localStorage.getItem(storageKey);
+      if (local) {
+        try {
+          const parsedLocal = JSON.parse(local);
+          if (Array.isArray(parsedLocal) && parsedLocal.length > 0) {
+            const hasCorrupt = parsedLocal.some((it: any) => Number(it.total) > 100000000 || Object.values(it.sizes || {}).some((s: any) => Number(s) > 100000000));
+            if (!hasCorrupt) {
+              setForecastItems(normalizeLoadedItems(parsedLocal));
+            } else {
+              localStorage.removeItem(storageKey);
+              setForecastItems([]);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing forecast json from local:', e);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading forecast:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data awal dari Supabase (app_settings) atau localStorage
+  useEffect(() => {
+    loadSavedForecast();
+  }, [targetYear]);
+
+  // Re-normalisasi nama barang setiap kali daftar products dari Manajemen Barang dimuat/berubah
+  useEffect(() => {
+    if (products && products.length > 0 && forecastItems.length > 0) {
+      const normalized = normalizeLoadedItems(forecastItems);
+      const isDifferent =
+        normalized.length !== forecastItems.length ||
+        normalized.some((it, i) => it.uniformName !== forecastItems[i]?.uniformName);
+
+      if (isDifferent) {
+        setForecastItems(normalized);
+        handleSaveForecast(normalized);
+      }
+    }
+  }, [products]);
 
   // Daftar ukuran aktif yang terdeteksi di forecast
   const detectedSizes = useMemo(() => {
@@ -1396,7 +1517,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
               if (trimmedName && !trimmedName.toLowerCase().startsWith('barang') && !trimmedName.toLowerCase().startsWith('jenis barang')) {
                 lastUniformName = trimmedName;
               }
-              const uniformName = (trimmedName && !trimmedName.toLowerCase().startsWith('barang') && !trimmedName.toLowerCase().startsWith('jenis barang')) ? trimmedName : lastUniformName;
+              const rawCandidate = (trimmedName && !trimmedName.toLowerCase().startsWith('barang') && !trimmedName.toLowerCase().startsWith('jenis barang')) ? trimmedName : lastUniformName;
+              if (!rawCandidate) return;
+              const uniformName = getCanonicalProductName(rawCandidate);
               if (!uniformName) return;
 
               const sizeRaw =
@@ -1526,7 +1649,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                 row['Jenis Baju'] ||
                 row['Item'] ||
                 '';
-              const uniformName = String(nameRaw).trim();
+              const rawUniformName = String(nameRaw).trim();
+              if (!rawUniformName) return;
+              const uniformName = getCanonicalProductName(rawUniformName);
               if (!uniformName) return;
 
               const sizes: Record<string, number> = {};
@@ -1690,32 +1815,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   const standardLetterSizes = ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', '4L', '5L', '6L', 'KHUSUS'];
   const standardPantsSizes = ['25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'];
 
-  // Daftar buku dan perlengkapan belajar standar BPK PENABUR
-  const standardBooksSD = [
-    'AGENDA SISWA (SMT 1 & 2)',
-    'BUKU GAMBAR BESAR',
-    'BUKU GAMBAR KECIL',
-    'BUKU GARIS LIMA',
-    'BUKU IBADAH',
-    'BUKU MANDARIN',
-    'BUKU MUSIK',
-    'BUKU TULIS 1 PAK (@20pcs)',
-    'KERTAS ULANGAN',
-    'MAP PLASTIK (@2pcs)',
-  ];
-
-  const standardBooksSpkSD = [
-    'AGENDA SISWA (SMT 1 & 2)',
-    'BUKU GAMBAR BESAR',
-    'BUKU GAMBAR KECIL',
-    'BUKU GARIS LIMA',
-    'BUKU IBADAH',
-    'BUKU MANDARIN',
-    'BUKU MUSIK',
-    'BUKU TULIS 1PCS',
-    'KERTAS ULANGAN',
-  ];
-
   // Daftar seragam & perlengkapan fallback jika database barang belum terisi untuk jenjang tertentu
   const fallbackUniformDefinitions: Record<string, Array<{ name: string; sizes: string[] }>> = {
     SD: [
@@ -1847,15 +1946,20 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return pLvl === lvl;
     });
 
-    const groupedMap = new Map<string, Set<string>>();
+    const groupedMap = new Map<string, { displayName: string; sizes: Set<string> }>();
 
     if (dbItemsForLevel.length > 0) {
       dbItemsForLevel.forEach((p) => {
-        const pName = (p.name || '').toUpperCase().trim();
-        if (!pName) return;
-        if (!groupedMap.has(pName)) groupedMap.set(pName, new Set());
+        const rawName = (p.name || '').trim();
+        if (!rawName) return;
+        const canonicalName = getCanonicalProductName(rawName);
+        const canonKey = canonicalName.toUpperCase();
+
+        if (!groupedMap.has(canonKey)) {
+          groupedMap.set(canonKey, { displayName: canonicalName, sizes: new Set() });
+        }
         if (p.size && p.size.trim()) {
-          groupedMap.get(pName)!.add(p.size.trim().toUpperCase());
+          groupedMap.get(canonKey)!.sizes.add(p.size.trim().toUpperCase());
         }
       });
     }
@@ -1863,11 +1967,19 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     // Pastikan buku-buku standar SD dan SPK-SD selalu ada di groupedMap
     if (lvl === 'SD') {
       standardBooksSD.forEach((bk) => {
-        if (!groupedMap.has(bk)) groupedMap.set(bk, new Set());
+        const canonicalName = getCanonicalProductName(bk);
+        const canonKey = canonicalName.toUpperCase();
+        if (!groupedMap.has(canonKey)) {
+          groupedMap.set(canonKey, { displayName: canonicalName, sizes: new Set() });
+        }
       });
     } else if (lvl === 'SD-SPK' || lvl === 'SPK-SD') {
       standardBooksSpkSD.forEach((bk) => {
-        if (!groupedMap.has(bk)) groupedMap.set(bk, new Set());
+        const canonicalName = getCanonicalProductName(bk);
+        const canonKey = canonicalName.toUpperCase();
+        if (!groupedMap.has(canonKey)) {
+          groupedMap.set(canonKey, { displayName: canonicalName, sizes: new Set() });
+        }
       });
     }
 
@@ -1875,16 +1987,18 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     if (groupedMap.size === 0) {
       const fbList = fallbackUniformDefinitions[fbKey] || fallbackUniformDefinitions[lvl] || [];
       fbList.forEach((it) => {
-        if (!groupedMap.has(it.name)) {
-          groupedMap.set(it.name, new Set(it.sizes));
+        const canonicalName = getCanonicalProductName(it.name);
+        const canonKey = canonicalName.toUpperCase();
+        if (!groupedMap.has(canonKey)) {
+          groupedMap.set(canonKey, { displayName: canonicalName, sizes: new Set(it.sizes) });
         }
       });
     }
 
     const uniformList: Array<{ name: string; sizes: string[] }> = [];
-    groupedMap.forEach((sizesSet, pName) => {
+    groupedMap.forEach((entry) => {
       const cleanSizes = new Set<string>();
-      sizesSet.forEach((s) => {
+      entry.sizes.forEach((s) => {
         const clean = s.trim().toUpperCase();
         if (clean && clean !== '-' && clean !== 'NULL' && clean !== 'UNDEFINED') {
           cleanSizes.add(clean);
@@ -1904,7 +2018,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           return a.localeCompare(b, undefined, { numeric: true });
         });
       }
-      uniformList.push({ name: pName, sizes: sizesArray });
+      uniformList.push({ name: entry.displayName, sizes: sizesArray });
     });
 
     // Urutkan seragam dahulu, kemudian buku-buku & perlengkapan belajar di bagian bawah
@@ -1990,15 +2104,18 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
       // Tambahkan item dari forecastItems jika ada yang belum tercover di uniformList
       forecastForLevel.forEach((fi) => {
-        const fiName = fi.uniformName.trim().toUpperCase();
-        const existing = uniformList.find((u) => u.name.toUpperCase() === fiName);
-        const fiSizes = Object.keys(fi.sizes);
+        const canonicalName = getCanonicalProductName(fi.uniformName);
+        const canonKey = canonicalName.toUpperCase();
+        const existing = uniformList.find((u) => u.name.toUpperCase() === canonKey);
+        const fiSizes = Object.keys(fi.sizes || {});
         if (!existing) {
           uniformList.push({
-            name: fi.uniformName.trim(),
+            name: canonicalName,
             sizes: fiSizes.length > 0 ? fiSizes : ['ALL SIZE'],
           });
         } else {
+          // Selalu pastikan menggunakan nama resmi canonical dari Manajemen Barang
+          existing.name = canonicalName;
           fiSizes.forEach((sz) => {
             if (!existing.sizes.includes(sz)) {
               existing.sizes.push(sz);
@@ -2025,7 +2142,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
       const rows: any[] = [];
       uniformList.forEach((item) => {
-        const fcItem = forecastForLevel.find(
+        const matchingFcItems = forecastForLevel.filter(
           (fi) => fi.uniformName.trim().toUpperCase() === item.name.toUpperCase()
         );
 
@@ -2036,27 +2153,39 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           };
 
           let hasSchoolVal = false;
+          let totalValForSize = 0;
+
           schoolList.forEach((sName) => {
             let val: number | string = '';
-            if (fcItem?.schoolBreakdown) {
-              const sClean = sName.toLowerCase().replace(/[^a-z0-9]/g, '');
-              for (const [schKey, sizesObj] of Object.entries(fcItem.schoolBreakdown)) {
-                const kClean = schKey.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (kClean === sClean || kClean.includes(sClean) || sClean.includes(kClean)) {
-                  if (sizesObj && sizesObj[sz] !== undefined && sizesObj[sz] !== null && sizesObj[sz] > 0) {
-                    val = sizesObj[sz];
-                    hasSchoolVal = true;
-                    break;
+            const sClean = sName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            matchingFcItems.forEach((fcItem) => {
+              if (fcItem?.schoolBreakdown) {
+                for (const [schKey, sizesObj] of Object.entries(fcItem.schoolBreakdown)) {
+                  const kClean = schKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  if (kClean === sClean || kClean.includes(sClean) || sClean.includes(kClean)) {
+                    if (sizesObj && sizesObj[sz] !== undefined && sizesObj[sz] !== null && Number(sizesObj[sz]) > 0) {
+                      const num = Number(sizesObj[sz]);
+                      val = (typeof val === 'number' ? val : 0) + num;
+                      hasSchoolVal = true;
+                      break;
+                    }
                   }
                 }
               }
-            }
+            });
+
             rowObj[sName] = val;
           });
 
           // Jika tidak ada data per sekolah tapi ada total di sizes:
-          if (!hasSchoolVal && fcItem?.sizes?.[sz] && fcItem.sizes[sz] > 0) {
-            rowObj['TOTAL (PCS)'] = fcItem.sizes[sz];
+          if (!hasSchoolVal) {
+            matchingFcItems.forEach((fcItem) => {
+              if (fcItem?.sizes?.[sz] && Number(fcItem.sizes[sz]) > 0) {
+                totalValForSize += Number(fcItem.sizes[sz]);
+              }
+            });
+            rowObj['TOTAL (PCS)'] = totalValForSize > 0 ? totalValForSize : '';
           } else {
             rowObj['TOTAL (PCS)'] = '';
           }
