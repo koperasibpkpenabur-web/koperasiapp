@@ -116,31 +116,9 @@ export const splitClothingTypes = (raw?: string): string[] => {
     .filter(Boolean);
 };
 
-// Daftar buku dan perlengkapan belajar standar BPK PENABUR
-export const standardBooksSD = [
-  'AGENDA SISWA (SMT 1 & 2)',
-  'BUKU GAMBAR BESAR',
-  'BUKU GAMBAR KECIL',
-  'BUKU GARIS LIMA',
-  'BUKU IBADAH',
-  'BUKU MANDARIN',
-  'BUKU MUSIK',
-  'BUKU TULIS 1 PAK (@20pcs)',
-  'KERTAS ULANGAN',
-  'MAP PLASTIK (@2pcs)',
-];
-
-export const standardBooksSpkSD = [
-  'AGENDA SISWA (SMT 1 & 2)',
-  'BUKU GAMBAR BESAR',
-  'BUKU GAMBAR KECIL',
-  'BUKU GARIS LIMA',
-  'BUKU IBADAH',
-  'BUKU MANDARIN',
-  'BUKU MUSIK',
-  'BUKU TULIS 1PCS',
-  'KERTAS ULANGAN',
-];
+// Daftar buku dan perlengkapan belajar standar BPK PENABUR (dikunci ke database Manajemen Barang)
+export const standardBooksSD: string[] = [];
+export const standardBooksSpkSD: string[] = [];
 
 export const KopkarPrediksiProduksi: React.FC<Props> = ({
   vendors,
@@ -169,7 +147,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     const normLvl = level ? normalizeLevel(level) : '';
 
-    // 1. Cari kecocokan persis (case-insensitive) di Manajemen Barang (products)
+    // 1. Cari kecocokan persis (case-insensitive) murni di Manajemen Barang (products)
     if (products && products.length > 0) {
       if (normLvl) {
         const matchedWithLvl = products.find(
@@ -187,22 +165,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       if (matched && matched.name) {
         return matched.name.trim();
       }
-    }
-
-    // 2. Cek di daftar buku standar SD
-    const matchedBookSD = standardBooksSD.find(
-      (b) => b.trim().toUpperCase() === upperKey
-    );
-    if (matchedBookSD) {
-      return matchedBookSD.trim();
-    }
-
-    // 3. Cek di daftar buku standar SPK-SD
-    const matchedBookSpk = standardBooksSpkSD.find(
-      (b) => b.trim().toUpperCase() === upperKey
-    );
-    if (matchedBookSpk) {
-      return matchedBookSpk.trim();
     }
 
     return cleanRaw;
@@ -558,8 +520,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return true;
     }
 
-    // Level SMP (termasuk SPK-SMP): Hanya seragam SMP (BIRU), TIDAK BOLEH ABU atau MERAH
-    if (lvl === 'SMP' || lvl === 'SPK-SMP') {
+    // Level SMP (Reguler): Hanya seragam SMP (BIRU), TIDAK BOLEH ABU atau MERAH atau SPK
+    if (lvl === 'SMP') {
       if (u.includes('KOTAK-KOTAK PUTRA') || u.includes('KOTAK-KOTAK PUTRI') || u.includes('KOTAK PUTRA') || u.includes('KOTAK PUTRI')) return false;
       if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
       if (u.includes('SET OLAHRAGA') || (u.includes('OLAHRAGA') && !u.includes('KAOS') && !u.includes('CELANA'))) return false;
@@ -568,11 +530,38 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       if (u.includes('KLS 1') || u.includes('KLS 2') || u.includes('KLS 3-6') || u.includes('KLS 3-4') || u.includes('KLS 5-6')) return false;
       if (u.includes('MERAH') || u.includes('ABU')) return false;
       if (u.includes('PENEGAK')) return false;
+      if (u.includes('POLOS PUTRA') || u.includes('KUPU') || u.includes('TUMPUL') || u.includes('LOWER')) return false;
       return true;
     }
 
-    // Level SMA (termasuk SPK-SMA): Hanya seragam SMA (ABU), TIDAK BOLEH BIRU atau MERAH
-    if (lvl === 'SMA' || lvl === 'SPK-SMA') {
+    // Level SPK-SMP (Lower Secondary): Khusus seragam SPK-SMP, TIDAK BOLEH ABU, MERAH, atau DASI BIRU reguler
+    if (lvl === 'SPK-SMP') {
+      if (u === 'DASI BIRU') return false; // SPK-SMP menggunakan Dasi Biru Polos Putra atau Dasi Biru Kupu2 Putri
+      if (u.includes('KOTAK-KOTAK PUTRA') || u.includes('KOTAK-KOTAK PUTRI') || u.includes('KOTAK PUTRA') || u.includes('KOTAK PUTRI')) return false;
+      if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
+      if (u.includes('SET OLAHRAGA') || (u.includes('OLAHRAGA') && !u.includes('KAOS') && !u.includes('CELANA'))) return false;
+      if (u.includes('TOPI KUNING')) return false;
+      if (u.includes('SIAGA') || u.includes('PENGGALANG') || u.includes('PENEGAK')) return false;
+      if (u.includes('KLS 1') || u.includes('KLS 2') || u.includes('KLS 3-6') || u.includes('KLS 3-4') || u.includes('KLS 5-6')) return false;
+      if (u.includes('MERAH') || u.includes('ABU')) return false;
+      return true;
+    }
+
+    // Level SMA (Reguler): Hanya seragam SMA (ABU), TIDAK BOLEH BIRU atau MERAH
+    if (lvl === 'SMA') {
+      if (u.includes('KOTAK-KOTAK PUTRA') || u.includes('KOTAK-KOTAK PUTRI') || u.includes('KOTAK PUTRA') || u.includes('KOTAK PUTRI')) return false;
+      if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
+      if (u.includes('SET OLAHRAGA') || (u.includes('OLAHRAGA') && !u.includes('KAOS') && !u.includes('CELANA'))) return false;
+      if (u.includes('TOPI KUNING')) return false;
+      if (u.includes('SIAGA') || u.includes('PENGGALANG')) return false;
+      if (u.includes('KLS 1-2') || u.includes('KLS 3-6') || u.includes('KLS 1-4') || u.includes('KLS 5-6') || u.includes('KLS 7') || u.includes('KLS 8') || u.includes('KLS 9')) return false;
+      if (u.includes('MERAH') || u.includes('BIRU')) return false;
+      if (u.includes('TUMPUL') || u.includes('UPPER')) return false;
+      return true;
+    }
+
+    // Level SPK-SMA (Upper Secondary):
+    if (lvl === 'SPK-SMA') {
       if (u.includes('KOTAK-KOTAK PUTRA') || u.includes('KOTAK-KOTAK PUTRI') || u.includes('KOTAK PUTRA') || u.includes('KOTAK PUTRI')) return false;
       if (u.includes('1 SET SERGM') || u.includes('1 SET SERAGAM')) return false;
       if (u.includes('SET OLAHRAGA') || (u.includes('OLAHRAGA') && !u.includes('KAOS') && !u.includes('CELANA'))) return false;
@@ -589,7 +578,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   const getStandardItemsForLevel = (level: string): string[] => {
     const lvl = normalizeLevel(level);
 
-    // Ambil jenis barang unik secara dinamis langsung dari Master Manajemen Barang (props products), termasuk seragam & buku
+    // Ambil jenis barang unik secara dinamis langsung dari Master Manajemen Barang (props products)
     const dbItems = (products || [])
       .filter((p) => {
         const pLvl = normalizeLevel(p.level || '');
@@ -608,66 +597,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       });
     }
 
-    // Jika di Master Manajemen Barang belum ada produk terinput untuk jenjang ini (misal SPK belum diisi di database),
-    // baru gunakan fallback standar baku agar tampilan awal dan ekspor tetap memiliki struktur lengkap
-    if (uniqueSet.size === 0) {
-      if (lvl === 'TK') {
-        ['Kotak - Kotak Putri', 'Kotak - Kotak Putra', '1 Set Olahraga'].forEach((it) => uniqueSet.add(it));
-      } else if (lvl === 'SD' || lvl === 'SPK-SD') {
-        [
-          'Kemeja Putih',
-          'Celana Kotak',
-          'Celana Polos',
-          'Rok Kotak kls 1-2',
-          'Rok Polos kls 1-2',
-          'Kulot Kotak kls 3-6',
-          'Kulot Polos kls 3-6',
-          'Rompi Kotak',
-          'Kemeja Pramuka Siaga Putra',
-          'Kemeja Pramuka Siaga Putri',
-          'Celana Pramuka Siaga',
-          'Rok Pramuka Siaga kls 1-2',
-          'Kulot Pramuka Siaga kls 3-4',
-          'Kemeja Pramuka Penggalang Putra kls 5-6',
-          'Kemeja Pramuka Penggalang Putri kls 5-6',
-          'Celana Pramuka Penggalang kls 5-6',
-          'Kulot Pramuka Penggalang kls 5-6',
-          'Kaos Olahraga',
-          'Celana OR Putra',
-          'Celana OR Putri',
-        ].forEach((it) => uniqueSet.add(it));
-      } else if (lvl === 'SMP' || lvl === 'SPK-SMP') {
-        [
-          'Kemeja Putih',
-          'Celana Biru',
-          'Celana Panjang Biru',
-          'Kulot Biru',
-          'Rompi Kotak',
-          'Kemeja Pramuka SMP',
-          'Celana Pendek Pramuka',
-          'Rok Pramuka SMP',
-          'Kulot Pramuka SMP',
-          'Kaos Olahraga',
-          'Celana OR Putra',
-          'Celana OR Putri',
-        ].forEach((it) => uniqueSet.add(it));
-      } else if (lvl === 'SMA' || lvl === 'SPK-SMA') {
-        [
-          'Kemeja Putih',
-          'Celana Panjang Abu',
-          'Kulot Abu',
-          'Rompi Kotak',
-          'Kemeja Pramuka Putra + Ambalan',
-          'Kemeja Pramuka Putri + Ambalan',
-          'Celana Panjang Pramuka',
-          'Kulot Pramuka',
-          'Jas Lab',
-          'Kaos Olahraga',
-          'Celana OR Putra',
-          'Celana OR Putri',
-        ].forEach((it) => uniqueSet.add(it));
-      }
-    }
+    // Murni dari database Manajemen Barang - tidak menyuntikkan seragam fallback/palsu jika database kosong
 
     return Array.from(uniqueSet).sort((a, b) => {
       const prioA = getItemPriority(a, lvl);
@@ -679,6 +609,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
   const formatItemDisplayName = (itemName: string, level?: string): string => {
     const raw = (itemName || '').trim();
+    if (!raw) return '';
     const u = raw.toUpperCase();
     const lvl = (level || '').toUpperCase().trim();
 
@@ -700,107 +631,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       if (dbProductAny && dbProductAny.name) return dbProductAny.name.trim();
     }
 
-    if (normLvl === 'TK') {
-      if (u.includes('PUTRI') && (u.includes('KOTAK') || u.includes('SERGM') || u.includes('SERAGAM'))) return 'Kotak - Kotak Putri';
-      if (u.includes('PUTRA') && (u.includes('KOTAK') || u.includes('SERGM') || u.includes('SERAGAM'))) return 'Kotak - Kotak Putra';
-      if (u.includes('OLAHRAGA')) return '1 Set Olahraga';
-      if (u.includes('TOPI KUNING')) return 'Topi Kuning';
-      if (u.includes('BAJU RENANG')) return 'Baju Renang TK';
-      return raw;
-    }
-
-    if (normLvl === 'SD' || normLvl === 'SPK-SD') {
-      if (u.includes('KAOS OLAHRAGA') || u === 'KAOS OR') return 'Kaos Olahraga';
-      if (u.includes('CELANA OR PUTRA') || (u.includes('CELANA') && u.includes('PUTRA') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putra';
-      if (u.includes('CELANA OR PUTRI') || (u.includes('CELANA') && u.includes('PUTRI') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putri';
-      if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG') || u === 'KEMEJA') return 'Kemeja Putih';
-      if (u.includes('CELANA KOTAK')) return 'Celana Kotak';
-      if (u.includes('CELANA POLOS') || u.includes('CELANA MERAH')) return 'Celana Polos';
-      if (u.includes('ROK KOTAK')) return 'Rok Kotak kls 1-2';
-      if (u.includes('ROK POLOS') || u.includes('ROK MERAH')) return 'Rok Polos kls 1-2';
-      if (u.includes('KULOT KOTAK')) return 'Kulot Kotak kls 3-6';
-      if (u.includes('KULOT POLOS') || u.includes('KULOT MERAH')) return 'Kulot Polos kls 3-6';
-      if (u.includes('ROMPI KOTAK') || u === 'ROMPI') return 'Rompi Kotak';
-      if (u.includes('PRAMUKA') && u.includes('SIAGA') && u.includes('PUTRA')) return 'Kemeja Pramuka Siaga Putra';
-      if (u.includes('PRAMUKA') && u.includes('SIAGA') && u.includes('PUTRI')) return 'Kemeja Pramuka Siaga Putri';
-      if (u.includes('CELANA') && u.includes('PRAMUKA') && u.includes('SIAGA')) return 'Celana Pramuka Siaga';
-      if (u.includes('ROK') && u.includes('PRAMUKA') && u.includes('SIAGA')) return 'Rok Pramuka Siaga kls 1-2';
-      if (u.includes('KULOT') && u.includes('PRAMUKA') && u.includes('SIAGA')) return 'Kulot Pramuka Siaga kls 3-4';
-      if (u.includes('PRAMUKA') && u.includes('PENGGALANG') && u.includes('PUTRA')) return 'Kemeja Pramuka Penggalang Putra kls 5-6';
-      if (u.includes('PRAMUKA') && u.includes('PENGGALANG') && u.includes('PUTRI')) return 'Kemeja Pramuka Penggalang Putri kls 5-6';
-      if (u.includes('CELANA') && u.includes('PRAMUKA') && u.includes('PENGGALANG')) return 'Celana Pramuka Penggalang kls 5-6';
-      if (u.includes('KULOT') && u.includes('PRAMUKA') && u.includes('PENGGALANG')) return 'Kulot Pramuka Penggalang kls 5-6';
-      if (u.includes('BATIK')) return 'Batik SD';
-      if (u.includes('JAS LAB')) return 'Jas Lab';
-      return raw;
-    }
-
-    if (normLvl === 'SMP' || normLvl === 'SPK-SMP') {
-      if (u.includes('KAOS OLAHRAGA') || u === 'KAOS OR') return 'Kaos Olahraga';
-      if (u.includes('CELANA OR PUTRA') || (u.includes('CELANA') && u.includes('PUTRA') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putra';
-      if (u.includes('CELANA OR PUTRI') || (u.includes('CELANA') && u.includes('PUTRI') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putri';
-      if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG') || u === 'KEMEJA') return 'Kemeja Putih';
-      if (u.includes('CELANA PANJANG BIRU')) return 'Celana Panjang Biru';
-      if (u.includes('CELANA BIRU') || u.includes('CELANA PENDEK BIRU')) return 'Celana Biru';
-      if (u.includes('ROK BIRU')) return 'Rok Biru';
-      if (u.includes('KULOT BIRU')) return 'Kulot Biru';
-      if (u.includes('ROMPI KOTAK') || u === 'ROMPI') return 'Rompi Kotak';
-      if (u.includes('PRAMUKA') && u.includes('PUTRA') && u.includes('KEMEJA')) return 'Kemeja Pramuka SMP';
-      if (u.includes('PRAMUKA') && u.includes('PUTRI') && u.includes('KEMEJA')) return 'Kemeja Pramuka SMP';
-      if (u.includes('CELANA') && u.includes('PRAMUKA')) return 'Celana Pendek Pramuka';
-      if (u.includes('ROK') && u.includes('PRAMUKA')) return 'Rok Pramuka SMP';
-      if (u.includes('KULOT') && u.includes('PRAMUKA')) return 'Kulot Pramuka SMP';
-      if (u.includes('BATIK')) return 'Batik SMP';
-      if (u.includes('JAS LAB')) return 'Jas Lab';
-      return raw;
-    }
-
-    if (normLvl === 'SMA' || normLvl === 'SPK-SMA') {
-      if (u.includes('KAOS OLAHRAGA') || u === 'KAOS OR') return 'Kaos Olahraga';
-      if (u.includes('CELANA OR PUTRA') || (u.includes('CELANA') && u.includes('PUTRA') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putra';
-      if (u.includes('CELANA OR PUTRI') || (u.includes('CELANA') && u.includes('PUTRI') && (u.includes('OR') || u.includes('OLAHRAGA')))) return 'Celana OR Putri';
-      if (u === 'KEMEJA PUTIH' || u.includes('KEMEJA PUTIH PENDEK') || u.includes('KEMEJA PUTIH PANJANG') || u === 'KEMEJA') return 'Kemeja Putih';
-      if (u.includes('CELANA PANJANG ABU') || u.includes('CELANA ABU')) return 'Celana Panjang Abu';
-      if (u.includes('ROK ABU')) return 'Rok Abu';
-      if (u.includes('KULOT ABU')) return 'Kulot Abu';
-      if (u.includes('ROMPI KOTAK') || u === 'ROMPI') return 'Rompi Kotak';
-      if (u.includes('PRAMUKA') && u.includes('PUTRA') && u.includes('KEMEJA')) return 'Kemeja Pramuka Putra + Ambalan';
-      if (u.includes('PRAMUKA') && u.includes('PUTRI') && u.includes('KEMEJA')) return 'Kemeja Pramuka Putri + Ambalan';
-      if (u.includes('CELANA') && u.includes('PRAMUKA')) return 'Celana Panjang Pramuka';
-      if (u.includes('KULOT') && u.includes('PRAMUKA')) return 'Kulot Pramuka';
-      if (u.includes('JAS LAB')) return 'Jas Lab';
-      if (u.includes('BATIK')) return 'Batik SMA';
-      return raw;
-    }
-
-    if (u.includes('NAME TAG')) return 'Name Tag 1set=6 ( coklat 1, putih 5)';
-    if (u.includes('CLEMEK')) return 'Clemek (Tata Boga)';
-    if (u.includes('KACU')) return 'Kacu Katun + Ring Rotan';
-    if (u.includes('TOPI PRAMUKA PUTRA')) return 'Topi Pramuka Putra';
-    if (u.includes('TOPI PRAMUKA PUTRI')) return 'Topi Pramuka Putri';
-    if (u.includes('TOPI KUNING')) return 'Topi Kuning';
-    if (u.includes('TOPI MERAH')) return 'Topi Merah';
-    if (u.includes('TOPI BIRU')) return 'Topi Biru';
-    if (u.includes('TOPI ABU')) return 'Topi Abu';
-    // Dasi SPK & Reguler sesuai Master Manajemen Barang
-    if (u.includes('DASI MERAH TUMPUL')) return 'Dasi Merah Tumpul Berlogo';
-    if (u.includes('DASI KOTAK TUMPUL')) return 'Dasi Kotak Tumpul Berlogo';
-    if (u.includes('DASI BIRU POLOS PUTRA')) return 'Dasi Biru Polos Putra';
-    if (u.includes('DASI KOTAK PANJANG PUTRA')) return 'Dasi Kotak Panjang Putra';
-    if (u.includes('DASI BIRU KUPU2 PUTRI') || u.includes('DASI BIRU KUPU')) return 'Dasi Biru Kupu2 Putri';
-    if (u.includes('DASI KOTAK KUPU2 PUTRI') || u.includes('DASI KOTAK KUPU')) return 'Dasi Kotak Kupu2 Putri';
-    if (u.includes('DASI KOTAK PUTRA')) return 'Dasi Kotak Putra';
-    if (u.includes('DASI KOTAK PUTRI')) return 'Dasi Kotak Putri';
-    if (u.includes('DASI ABU PUTRA')) return 'Dasi Abu Putra';
-    if (u.includes('DASI ABU PUTRI')) return 'Dasi Abu Putri';
-    if (u.includes('DASI ABU')) return 'Dasi Abu';
-    if (u.includes('DASI MERAH')) return 'Dasi Merah';
-    if (u.includes('DASI BIRU')) return 'Dasi Biru';
-    if (u.includes('SEPATU')) return u.includes('VELCRO') ? 'Sepatu Velcro' : 'Sepatu Phantom';
-    if (u.includes('KAOS KAKI HITAM')) return 'Kaos Kaki Hitam';
-    if (u.includes('KAOS KAKI PUTIH')) return 'Kaos Kaki Putih';
-    if (u.includes('AMBALAN') && !u.includes('KEMEJA')) return 'Gudep Ambalan';
-
+    // Jika tidak terdaftar, kembalikan nama asli tanpa manipulasi / tebakan
     return raw;
   };
 
@@ -1182,10 +1013,14 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
       // 3. Dasi Biru (SMP: Dasi Biru, SPK-SMP: Dasi Biru Polos Putra & Dasi Biru Kupu2 Putri)
       if (isBiruT && isBiruP) {
+        // Cegah percampuran Dasi Biru SMP reguler dengan Dasi Biru SPK-SMP (Polos Putra / Kupu2 Putri)
+        const isPolosOrKupuT = tNorm.includes('POLOS') || tNorm.includes('KUPU');
+        const isPolosOrKupuP = pNorm.includes('POLOS') || pNorm.includes('KUPU');
+        if (isPolosOrKupuT !== isPolosOrKupuP) return false;
+
         if (isPutraT && isPutraP) return true;
         if (isPutriT && isPutriP) return true;
-        if (!isPutraT && !isPutriT) return true;
-        if (!isPutraP && !isPutriP) return true;
+        if (!isPutraT && !isPutriT && !isPutraP && !isPutriP) return true;
         return false;
       }
 
@@ -1488,54 +1323,17 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
       // Jika tidak ada data per sekolah atau mode rencana global (tanpa rincian sekolah)
       if (!matchedBySchool) {
-        Object.entries(fcItem.sizes).forEach(([sizeName, totalQtyForSize]) => {
-          if (totalQtyForSize <= 0) return;
-
-          let allocatedSum = 0;
-          let maxVendorId = activeVendorsForItem[0]?.vendorId || '';
-          let maxVendorCount = -1;
-
-          activeVendorsForItem.forEach((av) => {
-            const ratio = av.schoolCount / totalSchoolsForItem;
-            const qty = Math.round(totalQtyForSize * ratio);
-            allocatedSizesByVendor.get(av.vendorId)![sizeName] = qty;
-            allocatedSum += qty;
-
-            if (av.schoolCount > maxVendorCount) {
-              maxVendorCount = av.schoolCount;
-              maxVendorId = av.vendorId;
+        // Point 1: Hapus auto-proportional splitting ke sekolah.
+        // Jika hanya ada 1 vendor tunggal untuk barang ini pada jenjang ini, alokasikan kuantitasnya langsung ke vendor tersebut.
+        if (activeVendorsForItem.length === 1) {
+          const singleVendor = activeVendorsForItem[0];
+          Object.entries(fcItem.sizes).forEach(([sizeName, totalQtyForSize]) => {
+            if (totalQtyForSize > 0) {
+              allocatedSizesByVendor.get(singleVendor.vendorId)![sizeName] = totalQtyForSize;
             }
           });
-
-          // Remainder adjustment agar total alokasi per ukuran persis sama dengan total input
-          const diff = totalQtyForSize - allocatedSum;
-          if (diff !== 0 && maxVendorId) {
-            allocatedSizesByVendor.get(maxVendorId)![sizeName] += diff;
-          }
-        });
-
-        // Distribusikan proporsional ke sekolah-sekolah yang dilayani vendor ini untuk barang ini
-        activeVendorsForItem.forEach((av) => {
-          const vSizes = allocatedSizesByVendor.get(av.vendorId) || {};
-          const vSchoolBd = schoolBreakdownByVendor.get(av.vendorId);
-          const schoolNamesList = Array.from(av.schoolNames);
-          const numSchools = schoolNamesList.length;
-
-          if (vSchoolBd && numSchools > 0) {
-            Object.entries(vSizes).forEach(([sz, totalSzQty]) => {
-              if (totalSzQty <= 0) return;
-              const baseQty = Math.floor(totalSzQty / numSchools);
-              let rem = totalSzQty % numSchools;
-
-              schoolNamesList.forEach((sn) => {
-                if (!vSchoolBd[sn]) vSchoolBd[sn] = {};
-                const addQty = baseQty + (rem > 0 ? 1 : 0);
-                if (rem > 0) rem--;
-                vSchoolBd[sn][sz] = addQty;
-              });
-            });
-          }
-        });
+        }
+        // Jangan mengarang kuota per sekolah (schoolBreakdownByVendor) jika rincian sekolah tidak ada di data input!
       }
 
       // Masukkan ke struktur alokasi masing-masing vendor yang berhak
@@ -1621,6 +1419,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
         // Map unik: `${level}___${uniformName}` -> ForecastItem
         const itemMap = new Map<string, ForecastItem>();
+        const unrecognizedItems = new Set<string>();
 
         // Parser angka aman yang tidak merusak angka desimal/koma (menghindari bug 411.233 -> 4 kuadriliun)
         const parseCellNumber = (val: any): number => {
@@ -1644,9 +1443,19 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           const sheet = workbook.Sheets[sheetName];
           if (!sheet) return;
 
+          const cleanSheet = sheetName.toUpperCase().trim();
+          // Abaikan sheet panduan/petunjuk pengisian agar tidak ikut terbaca sebagai data seragam
+          if (
+            cleanSheet.includes('PETUNJUK') ||
+            cleanSheet.includes('PANDUAN') ||
+            cleanSheet.includes('GUIDE') ||
+            cleanSheet.includes('INSTRUKSI')
+          ) {
+            return;
+          }
+
           // Deteksi jenjang dari nama sheet (contoh: "SD", "SMP", "SMA", "TK", "SPK-SD", "SPK-SMP", "SPK-SMA")
           let defaultLevel = 'SD';
-          const cleanSheet = sheetName.toUpperCase().trim();
           if (cleanSheet.includes('SPK')) {
             if (cleanSheet.includes('SD') || cleanSheet.includes('PRIMARY')) {
               defaultLevel = 'SPK-SD';
@@ -1705,7 +1514,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
               }
               const rawCandidate = (trimmedName && !trimmedName.toLowerCase().startsWith('barang') && !trimmedName.toLowerCase().startsWith('jenis barang')) ? trimmedName : lastUniformName;
               if (!rawCandidate) return;
-              const uniformName = getCanonicalProductName(rawCandidate);
+              const uniformName = getCanonicalProductName(rawCandidate, defaultLevel);
               if (!uniformName) return;
 
               const sizeRaw =
@@ -1753,10 +1562,13 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                 }
               }
 
+              let hasAnyQty = false;
+
               if (hasPoCol && poVal > 0) {
                 // Gunakan angka murni dari PO (bukan nominal harga atau total rupiah)
                 item.sizes[size] = (item.sizes[size] || 0) + poVal;
                 item.total += poVal;
+                hasAnyQty = true;
               } else {
                 // 2. Mode Kolom Sekolah (Template Resmi Prediksi)
                 let schoolSum = 0;
@@ -1789,6 +1601,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                     schoolSum += numVal;
                     item.sizes[size] = (item.sizes[size] || 0) + numVal;
                     item.total += numVal;
+                    hasAnyQty = true;
 
                     if (!item.schoolBreakdown![cleanKey]) {
                       item.schoolBreakdown![cleanKey] = {};
@@ -1817,7 +1630,22 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                   if (totalNum > 0) {
                     item.sizes[size] = (item.sizes[size] || 0) + totalNum;
                     item.total += totalNum;
+                    hasAnyQty = true;
                   }
+                }
+              }
+
+              // Validasi Single Source of Truth: jika baris ini ada isi kuota, pastikan nama barangnya valid di Manajemen Barang
+              if (hasAnyQty) {
+                const candNorm = rawCandidate.trim().toUpperCase();
+                const candLvl = normalizeLevel(level);
+                const isKnownInDb = (products || []).some((p) => {
+                  const pName = (p.name || '').trim().toUpperCase();
+                  const pLvl = normalizeLevel(p.level || '');
+                  return pName === candNorm && (pLvl === candLvl || pLvl === 'SEMUA');
+                });
+                if (!isKnownInDb) {
+                  unrecognizedItems.add(`• [${level}] ${rawCandidate.trim()}`);
                 }
               }
             });
@@ -1837,7 +1665,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                 '';
               const rawUniformName = String(nameRaw).trim();
               if (!rawUniformName) return;
-              const uniformName = getCanonicalProductName(rawUniformName);
+              const uniformName = getCanonicalProductName(rawUniformName, defaultLevel);
               if (!uniformName) return;
 
               const sizes: Record<string, number> = {};
@@ -1864,6 +1692,18 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
               });
 
               if (rowTotal > 0) {
+                // Validasi Single Source of Truth
+                const rawNorm = rawUniformName.trim().toUpperCase();
+                const rawLvl = normalizeLevel(level);
+                const isKnownInDb = (products || []).some((p) => {
+                  const pName = (p.name || '').trim().toUpperCase();
+                  const pLvl = normalizeLevel(p.level || '');
+                  return pName === rawNorm && (pLvl === rawLvl || pLvl === 'SEMUA');
+                });
+                if (!isKnownInDb) {
+                  unrecognizedItems.add(`• [${level}] ${rawUniformName.trim()}`);
+                }
+
                 const key = `${level}___${uniformName.toUpperCase()}`;
                 if (itemMap.has(key)) {
                   const existing = itemMap.get(key)!;
@@ -1884,6 +1724,21 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             });
           }
         });
+
+        // Point 2: Berikan Alert jika ada nama barang di file Excel yang tidak ada di Manajemen Barang
+        if (unrecognizedItems.size > 0) {
+          const list = Array.from(unrecognizedItems);
+          const previewList = list.slice(0, 15).join('\n');
+          const extra = list.length > 15 ? `\n...dan ${list.length - 15} barang lainnya.` : '';
+          alert(
+            `⚠️ UPLOAD DITOLAK: Terdapat ${list.length} nama barang yang TIDAK TERDAFTAR di Manajemen Barang:\n\n` +
+            previewList +
+            extra +
+            `\n\nSesuai aturan sistem, nama barang tidak dapat diubah di luar Manajemen Barang.\nSilakan perbaiki file Excel atau daftarkan barang tersebut terlebih dahulu di menu Manajemen Barang!`
+          );
+          setLoading(false);
+          return;
+        }
 
         const parsedItems = Array.from(itemMap.values()).filter((it) => it.total > 0);
 
@@ -1998,71 +1853,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     ]
   };
 
-  const standardLetterSizes = ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', '4L', '5L', '6L', 'KHUSUS'];
-  const standardPantsSizes = ['25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'];
-
-  // Daftar seragam & perlengkapan fallback jika database barang belum terisi untuk jenjang tertentu
-  const fallbackUniformDefinitions: Record<string, Array<{ name: string; sizes: string[] }>> = {
-    SD: [
-      { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
-      { name: 'CELANA MERAH', sizes: standardLetterSizes },
-      { name: 'KULOT MERAH', sizes: standardLetterSizes },
-      { name: 'ROMPI KOTAK', sizes: standardLetterSizes },
-      { name: 'KEMEJA PRAMUKA SD', sizes: standardLetterSizes },
-      { name: 'CELANA PRAMUKA SD', sizes: standardLetterSizes },
-      { name: 'KULOT PRAMUKA SD', sizes: standardLetterSizes },
-      { name: 'KAOS OLAHRAGA SD', sizes: standardLetterSizes },
-      // Buku & Perlengkapan Belajar SD
-      { name: 'AGENDA SISWA (SMT 1 & 2)', sizes: ['ALL SIZE'] },
-      { name: 'BUKU GAMBAR BESAR', sizes: ['ALL SIZE'] },
-      { name: 'BUKU GAMBAR KECIL', sizes: ['ALL SIZE'] },
-      { name: 'BUKU GARIS LIMA', sizes: ['ALL SIZE'] },
-      { name: 'BUKU IBADAH', sizes: ['ALL SIZE'] },
-      { name: 'BUKU MANDARIN', sizes: ['ALL SIZE'] },
-      { name: 'BUKU MUSIK', sizes: ['ALL SIZE'] },
-      { name: 'BUKU TULIS 1 PAK (@20pcs)', sizes: ['ALL SIZE'] },
-      { name: 'KERTAS ULANGAN', sizes: ['ALL SIZE'] },
-      { name: 'MAP PLASTIK (@2pcs)', sizes: ['ALL SIZE'] },
-    ],
-    SMP: [
-      { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
-      { name: 'CELANA BIRU', sizes: standardPantsSizes },
-      { name: 'ROK BIRU', sizes: standardLetterSizes },
-      { name: 'KEMEJA PRAMUKA SMP', sizes: standardLetterSizes },
-      { name: 'CELANA PENDEK PRAMUKA', sizes: standardPantsSizes },
-      { name: 'ROK PRAMUKA SMP', sizes: standardLetterSizes },
-      { name: 'KAOS OLAHRAGA SMP', sizes: standardLetterSizes },
-    ],
-    SMA: [
-      { name: 'KEMEJA PUTIH', sizes: standardLetterSizes },
-      { name: 'CELANA ABU', sizes: ['27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'] },
-      { name: 'ROK ABU', sizes: standardLetterSizes },
-      { name: 'KEMEJA PRAMUKA SMA', sizes: standardLetterSizes },
-      { name: 'CELANA PRAMUKA SMA', sizes: ['27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', 'KHUSUS'] },
-      { name: 'ROK PRAMUKA SMA', sizes: standardLetterSizes },
-      { name: 'KAOS OLAHRAGA SMA', sizes: standardLetterSizes },
-    ],
-    TK: [
-      { name: 'KOTAK-KOTAK PUTRA', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
-      { name: 'KOTAK-KOTAK PUTRI', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
-      { name: 'KAOS OLAHRAGA TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
-      { name: 'BAJU RENANG TK', sizes: ['SS', 'S', 'M', 'L', 'XL', '2L', '3L', 'KHUSUS'] },
-    ],
-    'SPK-SD': [
-      { name: 'AGENDA SISWA (SMT 1 & 2)', sizes: ['ALL SIZE'] },
-      { name: 'BUKU GAMBAR BESAR', sizes: ['ALL SIZE'] },
-      { name: 'BUKU GAMBAR KECIL', sizes: ['ALL SIZE'] },
-      { name: 'BUKU GARIS LIMA', sizes: ['ALL SIZE'] },
-      { name: 'BUKU IBADAH', sizes: ['ALL SIZE'] },
-      { name: 'BUKU MANDARIN', sizes: ['ALL SIZE'] },
-      { name: 'BUKU MUSIK', sizes: ['ALL SIZE'] },
-      { name: 'BUKU TULIS 1PCS', sizes: ['ALL SIZE'] },
-      { name: 'KERTAS ULANGAN', sizes: ['ALL SIZE'] },
-    ],
-    'SPK-SMP': [],
-    'SPK-SMA': [],
-  };
-
   // Helper mendapatkan daftar sekolah unik untuk suatu jenjang
   const getSchoolsForLevel = (levelKey: string, fallbackList: string[]): string[] => {
     const filtered = schools.filter((s) => {
@@ -2105,31 +1895,31 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     return fallbackList;
   };
 
-  // Helper mengambil daftar barang (seragam & buku) beserta variasi ukurannya per jenjang
+  // Helper mengambil daftar barang (seragam & buku) beserta variasi ukurannya per jenjang murni dari Manajemen Barang
   const getItemsAndSizesForLevel = (lvl: string): Array<{ name: string; sizes: string[] }> => {
-    const fbKey = (lvl === 'SD-SPK' || lvl === 'SPK-SD') ? 'SPK-SD' : (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') ? 'SPK-SMP' : (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') ? 'SPK-SMA' : lvl;
+    const curLvl = normalizeLevel(lvl);
 
-    // Ambil seluruh produk (seragam, buku, map, agenda, kertas, aksesoris) dari database barang (props products)
+    // Ambil seluruh produk murni dari database barang (props products)
     const dbItemsForLevel = products.filter((p) => {
-      const pLvl = (p.level || '').toUpperCase().trim();
+      const pLvl = normalizeLevel(p.level || '');
       const pName = (p.name || '').toUpperCase();
 
-      if (lvl === 'SD-SPK' || lvl === 'SPK-SD') {
-        return pLvl === 'SD-SPK' || pLvl === 'SPK-SD' || (pLvl.includes('SPK') && (pLvl.includes('SD') || pLvl.includes('PRIMARY') || pName.includes('PRIMARY') || pName.includes('SD')));
+      if (curLvl === 'SPK-SD') {
+        return pLvl === 'SPK-SD' || (pLvl.includes('SPK') && (pLvl.includes('SD') || pLvl.includes('PRIMARY') || pName.includes('PRIMARY') || pName.includes('SD')));
       }
-      if (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') {
-        return pLvl === 'SMP-SPK' || pLvl === 'SPK-SMP' || (pLvl.includes('SPK') && (pLvl.includes('SMP') || pLvl.includes('LOWER') || pName.includes('LOWER') || pName.includes('SMP')));
+      if (curLvl === 'SPK-SMP') {
+        return pLvl === 'SPK-SMP' || (pLvl.includes('SPK') && (pLvl.includes('SMP') || pLvl.includes('LOWER') || pName.includes('LOWER') || pName.includes('SMP')));
       }
-      if (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') {
-        return pLvl === 'SMA-SPK' || pLvl === 'SPK-SMA' || (pLvl.includes('SPK') && (pLvl.includes('SMA') || pLvl.includes('UPPER') || pName.includes('UPPER') || pName.includes('SMA') || pName.includes('JC')));
+      if (curLvl === 'SPK-SMA') {
+        return pLvl === 'SPK-SMA' || (pLvl.includes('SPK') && (pLvl.includes('SMA') || pLvl.includes('UPPER') || pName.includes('UPPER') || pName.includes('SMA') || pName.includes('JC')));
       }
       if (pLvl.includes('SPK') || pName.includes('SPK ') || pName.includes('PIS ')) return false;
 
-      if (lvl === 'SD') return pLvl === 'SD';
-      if (lvl === 'SMP') return pLvl === 'SMP';
-      if (lvl === 'SMA') return pLvl === 'SMA' || pLvl === 'SMK';
-      if (lvl === 'TK') return pLvl === 'TK';
-      return pLvl === lvl;
+      if (curLvl === 'SD') return pLvl === 'SD';
+      if (curLvl === 'SMP') return pLvl === 'SMP';
+      if (curLvl === 'SMA') return pLvl === 'SMA' || pLvl === 'SMK';
+      if (curLvl === 'TK') return pLvl === 'TK';
+      return pLvl === curLvl;
     });
 
     const groupedMap = new Map<string, { displayName: string; sizes: Set<string> }>();
@@ -2138,7 +1928,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       dbItemsForLevel.forEach((p) => {
         const rawName = (p.name || '').trim();
         if (!rawName) return;
-        const canonicalName = getCanonicalProductName(rawName);
+        if (!isItemAllowedForLevel(rawName, curLvl)) return;
+        const canonicalName = getCanonicalProductName(rawName, curLvl);
         const canonKey = canonicalName.toUpperCase();
 
         if (!groupedMap.has(canonKey)) {
@@ -2146,37 +1937,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         }
         if (p.size && p.size.trim()) {
           groupedMap.get(canonKey)!.sizes.add(p.size.trim().toUpperCase());
-        }
-      });
-    }
-
-    // Pastikan buku-buku standar SD dan SPK-SD selalu ada di groupedMap
-    if (lvl === 'SD') {
-      standardBooksSD.forEach((bk) => {
-        const canonicalName = getCanonicalProductName(bk);
-        const canonKey = canonicalName.toUpperCase();
-        if (!groupedMap.has(canonKey)) {
-          groupedMap.set(canonKey, { displayName: canonicalName, sizes: new Set() });
-        }
-      });
-    } else if (lvl === 'SD-SPK' || lvl === 'SPK-SD') {
-      standardBooksSpkSD.forEach((bk) => {
-        const canonicalName = getCanonicalProductName(bk);
-        const canonKey = canonicalName.toUpperCase();
-        if (!groupedMap.has(canonKey)) {
-          groupedMap.set(canonKey, { displayName: canonicalName, sizes: new Set() });
-        }
-      });
-    }
-
-    // Jika database kosong, gunakan fallback
-    if (groupedMap.size === 0) {
-      const fbList = fallbackUniformDefinitions[fbKey] || fallbackUniformDefinitions[lvl] || [];
-      fbList.forEach((it) => {
-        const canonicalName = getCanonicalProductName(it.name);
-        const canonKey = canonicalName.toUpperCase();
-        if (!groupedMap.has(canonKey)) {
-          groupedMap.set(canonKey, { displayName: canonicalName, sizes: new Set(it.sizes) });
         }
       });
     }
@@ -2209,8 +1969,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     // Urutkan seragam dahulu, kemudian buku-buku & perlengkapan belajar di bagian bawah
     uniformList.sort((a, b) => {
-      const prioA = getItemPriority(a.name, lvl);
-      const prioB = getItemPriority(b.name, lvl);
+      const prioA = getItemPriority(a.name, curLvl);
+      const prioB = getItemPriority(b.name, curLvl);
       if (prioA !== prioB) return prioA - prioB;
       return a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' });
     });
@@ -2218,10 +1978,23 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     return uniformList;
   };
 
-  // 1. Download Template Kosong (Termasuk Seragam & Buku)
+  // 1. Download Template Kosong (Murni dari Manajemen Barang)
   const handleDownloadTemplate = () => {
     const workbook = XLSX.utils.book_new();
-    const sheetOrder = ['TK', 'SD', 'SMP', 'SMA', 'SD-SPK', 'SMP-SPK', 'SMA-SPK'];
+
+    // Sheet 1: PETUNJUK PENGISIAN RESMI
+    const guideRows = [
+      { 'PETUNJUK RESMI PENGISIAN TEMPLATE PREDIKSI PRODUKSI': '1. PUSAT DATA: Seluruh daftar nama barang dan ukuran digenerate langsung dari Manajemen Barang (Single Source of Truth).' },
+      { 'PETUNJUK RESMI PENGISIAN TEMPLATE PREDIKSI PRODUKSI': '2. DILARANG MENGUBAH / MENGEDIT kolom "NAMA BARANG" dan "SIZE".' },
+      { 'PETUNJUK RESMI PENGISIAN TEMPLATE PREDIKSI PRODUKSI': '3. Cukup isi angka perkiraan kuota (pcs) pada kolom sekolah masing-masing.' },
+      { 'PETUNJUK RESMI PENGISIAN TEMPLATE PREDIKSI PRODUKSI': '4. Jika terdapat seragam baru atau perubahan nama barang, WAJIB diubah/didaftarkan terlebih dahulu di menu Manajemen Barang oleh admin/koperasi, lalu unduh ulang template ini.' },
+      { 'PETUNJUK RESMI PENGISIAN TEMPLATE PREDIKSI PRODUKSI': '5. Saat upload, sistem otomatis menolak file jika terbaca ada nama barang yang tidak sesuai dengan data Manajemen Barang.' },
+    ];
+    const guideSheet = XLSX.utils.json_to_sheet(guideRows);
+    guideSheet['!cols'] = [{ wch: 110 }];
+    XLSX.utils.book_append_sheet(workbook, guideSheet, 'PETUNJUK PENGISIAN');
+
+    const sheetOrder = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
 
     sheetOrder.forEach((lvl) => {
       const fbKey = (lvl === 'SD-SPK' || lvl === 'SPK-SD') ? 'SPK-SD' : (lvl === 'SMP-SPK' || lvl === 'SPK-SMP') ? 'SPK-SMP' : (lvl === 'SMA-SPK' || lvl === 'SPK-SMA') ? 'SPK-SMA' : lvl;
@@ -3837,31 +3610,31 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         return a.school_name.localeCompare(b.school_name, 'id', { numeric: true, sensitivity: 'base' });
       });
 
-      // 2. Kumpulkan seluruh jenis seragam untuk jenjang ini
+      // 2. Kumpulkan seluruh jenis seragam untuk jenjang ini (Murni dari Manajemen Barang)
       const uniformSet = new Set<string>();
 
-      // A. Standar baku seragam jenjang ini
-      getStandardItemsForLevel(level).forEach((it) => uniformSet.add(it));
+      // A. Ambil langsung dari Master Manajemen Barang (products) yang terdaftar untuk jenjang ini
+      (products || []).forEach((p) => {
+        const pLvl = normalizeLevel(p.level || '');
+        const pName = (p.name || '').trim();
+        if (pName && (pLvl === level || pLvl === 'SEMUA') && isItemAllowedForLevel(pName, level)) {
+          uniformSet.add(pName);
+        }
+      });
 
-      // B. Dari forecast items jenjang ini jika ada
+      // B. Dari forecast items jenjang ini yang terdaftar di database
       forecastItems
         .filter((it) => normalizeLevel(it.level) === level)
         .forEach((it) => {
-          if (isItemAllowedForLevel(it.uniformName, level)) {
-            uniformSet.add(formatItemDisplayName(it.uniformName, level));
-          }
-        });
-
-      // C. Dari effectivePlottings jenjang ini
-      effectivePlottings
-        .filter((p) => normalizeLevel(p.app_users?.school_level || '') === level)
-        .forEach((p) => {
-          const types = splitClothingTypes(p.clothing_type);
-          types.forEach((t) => {
-            if (t !== 'Semua Jenis Baju' && isItemAllowedForLevel(t, level)) {
-              uniformSet.add(formatItemDisplayName(t, level));
+          const raw = (it.uniformName || '').trim();
+          if (raw && isItemAllowedForLevel(raw, level)) {
+            const dbMatch = (products || []).find(
+              (p) => (p.name || '').trim().toUpperCase() === raw.toUpperCase()
+            );
+            if (dbMatch && dbMatch.name) {
+              uniformSet.add(dbMatch.name.trim());
             }
-          });
+          }
         });
 
       const uniformList = Array.from(uniformSet).sort((a, b) => {
