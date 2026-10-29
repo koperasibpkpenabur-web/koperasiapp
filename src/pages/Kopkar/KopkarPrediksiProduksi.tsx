@@ -876,14 +876,90 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       return false;
     }
 
-    // 0b. Cegah pencocokan silang tingkatan Pramuka yang berbeda: SIAGA (SD) vs PENEGAK (SMA)
+    // 0b. Cegah pencocokan silang tingkatan Pramuka yang berbeda: SIAGA vs PENGGALANG vs PENEGAK / AMBALAN
     const hasSiagaT = tNorm.includes('SIAGA');
-    const hasPenegakT = tNorm.includes('PENEGAK');
-    const hasSiagaP = pNorm.includes('SIAGA');
-    const hasPenegakP = pNorm.includes('PENEGAK');
+    const hasPenggalangT = tNorm.includes('PENGGALANG');
+    const hasPenegakT = tNorm.includes('PENEGAK') || tNorm.includes('AMBALAN');
 
-    if ((hasSiagaT && hasPenegakP) || (hasPenegakT && hasSiagaP)) {
+    const hasSiagaP = pNorm.includes('SIAGA');
+    const hasPenggalangP = pNorm.includes('PENGGALANG');
+    const hasPenegakP = pNorm.includes('PENEGAK') || pNorm.includes('AMBALAN');
+
+    if ((hasSiagaT && (hasPenggalangP || hasPenegakP)) || (hasSiagaP && (hasPenggalangT || hasPenegakT))) {
       return false;
+    }
+    if ((hasPenggalangT && (hasSiagaP || hasPenegakP)) || (hasPenggalangP && (hasSiagaT || hasPenegakT))) {
+      return false;
+    }
+    if ((hasPenegakT && (hasSiagaP || hasPenggalangP)) || (hasPenegakP && (hasSiagaT || hasPenggalangT))) {
+      return false;
+    }
+
+    // Di seragam Pramuka: Siaga tidak boleh mencocokkan seragam khusus SMP/SMA (Pendek/Panjang/Ambalan tanpa Siaga)
+    if (isPramukaT || isPramukaP) {
+      if (hasSiagaT && !hasSiagaP) {
+        if (pNorm.includes('PENDEK') || pNorm.includes('PANJANG') || pNorm.includes('AMBALAN')) return false;
+      }
+      if (hasSiagaP && !hasSiagaT) {
+        if (tNorm.includes('PENDEK') || tNorm.includes('PANJANG') || tNorm.includes('AMBALAN')) return false;
+      }
+      if (hasPenggalangT && !hasPenggalangP) {
+        if (pNorm.includes('PANJANG') || pNorm.includes('AMBALAN')) return false;
+      }
+      if (hasPenggalangP && !hasPenggalangT) {
+        if (tNorm.includes('PANJANG') || tNorm.includes('AMBALAN')) return false;
+      }
+    }
+
+    // 0c. Cegah pencocokan silang gender: PUTRA vs PUTRI
+    const hasPutraT = tNorm.includes('PUTRA');
+    const hasPutriT = tNorm.includes('PUTRI');
+    const hasPutraP = pNorm.includes('PUTRA');
+    const hasPutriP = pNorm.includes('PUTRI');
+
+    if ((hasPutraT && hasPutriP) || (hasPutriT && hasPutraP)) {
+      return false;
+    }
+
+    // 0d. Cegah pencocokan silang potongan: PANJANG vs PENDEK
+    const hasPanjangT = tNorm.includes('PANJANG');
+    const hasPendekT = tNorm.includes('PENDEK');
+    const hasPanjangP = pNorm.includes('PANJANG');
+    const hasPendekP = pNorm.includes('PENDEK');
+
+    if ((hasPanjangT && hasPendekP) || (hasPendekT && hasPanjangP)) {
+      return false;
+    }
+
+    // 0e. Cegah pencocokan silang jenis bawahan: ROK vs KULOT vs CELANA
+    const isRokT = tNorm.includes('ROK');
+    const isKulotT = tNorm.includes('KULOT');
+    const isCelanaT = tNorm.includes('CELANA');
+
+    const isRokP = pNorm.includes('ROK');
+    const isKulotP = pNorm.includes('KULOT');
+    const isCelanaP = pNorm.includes('CELANA');
+
+    if ((isRokT && (isKulotP || isCelanaP)) || (isRokP && (isKulotT || isCelanaT))) {
+      return false;
+    }
+    if ((isKulotT && (isRokP || isCelanaP)) || (isKulotP && (isRokT || isCelanaT))) {
+      return false;
+    }
+    if ((isCelanaT && (isRokP || isKulotP)) || (isCelanaP && (isRokT || isKulotT))) {
+      return false;
+    }
+
+    // 0f. Cegah pencocokan silang motif bawahan: KOTAK vs POLOS / MERAH
+    const isKotakT = tNorm.includes('KOTAK');
+    const isKotakP = pNorm.includes('KOTAK');
+    const isPolosT = tNorm.includes('POLOS') || tNorm.includes('MERAH');
+    const isPolosP = pNorm.includes('POLOS') || pNorm.includes('MERAH');
+
+    if ((isCelanaT || isRokT || isKulotT) && (isCelanaP || isRokP || isKulotP)) {
+      if ((isKotakT && isPolosP) || (isKotakP && isPolosT)) {
+        return false;
+      }
     }
 
     // 0c. TK Kotak - Kotak Putra / Putri
@@ -1150,6 +1226,78 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     return false;
   };
 
+  // Helper pencocokan nama sekolah yang presisi untuk breakdown kuantiti
+  // Mencegah nama umum seperti 'PENABUR' atau 'Sekolah PENABUR' mencaplok data sekolah SDK resmi
+  const isSchoolBreakdownMatch = (schoolNameA: string, schoolNameB: string): boolean => {
+    const cleanA = (schoolNameA || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanB = (schoolNameB || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!cleanA || !cleanB) return false;
+    if (cleanA === cleanB) return true;
+
+    // Kata kunci umum yang TIDAK boleh dipakai untuk substring matching
+    const genericTerms = [
+      'sekolahpenabur',
+      'bpkpenabur',
+      'penabur',
+      'sekolah',
+      'bpk',
+      'sdpenabur',
+      'tkkpenabur',
+      'smpkpenabur',
+      'smakpenabur',
+    ];
+    if (genericTerms.includes(cleanA) || genericTerms.includes(cleanB)) {
+      return false;
+    }
+
+    // 1. Tirta Marta tidak boleh mencocokkan sekolah non-Tirta Marta
+    const isTmA = cleanA.includes('tirtamarta') || cleanA.includes('tm1') || cleanA.includes('tm2') || cleanA.startsWith('tm');
+    const isTmB = cleanB.includes('tirtamarta') || cleanB.includes('tm1') || cleanB.includes('tm2') || cleanB.startsWith('tm');
+    if (isTmA !== isTmB) return false;
+
+    // 2. Cegah silang jenjang sekolah (TK vs SD vs SMP vs SMA)
+    const getLevelFromName = (str: string): string => {
+      const s = str.toLowerCase();
+      if (s.includes('tkk') || s.startsWith('tk') || s.startsWith('k0') || s.startsWith('k1')) return 'TK';
+      if (s.includes('sdk') || s.startsWith('sd') || s.startsWith('d0') || s.startsWith('d1')) return 'SD';
+      if (s.includes('smpk') || s.startsWith('smp') || s.startsWith('p0') || s.startsWith('p1')) return 'SMP';
+      if (s.includes('smak') || s.startsWith('sma') || s.startsWith('smk') || s.startsWith('a0') || s.startsWith('a1')) return 'SMA';
+      return '';
+    };
+
+    const lvlA = getLevelFromName(cleanA);
+    const lvlB = getLevelFromName(cleanB);
+    if (lvlA && lvlB && lvlA !== lvlB) {
+      return false;
+    }
+
+    // 3. Cocokkan via short code (misal DKW, DHI, D01, D02, TM 1, TM 2)
+    const codeA = getSchoolDisplayCode(schoolNameA).toUpperCase();
+    const codeB = getSchoolDisplayCode(schoolNameB).toUpperCase();
+    if (codeA && codeB && codeA === codeB && !codeA.startsWith('SEKOL') && !codeB.startsWith('SEKOL')) {
+      return true;
+    }
+    if (codeA && codeA.replace(/[^A-Z0-9]/g, '') === cleanB.toUpperCase()) return true;
+    if (codeB && codeB.replace(/[^A-Z0-9]/g, '') === cleanA.toUpperCase()) return true;
+
+    // 4. Cek nomor urut sekolah jika ada (misal SDK 1 vs SDK 2, atau D01 vs D02)
+    const numA = (cleanA.match(/(?:tkk|sdk|smpk|smak|d|k|p|a)?(\d{1,2})/i) || [])[1];
+    const numB = (cleanB.match(/(?:tkk|sdk|smpk|smak|d|k|p|a)?(\d{1,2})/i) || [])[1];
+    if (numA && numB) {
+      return parseInt(numA, 10) === parseInt(numB, 10);
+    }
+    if ((numA && !numB) || (!numA && numB)) {
+      return false;
+    }
+
+    // 5. Jika keduanya nama spesifik cabang (misal kotawisata, harapanindah, bintarojaya, kelapagading)
+    if (cleanA.length >= 6 && cleanB.length >= 6) {
+      return cleanA.includes(cleanB) || cleanB.includes(cleanA);
+    }
+
+    return false;
+  };
+
   // Plottings yang diperkaya dengan nama dan jenjang sekolah valid dari master schools
   const effectivePlottings = useMemo(() => {
     return plottings.map((p) => {
@@ -1273,10 +1421,9 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       if (hasBreakdown) {
         // Alokasikan langsung ke vendor yang menaungi sekolah tersebut untuk barang ini
         Object.entries(fcItem.schoolBreakdown!).forEach(([schoolName, schoolSizes]) => {
-          const sClean = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
           const targetPlot = matchedPlottings.find((p) => {
-            const pSchoolClean = (p.app_users?.school_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            return pSchoolClean === sClean || pSchoolClean.includes(sClean) || sClean.includes(pSchoolClean);
+            const plotSchoolName = p.app_users?.school_name || '';
+            return isSchoolBreakdownMatch(schoolName, plotSchoolName);
           });
 
           if (targetPlot) {
@@ -2489,10 +2636,8 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
             let qty = it.schoolBreakdown?.[schoolName]?.[sz] || 0;
             if (!qty && it.schoolBreakdown) {
-              const cleanTarget = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
               for (const [sKey, szMap] of Object.entries(it.schoolBreakdown)) {
-                const cleanKey = sKey.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (cleanKey === cleanTarget || cleanKey.includes(cleanTarget) || cleanTarget.includes(cleanKey)) {
+                if (isSchoolBreakdownMatch(sKey, schoolName)) {
                   qty = szMap[sz] || 0;
                   break;
                 }
@@ -3586,6 +3731,18 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       schools.forEach((s) => {
         const sLvl = normalizeLevel(resolveSchoolLevel(s.school_name, s.email, s.level) || s.level || '');
         if (sLvl === level) {
+          const sNameLower = s.school_name.toLowerCase();
+          const sEmailLower = (s.email || '').toLowerCase();
+          if (
+            sNameLower.includes('on the spot') ||
+            sNameLower.includes('guru ots') ||
+            sNameLower === 'sekolah penabur' ||
+            sNameLower === 'bpk penabur' ||
+            sEmailLower.includes('spot') ||
+            sEmailLower.includes('guru_ots')
+          ) {
+            return;
+          }
           levelSchoolsMap.set(s.school_name.toUpperCase().trim(), {
             id: s.id,
             school_name: s.school_name,
@@ -3597,6 +3754,18 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
       effectivePlottings.forEach((p) => {
         const pLvl = normalizeLevel(p.app_users?.school_level || '');
         if (pLvl === level && p.app_users?.school_name) {
+          const sNameLower = p.app_users.school_name.toLowerCase();
+          const sEmailLower = (p.app_users.username || '').toLowerCase();
+          if (
+            sNameLower.includes('on the spot') ||
+            sNameLower.includes('guru ots') ||
+            sNameLower === 'sekolah penabur' ||
+            sNameLower === 'bpk penabur' ||
+            sEmailLower.includes('spot') ||
+            sEmailLower.includes('guru_ots')
+          ) {
+            return;
+          }
           const key = p.app_users.school_name.toUpperCase().trim();
           if (!levelSchoolsMap.has(key)) {
             levelSchoolsMap.set(key, {
@@ -3870,7 +4039,6 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
           // C. Baris 2: Hitung Kuantiti Pcs Pengerjaan untuk sekolah ini
           let schoolItemQty = 0;
-          const cleanTarget = school.school_name.toLowerCase().replace(/[^a-z0-9]/g, '');
 
           // 1. Ambil dari vendorAllocations jika sudah terhitung
           vendorAllocations.forEach((va) => {
@@ -3882,8 +4050,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
               ) {
                 if (it.schoolBreakdown) {
                   for (const [sKey, szMap] of Object.entries(it.schoolBreakdown)) {
-                    const cleanKey = sKey.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    if (cleanKey === cleanTarget || cleanKey.includes(cleanTarget) || cleanTarget.includes(cleanKey)) {
+                    if (isSchoolBreakdownMatch(sKey, school.school_name)) {
                       const sumSz = Object.values(szMap).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
                       schoolItemQty += sumSz;
                       break;
@@ -3897,8 +4064,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           // 2. Fallback: dari forecastItems schoolBreakdown langsung
           if (schoolItemQty === 0 && fcItem && fcItem.schoolBreakdown) {
             for (const [sKey, szMap] of Object.entries(fcItem.schoolBreakdown)) {
-              const cleanKey = sKey.toLowerCase().replace(/[^a-z0-9]/g, '');
-              if (cleanKey === cleanTarget || cleanKey.includes(cleanTarget) || cleanTarget.includes(cleanKey)) {
+              if (isSchoolBreakdownMatch(sKey, school.school_name)) {
                 schoolItemQty = Object.values(szMap).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
                 break;
               }

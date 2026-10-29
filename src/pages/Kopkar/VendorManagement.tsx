@@ -405,8 +405,24 @@ const VendorManagement = () => {
 
       // B. Ambil juga dari app_users yang dibuat secara manual (misal username tanpa email resmi)
       for (const u of appUsersData) {
+        if (u.role === 'guru_ots') continue;
         const schoolName = (u.school_name || u.name || '').trim();
         if (!schoolName) continue;
+        const lowerName = schoolName.toLowerCase();
+        const lowerUser = (u.username || '').toLowerCase();
+        // Abaikan akun Guru On The Spot / umum non-sekolah unit agar tidak masuk daftar plotting
+        if (
+          lowerName.includes('on the spot') ||
+          lowerName.includes('guru ots') ||
+          lowerName.includes('guru on the spot') ||
+          lowerName === 'sekolah penabur' ||
+          lowerName === 'bpk penabur' ||
+          lowerUser.includes('spot') ||
+          lowerUser.includes('guru_ots')
+        ) {
+          continue;
+        }
+
         const key = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!addedSchoolKeys.has(key)) {
           list.push({
