@@ -324,7 +324,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     const assignedVendorId = assignment?.vendor_id || null;
 
     for (const newItem of (additionalShippingData.shippedItems || [])) {
-      const orderItem = orderRow.order_items?.find((it: any) => it.name === newItem.name && it.type === newItem.type);
+      const orderItem = orderRow.order_items?.find((it: any) => it.name === newItem.name && it.type === newItem.type && (it.size || '') === (newItem.size || ''));
       if (!orderItem || !orderItem.product_id) continue;
 
       const kopkarQty = newItem.kopkarQty || 0;

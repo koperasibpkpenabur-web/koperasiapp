@@ -354,8 +354,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
         const existing = products.find(
           (p) =>
-            p.code.toLowerCase() === inputCode.toLowerCase() ||
-            (p.name.toLowerCase() === name.toLowerCase() && p.level === level)
+            (inputCode && p.code.toLowerCase() === inputCode.toLowerCase()) ||
+            (p.name.toLowerCase() === name.toLowerCase() && p.level === level && (p.size || '').trim().toLowerCase() === (size || '').trim().toLowerCase())
         );
 
         if (existing) {

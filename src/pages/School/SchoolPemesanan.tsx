@@ -251,7 +251,7 @@ const SchoolPemesanan = () => {
         sepatu.push(row);
       } else if (nameLower.includes('kaos kaki')) {
         kaosKaki.push(row);
-      } else if (row.type === 'celana/rok' || nameLower.includes('celana') || nameLower.includes('rok')) {
+      } else if (row.type === 'celana/rok' || nameLower.includes('celana') || nameLower.includes('rok') || nameLower.includes('kulot')) {
         const isNumeric = row.variants.some((v: any) => /^\d+$/.test(v.size?.trim()));
         if (isNumeric) {
           celana.push(row);

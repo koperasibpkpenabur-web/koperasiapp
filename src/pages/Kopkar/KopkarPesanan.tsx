@@ -643,7 +643,7 @@ const KopkarPesanan = () => {
                         <td>
                           <ul className="order-items-list" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
                             {(expandedItems[order.id] ? order.items : order.items.slice(0, 1)).map((it, idx) => {
-                              const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
+                              const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type && (si.size || '') === (it.size || ''));
                               const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
                               const unsentQty = Math.max(0, it.quantity - shippedQty);
                               return (
@@ -719,7 +719,7 @@ const KopkarPesanan = () => {
                               <div style={{ fontSize: '0.8rem', color: '#2563eb' }}>
                                 Barang sedang diantar ke sekolah.
                                 {order.shippingInfo?.shippedItems && order.items.some((it) => {
-                                  const shippedIt = order.shippingInfo!.shippedItems!.find(si => si.name === it.name && si.type === it.type);
+                                  const shippedIt = order.shippingInfo!.shippedItems!.find(si => si.name === it.name && si.type === it.type && (si.size || '') === (it.size || ''));
                                   return shippedIt && shippedIt.shippedQty < it.quantity;
                                 }) && (
                                   <div style={{ marginTop: '4px', color: '#dc2626', fontWeight: 600 }}>
@@ -781,7 +781,7 @@ const KopkarPesanan = () => {
                       <div className="mobile-label">Item:</div>
                       <ul className="order-items-list">
                         {(expandedItems[order.id] ? order.items : order.items.slice(0, 1)).map((it, idx) => {
-                          const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type);
+                          const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type && (si.size || '') === (it.size || ''));
                           const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
                           const unsentQty = Math.max(0, it.quantity - shippedQty);
                           return (
