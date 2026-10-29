@@ -1323,17 +1323,54 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
       // Jika tidak ada data per sekolah atau mode rencana global (tanpa rincian sekolah)
       if (!matchedBySchool) {
-        // Point 1: Hapus auto-proportional splitting ke sekolah.
-        // Jika hanya ada 1 vendor tunggal untuk barang ini pada jenjang ini, alokasikan kuantitasnya langsung ke vendor tersebut.
-        if (activeVendorsForItem.length === 1) {
-          const singleVendor = activeVendorsForItem[0];
-          Object.entries(fcItem.sizes).forEach(([sizeName, totalQtyForSize]) => {
-            if (totalQtyForSize > 0) {
-              allocatedSizesByVendor.get(singleVendor.vendorId)![sizeName] = totalQtyForSize;
+        Object.entries(fcItem.sizes).forEach(([sizeName, totalQtyForSize]) => {
+          if (totalQtyForSize <= 0) return;
+
+          let allocatedSum = 0;
+          let maxVendorId = activeVendorsForItem[0]?.vendorId || '';
+          let maxVendorCount = -1;
+
+          activeVendorsForItem.forEach((av) => {
+            const ratio = av.schoolCount / totalSchoolsForItem;
+            const qty = Math.round(totalQtyForSize * ratio);
+            allocatedSizesByVendor.get(av.vendorId)![sizeName] = qty;
+            allocatedSum += qty;
+
+            if (av.schoolCount > maxVendorCount) {
+              maxVendorCount = av.schoolCount;
+              maxVendorId = av.vendorId;
             }
           });
-        }
-        // Jangan mengarang kuota per sekolah (schoolBreakdownByVendor) jika rincian sekolah tidak ada di data input!
+
+          // Remainder adjustment agar total alokasi per ukuran persis sama dengan total input
+          const diff = totalQtyForSize - allocatedSum;
+          if (diff !== 0 && maxVendorId) {
+            allocatedSizesByVendor.get(maxVendorId)![sizeName] += diff;
+          }
+        });
+
+        // Distribusikan ke sekolah-sekolah yang dilayani vendor ini untuk barang ini
+        activeVendorsForItem.forEach((av) => {
+          const vSizes = allocatedSizesByVendor.get(av.vendorId) || {};
+          const vSchoolBd = schoolBreakdownByVendor.get(av.vendorId);
+          const schoolNamesList = Array.from(av.schoolNames);
+          const numSchools = schoolNamesList.length;
+
+          if (vSchoolBd && numSchools > 0) {
+            Object.entries(vSizes).forEach(([sz, totalSzQty]) => {
+              if (totalSzQty <= 0) return;
+              const baseQty = Math.floor(totalSzQty / numSchools);
+              let rem = totalSzQty % numSchools;
+
+              schoolNamesList.forEach((sn) => {
+                if (!vSchoolBd[sn]) vSchoolBd[sn] = {};
+                const addQty = baseQty + (rem > 0 ? 1 : 0);
+                if (rem > 0) rem--;
+                vSchoolBd[sn][sz] = addQty;
+              });
+            });
+          }
+        });
       }
 
       // Masukkan ke struktur alokasi masing-masing vendor yang berhak
