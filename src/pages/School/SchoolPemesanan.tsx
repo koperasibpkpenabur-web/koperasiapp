@@ -474,7 +474,7 @@ const SchoolPemesanan = () => {
     return <div style={{ padding: '20px' }}>Silakan login sebagai sekolah...</div>;
   }
 
-  const activeReturnsCount = schoolReturns.filter((r: any) => r.status === 'requested' || r.status === 'in_transit').length;
+  const activeReturnsCount = schoolReturns.filter((r: any) => r.status === 'pending' || r.status === 'koperasi_confirmed' || r.status === 'sekolah_dikirim').length;
 
   // Calculate live financial summary for modal
   const cartTotalStudent = cartItems.reduce((acc, it) => acc + (it.priceStudent * it.quantity), 0);
@@ -1079,7 +1079,7 @@ const SchoolPemesanan = () => {
                         {order.items.map((it, idx) => (
                           <li key={idx}>
                             <span className={`item-type ${it.type}`}>{it.type}</span>
-                            {it.name} — {it.quantity} pcs
+                            {it.name}{it.size ? ` [${it.size}]` : ''} — {it.quantity} pcs
                           </li>
                         ))}
                       </ul>
@@ -2032,7 +2032,7 @@ const SchoolPemesanan = () => {
                 {detailOrder.items.map((it, idx) => (
                   <li key={idx} style={{ padding: '6px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem' }}>
                     <span className={`item-type ${it.type}`} style={{ marginRight: '8px' }}>{it.type}</span>
-                    <strong>{it.name}</strong> — {it.quantity} pcs
+                    <strong>{it.name}{it.size ? ` [${it.size}]` : ''}</strong> — {it.quantity} pcs
                   </li>
                 ))}
               </ul>

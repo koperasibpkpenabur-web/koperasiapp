@@ -32,6 +32,7 @@ const ProductCatalog = () => {
   const [formName, setFormName] = useState('');
   const [formCategory, setFormCategory] = useState<OrderItemType>('seragam');
   const [formLevel, setFormLevel] = useState<SchoolLevel>('SMP');
+  const [formSize, setFormSize] = useState('');
   const [formPriceKopkar, setFormPriceKopkar] = useState<number>(100000);
   const [formFeeSchool, setFormFeeSchool] = useState<number>(20000);
   const [formStock, setFormStock] = useState<number>(50);
@@ -104,6 +105,7 @@ const ProductCatalog = () => {
     setFormName('');
     setFormCategory('seragam');
     setFormLevel('SMP');
+    setFormSize('');
     setFormPriceKopkar(100000);
     setFormFeeSchool(20000);
     setFormStock(50);
@@ -117,6 +119,7 @@ const ProductCatalog = () => {
     setFormName(p.name);
     setFormCategory(p.category);
     setFormLevel(p.level);
+    setFormSize(p.size || '');
     setFormPriceKopkar(p.priceKopkar);
     setFormFeeSchool(p.feeSchool);
     setFormStock(p.stock !== undefined ? p.stock : 50);
@@ -146,6 +149,7 @@ const ProductCatalog = () => {
         name: formName.trim(),
         category: formCategory,
         level: formLevel,
+        size: formSize.trim() || undefined,
         priceKopkar: formPriceKopkar,
         feeSchool: formFeeSchool,
         priceStudent,
@@ -157,6 +161,7 @@ const ProductCatalog = () => {
         name: formName.trim(),
         category: formCategory,
         level: formLevel,
+        size: formSize.trim() || undefined,
         priceKopkar: formPriceKopkar,
         feeSchool: formFeeSchool,
         priceStudent,
@@ -414,7 +419,7 @@ const ProductCatalog = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
                 <div className="form-group">
                   <label>Kategori</label>
                   <select
@@ -441,6 +446,16 @@ const ProductCatalog = () => {
                     <option value="SPK-SMA">SPK (Upper Sec)</option>
                     <option value="SEMUA">Semua Jenjang</option>
                   </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Ukuran</label>
+                  <input
+                    type="text"
+                    value={formSize}
+                    onChange={(e) => setFormSize(e.target.value)}
+                    placeholder="Cth: S, M, L, XL, ALL SIZE"
+                  />
                 </div>
               </div>
 

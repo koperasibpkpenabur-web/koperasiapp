@@ -187,6 +187,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     if (updated.level !== undefined) updates.level = updated.level;
     if (updated.stock !== undefined) updates.stock = updated.stock;
     if (updated.stockVendor !== undefined) updates.stock_vendor = updated.stockVendor;
+    if (updated.stockRusak !== undefined) updates.stock_rusak = updated.stockRusak;
     if (updated.minStock !== undefined) updates.min_stock = updated.minStock;
     if (updated.size !== undefined) updates.size = updated.size;
     if (updated.storageLocation !== undefined) updates.storage_location = updated.storageLocation;

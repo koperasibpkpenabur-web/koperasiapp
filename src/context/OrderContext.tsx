@@ -221,18 +221,21 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     // 2. Deduct stock based on source or split qtys
     const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
     if (orderRow && orderRow.order_items && orderRow.order_items.length > 0) {
-      // Find assigned vendor for this school
-      const { data: assignment } = await supabase.from('vendor_school_assignments')
-        .select('vendor_id')
-        .eq('school_user_id', orderRow.school_user_id)
-        .limit(1)
-        .maybeSingle();
-      const assignedVendorId = assignment?.vendor_id || null;
+      // Find assigned vendors for this school
+      const { data: assignments } = await supabase.from('vendor_school_assignments')
+        .select('vendor_id, clothing_type')
+        .eq('school_user_id', orderRow.school_user_id);
+      const resolveVendorId = (itemName: string) => {
+        if (!assignments || assignments.length === 0) return null;
+        const exactMatch = assignments.find((a: any) => a.clothing_type && a.clothing_type.trim().toLowerCase() === (itemName || '').trim().toLowerCase());
+        return exactMatch ? exactMatch.vendor_id : assignments[0].vendor_id;
+      };
 
       for (const item of orderRow.order_items) {
         if (!item.product_id) continue;
+        const assignedVendorId = resolveVendorId(item.name);
         
-        const shippedItem = shippingData.shippedItems?.find(si => si.name === item.name && si.type === item.type);
+        const shippedItem = shippingData.shippedItems?.find(si => si.name === item.name && si.type === item.type && (si.size || '') === (item.size || ''));
         const kopkarQty = shippedItem?.kopkarQty || 0;
         const vendorQty = shippedItem?.vendorQty || 0;
 
@@ -288,7 +291,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     // Merge shipped items
     const mergedShippedItems = [...oldShippedItems];
     for (const newItem of (additionalShippingData.shippedItems || [])) {
-      const existingIdx = mergedShippedItems.findIndex(si => si.name === newItem.name && si.type === newItem.type);
+      const existingIdx = mergedShippedItems.findIndex(si => si.name === newItem.name && si.type === newItem.type && (si.size || '') === (newItem.size || ''));
       if (existingIdx >= 0) {
         mergedShippedItems[existingIdx].shippedQty += newItem.shippedQty;
         if (newItem.kopkarQty) mergedShippedItems[existingIdx].kopkarQty = (mergedShippedItems[existingIdx].kopkarQty || 0) + newItem.kopkarQty;
@@ -316,16 +319,19 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     });
 
     // Deduct stock for the NEW quantities ONLY
-    const { data: assignment } = await supabase.from('vendor_school_assignments')
-      .select('vendor_id')
-      .eq('school_user_id', orderRow.school_user_id)
-      .limit(1)
-      .maybeSingle();
-    const assignedVendorId = assignment?.vendor_id || null;
+    const { data: assignments } = await supabase.from('vendor_school_assignments')
+      .select('vendor_id, clothing_type')
+      .eq('school_user_id', orderRow.school_user_id);
+    const resolveVendorId = (itemName: string) => {
+      if (!assignments || assignments.length === 0) return null;
+      const exactMatch = assignments.find((a: any) => a.clothing_type && a.clothing_type.trim().toLowerCase() === (itemName || '').trim().toLowerCase());
+      return exactMatch ? exactMatch.vendor_id : assignments[0].vendor_id;
+    };
 
     for (const newItem of (additionalShippingData.shippedItems || [])) {
       const orderItem = orderRow.order_items?.find((it: any) => it.name === newItem.name && it.type === newItem.type && (it.size || '') === (newItem.size || ''));
       if (!orderItem || !orderItem.product_id) continue;
+      const assignedVendorId = resolveVendorId(newItem.name);
 
       const kopkarQty = newItem.kopkarQty || 0;
       const vendorQty = newItem.vendorQty || 0;
@@ -353,17 +359,20 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     if (orderRow && orderRow.shipping_info) {
       const shippingData = orderRow.shipping_info;
       // Ambil vendor yang diplot ke sekolah pemesan agar stok vendor dapat dikembalikan
-      const { data: assignment } = await supabase.from('vendor_school_assignments')
-        .select('vendor_id')
-        .eq('school_user_id', orderRow.school_user_id)
-        .limit(1)
-        .maybeSingle();
-      const assignedVendorId = assignment?.vendor_id || null;
+      const { data: assignments } = await supabase.from('vendor_school_assignments')
+        .select('vendor_id, clothing_type')
+        .eq('school_user_id', orderRow.school_user_id);
+      const resolveVendorId = (itemName: string) => {
+        if (!assignments || assignments.length === 0) return null;
+        const exactMatch = assignments.find((a: any) => a.clothing_type && a.clothing_type.trim().toLowerCase() === (itemName || '').trim().toLowerCase());
+        return exactMatch ? exactMatch.vendor_id : assignments[0].vendor_id;
+      };
 
       for (const item of (orderRow.order_items || [])) {
         if (!item.product_id) continue;
+        const assignedVendorId = resolveVendorId(item.name);
 
-        const shippedItem = shippingData.shippedItems?.find((si: any) => si.name === item.name && si.type === item.type);
+        const shippedItem = shippingData.shippedItems?.find((si: any) => si.name === item.name && si.type === item.type && (si.size || '') === (item.size || ''));
         const kopkarQty = shippedItem?.kopkarQty || 0;
         const vendorQty = shippedItem?.vendorQty || 0;
 
@@ -429,7 +438,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         for (const item of (orderRow.order_items || [])) {
           if (!item.product_id) continue;
           
-          const shippedItem = shippingData.shippedItems?.find((si: any) => si.name === item.name && si.type === item.type);
+          const shippedItem = shippingData.shippedItems?.find((si: any) => si.name === item.name && si.type === item.type && (si.size || '') === (item.size || ''));
           const vendorQty = shippedItem ? (shippedItem.vendorQty || 0) : (shippingData.source === 'vendor' ? item.quantity : 0);
 
           if (vendorQty > 0) {

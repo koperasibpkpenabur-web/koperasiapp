@@ -330,7 +330,7 @@ const KopkarPesanan = () => {
     
     // Default to missing qty
     const missingQties = order.items.map(it => {
-      const receivedIt = order.receiveInfo?.receivedItems?.find(r => r.name === it.name && r.type === it.type);
+      const receivedIt = order.receiveInfo?.receivedItems?.find(r => r.name === it.name && r.type === it.type && (r.size || '') === (it.size || ''));
       return receivedIt?.missingQty || 0;
     });
     setShippedKopkarQuantities(order.items.map(() => 0));
@@ -648,7 +648,7 @@ const KopkarPesanan = () => {
                               const unsentQty = Math.max(0, it.quantity - shippedQty);
                               return (
                               <li key={idx}>
-                                <div style={{ fontWeight: 600 }}>{it.name}</div>
+                                <div style={{ fontWeight: 600 }}>{it.name}{it.size ? ` [${it.size}]` : ''}</div>
                                 <div style={{ fontSize: '0.8rem', color: '#475569' }}>
                                   Pesan: {it.quantity}, Terkirim: {shippedQty}, Belum dikirim: {unsentQty}
                                 </div>
@@ -732,7 +732,7 @@ const KopkarPesanan = () => {
                                     ⚠️ DITERIMA SEBAGIAN OLEH SEKOLAH
                                     <ul style={{ margin: '4px 0 0 16px', padding: 0, fontWeight: 'normal', fontSize: '0.75rem' }}>
                                       {order.receiveInfo.receivedItems?.filter(r => r.missingQty && r.missingQty > 0).map((r, idx) => (
-                                        <li key={idx}>Kurang: {r.missingQty} pcs ({r.name})</li>
+                                        <li key={idx}>Kurang: {r.missingQty} pcs ({r.name}{r.size ? ` [${r.size}]` : ''})</li>
                                       ))}
                                     </ul>
                                     <div style={{ marginTop: '4px', fontStyle: 'italic', fontSize: '0.75rem' }}>Harap follow-up sisa barang.</div>
@@ -786,7 +786,7 @@ const KopkarPesanan = () => {
                           const unsentQty = Math.max(0, it.quantity - shippedQty);
                           return (
                           <li key={idx}>
-                            <div style={{ fontWeight: 600 }}>{it.name}</div>
+                            <div style={{ fontWeight: 600 }}>{it.name}{it.size ? ` [${it.size}]` : ''}</div>
                             <div style={{ fontSize: '0.8rem', color: '#475569' }}>
                               Pesan: {it.quantity}, Terkirim: {shippedQty}, Belum dikirim: {unsentQty}
                             </div>
@@ -1177,7 +1177,7 @@ const KopkarPesanan = () => {
                 <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '4px' }}>
                   {shippingOrder.items.map((it, idx) => (
                     <div key={idx} style={{ display: 'flex', flexDirection: 'column', marginBottom: '12px', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{it.name} (Pesan: {it.quantity} pcs)</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{it.name}{it.size ? ` [Uk: ${it.size}]` : ''} (Pesan: {it.quantity} pcs)</span>
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Dari Kopkar:</span>

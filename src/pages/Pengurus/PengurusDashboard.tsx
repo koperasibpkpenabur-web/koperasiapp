@@ -134,10 +134,10 @@ const PengurusDashboard = () => {
   ];
 
   const omzetByLevelData = useMemo(() => {
-    const levels = { 'TK': 0, 'SD': 0, 'SMP': 0, 'SMA': 0, 'SMK': 0 };
+    const levels: Record<string, number> = { 'TK': 0, 'SD': 0, 'SMP': 0, 'SMA': 0, 'SMK': 0, 'SPK-SD': 0, 'SPK-SMP': 0, 'SPK-SMA': 0, 'SEMUA': 0 };
     validOrders.forEach(o => {
-      if (levels[o.schoolLevel as keyof typeof levels] !== undefined) {
-        levels[o.schoolLevel as keyof typeof levels] += o.totalPriceStudent;
+      if (levels[o.schoolLevel] !== undefined) {
+        levels[o.schoolLevel] += o.totalPriceStudent;
       }
     });
     return Object.entries(levels)
@@ -146,10 +146,11 @@ const PengurusDashboard = () => {
   }, [validOrders]);
 
   const omzetByPhaseData = useMemo(() => {
-    const phases = { 'Tahap 1': 0, 'Tahap 2': 0, 'Tambahan': 0 };
+    const phases: Record<string, number> = { 'Tahap 1': 0, 'Tahap 2': 0, 'Tambahan': 0, 'On The Spot': 0 };
     validOrders.forEach(o => {
-      if (phases[o.orderPhase as keyof typeof phases] !== undefined) {
-        phases[o.orderPhase as keyof typeof phases] += o.totalPriceStudent;
+      const phaseKey = o.orderPhase?.includes('Tambahan') ? 'Tambahan' : o.orderPhase;
+      if (phaseKey && phases[phaseKey] !== undefined) {
+        phases[phaseKey] += o.totalPriceStudent;
       }
     });
     return Object.entries(phases)
