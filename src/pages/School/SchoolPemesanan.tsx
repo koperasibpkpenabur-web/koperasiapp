@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ChangeEvent, useEffect, useMemo, useRef 
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useProducts } from '../../context/ProductContext';
@@ -61,7 +61,7 @@ const SchoolPemesanan = () => {
   const { createOrder, receiveOrder, partialReceiveOrder, requestCancelOrder, deleteOrder, cartItems, setCartItems, showCartModal, setShowCartModal } = useOrders();
   const { getProductsByLevel } = useProducts();
   const { getReturnsBySchoolId } = useReturns();
-  const { phase1Open, phase2Open, tambahanOpen, tambahanUseDayRule, tambahanUseDateRule, tambahanStartDate, tambahanEndDate, gdriveWebAppUrl } = useSettings();
+  const { phase1Open, phase2Open, tambahanOpen, tambahanUseDayRule, tambahanUseDateRule, tambahanStartDate, tambahanEndDate, gdriveWebAppUrl, gdriveFolderUrl } = useSettings();
 
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima), 'cancellations' (Riwayat Pembatalan)
   const [activeTab, setActiveTab] = useState<'active' | 'received' | 'cancellations'>('active');
@@ -230,13 +230,9 @@ const SchoolPemesanan = () => {
     }
   }, [user?.schoolLevel]);
 
-  const isAnyPhaseOpen = phase1Open || phase2Open || tambahanOpen;
   const getDefaultOpenPhase = (): 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan' => {
     if (phase1Open && !hasPhase1Order) return 'Tahap 1';
     if (phase2Open && !hasPhase2Order) return 'Tahap 2';
-    if (tambahanOpen) return 'Tambahan Mingguan';
-    if (phase1Open) return 'Tahap 1';
-    if (phase2Open) return 'Tahap 2';
     return 'Tambahan Mingguan';
   };
 
@@ -312,10 +308,11 @@ const SchoolPemesanan = () => {
   const cartTotalKopkar = cartItems.reduce((acc, it) => acc + (it.priceKopkar * it.quantity), 0);
   const cartTotalFee = cartItems.reduce((acc, it) => acc + (it.feeSchool * it.quantity), 0);
 
-  // Day Restriction Logic
+  // Day & Date Restriction Logic for Fase Tambahan
+  const effectiveCartPhase = (cartPhase || orderPhase);
   const currentDay = new Date().getDay(); // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
   const isInputAllowed = () => {
-    if (orderPhase.includes('Tambahan')) {
+    if (effectiveCartPhase.includes('Tambahan')) {
       if (!tambahanOpen) return false;
       
       let isAllowedByDate = true;
@@ -326,10 +323,11 @@ const SchoolPemesanan = () => {
       
       let isAllowedByDay = true;
       if (tambahanUseDayRule && user) {
-        if (user.schoolLevel === 'TK' && currentDay !== 1) isAllowedByDay = false;
-        if (user.schoolLevel === 'SD' && currentDay !== 2) isAllowedByDay = false;
-        if (user.schoolLevel === 'SMP' && currentDay !== 3) isAllowedByDay = false;
-        if (user.schoolLevel === 'SMA' && currentDay !== 4) isAllowedByDay = false;
+        const lvl = user.schoolLevel;
+        if (lvl === 'TK' && currentDay !== 1) isAllowedByDay = false;
+        if ((lvl === 'SD' || lvl === 'SPK-SD') && currentDay !== 2) isAllowedByDay = false;
+        if ((lvl === 'SMP' || lvl === 'SPK-SMP') && currentDay !== 3) isAllowedByDay = false;
+        if ((lvl === 'SMA' || lvl === 'SPK-SMA') && currentDay !== 4) isAllowedByDay = false;
       }
       
       return isAllowedByDate && isAllowedByDay;
@@ -668,139 +666,143 @@ const SchoolPemesanan = () => {
       return;
     }
 
-    const doc = new jsPDF('portrait', 'mm', 'a4');
-
-    // Load Logo Koperasi
     try {
-      const logoUrl = `${import.meta.env.BASE_URL}logo_koperasi2.png`;
-      const resp = await fetch(logoUrl);
-      const blob = await resp.blob();
-      const base64Logo = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+
+      // Load Logo Koperasi
+      try {
+        const logoUrl = `${import.meta.env.BASE_URL}logo_koperasi2.png`;
+        const resp = await fetch(logoUrl);
+        const blob = await resp.blob();
+        const base64Logo = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+        doc.addImage(base64Logo, 'PNG', 18, 12, 26, 26);
+      } catch {
+        // Lanjut jika logo gagal dimuat
+      }
+
+      // Kop Surat Koperasi (Sesuai Attachment 1)
+      doc.setFont('times', 'normal');
+      doc.setFontSize(13.5);
+      doc.text('KOPERASI KONSUMEN KARYAWAN', 50, 18);
+      doc.text('BPK PENABUR JAKARTA', 50, 24);
+      doc.setFontSize(12);
+      doc.text('Sekretariat Jl. Tanjung Duren Raya No. 4 Jakarta 11470', 50, 30);
+      doc.text('Telp.: 5666962 - 5666963 (Fax)', 50, 36);
+
+      // Garis ganda di bawah Kop Surat
+      doc.setLineWidth(0.5);
+      doc.line(18, 43, 192, 43);
+      doc.setLineWidth(0.2);
+      doc.line(18, 44, 192, 44);
+
+      // Timestamp format M/D/YYYY H:mm:ss seperti contoh gambar
+      const now = new Date();
+      const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      const schoolLabel = user?.schoolName || user?.name || '-';
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      const metaRows = [
+        ['Timestamp', ':', timestampStr],
+        ['NAMA', ':', docNama.trim()],
+        ['Email Address', ':', docEmail.trim()],
+        ['NO HANDPHONE', ':', docPhone.trim()],
+        ['SEKOLAH', ':', schoolLabel],
+      ];
+
+      let metaY = 52;
+      metaRows.forEach(([label, sep, val]) => {
+        doc.text(label, 18, metaY);
+        doc.text(sep, 56, metaY);
+        doc.text(String(val), 62, metaY);
+        metaY += 5.2;
       });
-      doc.addImage(base64Logo, 'PNG', 18, 12, 26, 26);
-    } catch {
-      // Lanjut jika logo gagal dimuat
+
+      // Judul PEMESANAN
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.5);
+      doc.text('PEMESANAN', 18, metaY + 4);
+
+      // Tabel 4 Kolom: No. | Jenis Item | Ukuran | Total Pesanan
+      const tableBody = itemsForPdf.map((it, i) => [
+        i + 1,
+        it.name,
+        it.size || 'ALL SIZE',
+        it.quantity,
+      ]);
+
+      const totalAllPcs = itemsForPdf.reduce((acc, it) => acc + it.quantity, 0);
+      tableBody.push(['', 'TOTAL PESANAN', '', totalAllPcs]);
+
+      autoTable(doc, {
+        startY: metaY + 7,
+        margin: { left: 18, right: 18 },
+        head: [['No.', 'Jenis Item', 'Ukuran', 'Total Pesanan']],
+        body: tableBody,
+        theme: 'grid',
+        styles: {
+          fontSize: 9,
+          cellPadding: 2.2,
+          textColor: [20, 20, 20],
+          lineColor: [80, 80, 80],
+          lineWidth: 0.2,
+        },
+        headStyles: {
+          fillColor: [241, 245, 249],
+          textColor: [15, 23, 42],
+          fontStyle: 'bold',
+          halign: 'center',
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 14 },
+          1: { halign: 'left' },
+          2: { halign: 'center', cellWidth: 28 },
+          3: { halign: 'center', cellWidth: 32 },
+        },
+        didParseCell: (data: any) => {
+          if (data.row.index === tableBody.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [248, 250, 252];
+          }
+        },
+      });
+
+      // Bagian Bawah: Tanda Tangan Kepala Sekolah & PIC Sekolah (Sesuai Attachment 2)
+      let finalY = ((doc as any).lastAutoTable?.finalY || (metaY + 15 + tableBody.length * 7.5)) + 14;
+      if (finalY > 245) {
+        doc.addPage();
+        finalY = 25;
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('Mengetahui,', 24, finalY);
+      doc.text('yang membuat,', 128, finalY);
+
+      const signLineY = finalY + 26;
+      doc.setFont('times', 'normal');
+      doc.setFontSize(10.5);
+      doc.text(docKepsekName.trim(), 24, signLineY - 1.5);
+      doc.text(docPicName.trim(), 128, signLineY - 1.5);
+
+      doc.setLineWidth(0.35);
+      doc.line(24, signLineY, 82, signLineY);
+      doc.line(128, signLineY, 182, signLineY);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.text('Kepala Sekolah', 24, signLineY + 5);
+      doc.text('PIC Sekolah', 128, signLineY + 5);
+
+      const safeSchool = schoolLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
+      doc.save(`Lembar_Pemesanan_Resmi_${safeSchool}_${orderPhase.replace(/\s+/g, '_')}.pdf`);
+    } catch (err: any) {
+      alert('Gagal membuat PDF Lembar Pemesanan: ' + (err?.message || String(err)));
     }
-
-    // Kop Surat Koperasi (Sesuai Attachment 1)
-    doc.setFont('times', 'normal');
-    doc.setFontSize(13.5);
-    doc.text('KOPERASI KONSUMEN KARYAWAN', 50, 18);
-    doc.text('BPK PENABUR JAKARTA', 50, 24);
-    doc.setFontSize(12);
-    doc.text('Sekretariat Jl. Tanjung Duren Raya No. 4 Jakarta 11470', 50, 30);
-    doc.text('Telp.: 5666962 - 5666963 (Fax)', 50, 36);
-
-    // Garis ganda di bawah Kop Surat
-    doc.setLineWidth(0.5);
-    doc.line(18, 43, 192, 43);
-    doc.setLineWidth(0.2);
-    doc.line(18, 44, 192, 44);
-
-    // Timestamp format M/D/YYYY H:mm:ss seperti contoh gambar
-    const now = new Date();
-    const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-    const schoolLabel = user?.schoolName || user?.name || '-';
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9.5);
-    const metaRows = [
-      ['Timestamp', ':', timestampStr],
-      ['NAMA', ':', docNama.trim()],
-      ['Email Address', ':', docEmail.trim()],
-      ['NO HANDPHONE', ':', docPhone.trim()],
-      ['SEKOLAH', ':', schoolLabel],
-    ];
-
-    let metaY = 52;
-    metaRows.forEach(([label, sep, val]) => {
-      doc.text(label, 18, metaY);
-      doc.text(sep, 56, metaY);
-      doc.text(String(val), 62, metaY);
-      metaY += 5.2;
-    });
-
-    // Judul PEMESANAN
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10.5);
-    doc.text('PEMESANAN', 18, metaY + 4);
-
-    // Tabel 4 Kolom: No. | Jenis Item | Ukuran | Total Pesanan
-    const tableBody = itemsForPdf.map((it, i) => [
-      i + 1,
-      it.name,
-      it.size || 'ALL SIZE',
-      it.quantity,
-    ]);
-
-    const totalAllPcs = itemsForPdf.reduce((acc, it) => acc + it.quantity, 0);
-    tableBody.push(['', 'TOTAL PESANAN', '', totalAllPcs]);
-
-    (doc as any).autoTable({
-      startY: metaY + 7,
-      margin: { left: 18, right: 18 },
-      head: [['No.', 'Jenis Item', 'Ukuran', 'Total Pesanan']],
-      body: tableBody,
-      theme: 'grid',
-      styles: {
-        fontSize: 9,
-        cellPadding: 2.2,
-        textColor: [20, 20, 20],
-        lineColor: [80, 80, 80],
-        lineWidth: 0.2,
-      },
-      headStyles: {
-        fillColor: [241, 245, 249],
-        textColor: [15, 23, 42],
-        fontStyle: 'bold',
-        halign: 'center',
-      },
-      columnStyles: {
-        0: { halign: 'center', cellWidth: 14 },
-        1: { halign: 'left' },
-        2: { halign: 'center', cellWidth: 28 },
-        3: { halign: 'center', cellWidth: 32 },
-      },
-      didParseCell: (data: any) => {
-        if (data.row.index === tableBody.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [248, 250, 252];
-        }
-      },
-    });
-
-    // Bagian Bawah: Tanda Tangan Kepala Sekolah & PIC Sekolah (Sesuai Attachment 2)
-    let finalY = ((doc as any).lastAutoTable?.finalY || metaY + 40) + 14;
-    if (finalY > 245) {
-      doc.addPage();
-      finalY = 25;
-    }
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text('Mengetahui,', 24, finalY);
-    doc.text('yang membuat,', 128, finalY);
-
-    const signLineY = finalY + 26;
-    doc.setFont('times', 'normal');
-    doc.setFontSize(10.5);
-    doc.text(docKepsekName.trim(), 24, signLineY - 1.5);
-    doc.text(docPicName.trim(), 128, signLineY - 1.5);
-
-    doc.setLineWidth(0.35);
-    doc.line(24, signLineY, 82, signLineY);
-    doc.line(128, signLineY, 182, signLineY);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9.5);
-    doc.text('Kepala Sekolah', 24, signLineY + 5);
-    doc.text('PIC Sekolah', 128, signLineY + 5);
-
-    const safeSchool = schoolLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
-    doc.save(`Lembar_Pemesanan_Resmi_${safeSchool}_${orderPhase.replace(/\s+/g, '_')}.pdf`);
   };
 
   // 4. Direct Upload Lembar Pemesanan Bertanda Tangan ke Google Drive Koperasi
@@ -811,6 +813,15 @@ const SchoolPemesanan = () => {
     }
     if (!gdriveWebAppUrl) {
       alert('URL Google Drive Web App belum diatur oleh Admin Koperasi di menu Admin Dashboard.');
+      return;
+    }
+    if (!gdriveWebAppUrl.includes('script.google.com')) {
+      alert(
+        'URL Google Apps Script Web App belum sesuai.\n\n' +
+        'Di menu Admin Dashboard:\n' +
+        '• Kolom 1 diisi Link Folder Google Drive (drive.google.com/drive/folders/...)\n' +
+        '• Kolom 2 diisi Web App URL dari Google Apps Script (https://script.google.com/macros/s/.../exec)'
+      );
       return;
     }
 
@@ -840,6 +851,7 @@ const SchoolPemesanan = () => {
           fileName: customFileName,
           mimeType: signedScanFile.type || 'application/pdf',
           base64Data,
+          folderId: gdriveFolderUrl || '',
           schoolName: schoolLabel,
           schoolLevel: orderLevelFilter,
           orderPhase,
@@ -850,9 +862,10 @@ const SchoolPemesanan = () => {
       const resJson = await response.json();
       if (resJson && resJson.success && resJson.fileUrl) {
         setUploadedGdriveUrl(resJson.fileUrl);
+        const folderInfo = resJson.folderName ? ` (Folder: "${resJson.folderName}")` : '';
         setGdriveUploadStatus({
           type: 'success',
-          msg: 'Berhasil di-upload langsung ke Google Drive Koperasi!',
+          msg: `Berhasil di-upload langsung ke Google Drive Koperasi${folderInfo}!`,
         });
         setNotes((prev) => {
           const cleanPrev = prev.replace(/\[Bukti GDrive:.*?\]/g, '').trim();
@@ -1102,22 +1115,19 @@ const SchoolPemesanan = () => {
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button 
             className="btn-primary" 
-            disabled={!isAnyPhaseOpen}
             onClick={() => {
-              if (!isAnyPhaseOpen) return;
               resetCreateForm(getDefaultOpenPhase());
               setShowCreateModal(true);
             }}
-            title={!isAnyPhaseOpen ? 'Periode pemesanan sedang ditutup oleh Koperasi' : 'Buat pesanan baru'}
+            title="Buat pesanan baru"
             style={{
               padding: '8px 16px',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              ...( !isAnyPhaseOpen ? { background: '#94a3b8', cursor: 'not-allowed', opacity: 0.85 } : {} )
             }}
           >
-            <span>{isAnyPhaseOpen ? '➕' : '🔒'}</span> {isAnyPhaseOpen ? 'Buat Pesanan' : 'Periode Pemesanan Ditutup'}
+            <span>➕</span> Buat Pesanan
           </button>
           <Link
             to="/school/retur"
@@ -1854,9 +1864,13 @@ const SchoolPemesanan = () => {
                       }
                     }}
                   >
-                    <option value="Tahap 1">Tahap 1</option>
+                    <option value="Tahap 1" disabled={!phase1Open || hasPhase1Order}>
+                      Tahap 1 {!phase1Open ? '(🔒 Ditutup Admin)' : hasPhase1Order ? '(✅ Sudah Dipesan)' : ''}
+                    </option>
                     <option value="Tambahan Tahap 1">Tambahan Tahap 1</option>
-                    <option value="Tahap 2">Tahap 2</option>
+                    <option value="Tahap 2" disabled={!phase2Open || hasPhase2Order}>
+                      Tahap 2 {!phase2Open ? '(🔒 Ditutup Admin)' : hasPhase2Order ? '(✅ Sudah Dipesan)' : ''}
+                    </option>
                     <option value="Tambahan Tahap 2">Tambahan Tahap 2</option>
                     <option value="Tambahan Mingguan">Tambahan Mingguan</option>
                   </select>
@@ -2216,22 +2230,56 @@ const SchoolPemesanan = () => {
               </div>
 
               <div className="modal-actions" style={{ marginTop: '24px', flexDirection: 'column', alignItems: 'stretch' }}>
+                {(orderPhase === 'Tahap 1' && !phase1Open) && (
+                  <div style={{ padding: '12px 16px', background: '#fee2e2', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.88rem', color: '#b91c1c', marginBottom: '12px' }}>
+                    <strong>🔒 Tahap 1 Sedang Ditutup:</strong> Admin Koperasi belum membuka periode pemesanan Tahap 1.
+                  </div>
+                )}
+                {(orderPhase === 'Tahap 2' && !phase2Open) && (
+                  <div style={{ padding: '12px 16px', background: '#fee2e2', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.88rem', color: '#b91c1c', marginBottom: '12px' }}>
+                    <strong>🔒 Tahap 2 Sedang Ditutup:</strong> Admin Koperasi belum membuka periode pemesanan Tahap 2.
+                  </div>
+                )}
                 {(orderPhase === 'Tahap 1' && hasPhase1Order) && (
-                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '12px' }}>
                     <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 1.
                   </div>
                 )}
                 {(orderPhase === 'Tahap 2' && hasPhase2Order) && (
-                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
+                  <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '12px' }}>
                     <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 2.
+                  </div>
+                )}
+                {!orderPhase.includes('Tambahan') && (!hasUploadedOrderExcel || !uploadedGdriveUrl) && (
+                  <div style={{ padding: '12px 16px', background: '#eff6ff', borderLeft: '4px solid #2563eb', borderRadius: '4px', fontSize: '0.86rem', color: '#1e40af', marginBottom: '14px' }}>
+                    {!hasUploadedOrderExcel
+                      ? 'ℹ️ Syarat Wajib Tahap 1 & 2: Silakan selesaikan Langkah 2 (Upload File Excel Pemesanan) dan Langkah 4 (Upload Scan Bertanda Tangan ke Google Drive) untuk membuka tombol Tambahkan ke Keranjang.'
+                      : 'ℹ️ Syarat Wajib Tahap 1 & 2: Silakan selesaikan Langkah 3 (Download PDF Resmi) lalu Langkah 4 (Upload Scan Lembar Pemesanan Bertanda Tangan ke Google Drive) untuk membuka tombol Tambahkan ke Keranjang.'}
+                  </div>
+                )}
+                {orderPhase.includes('Tambahan') && (!tambahanOpen || !isAllowedToInput) && (
+                  <div style={{ padding: '10px 14px', background: '#f8fafc', borderLeft: '4px solid #64748b', borderRadius: '4px', fontSize: '0.84rem', color: '#475569', marginBottom: '14px' }}>
+                    💡 <strong>Info Pemesanan Tambahan:</strong> Anda tetap dapat memilih barang dan klik <strong>Tambahkan ke Keranjang</strong> sekarang. Pengiriman pesanan (tombol <em>Pesan Sekarang</em> di Keranjang) akan aktif otomatis saat jadwal/persyaratan Pemesanan Tambahan dibuka.
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button 
                     type="submit" 
                     className="btn-primary"
-                    disabled={(orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order) || (!orderPhase.includes('Tambahan') && !hasUploadedOrderExcel)}
-                    style={((orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order) || (!orderPhase.includes('Tambahan') && !hasUploadedOrderExcel)) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                    disabled={
+                      (orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) ||
+                      (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order)) ||
+                      (!orderPhase.includes('Tambahan') && (!hasUploadedOrderExcel || !uploadedGdriveUrl))
+                    }
+                    style={
+                      (
+                        (orderPhase === 'Tahap 1' && (!phase1Open || hasPhase1Order)) ||
+                        (orderPhase === 'Tahap 2' && (!phase2Open || hasPhase2Order)) ||
+                        (!orderPhase.includes('Tambahan') && (!hasUploadedOrderExcel || !uploadedGdriveUrl))
+                      )
+                        ? { background: '#94a3b8', cursor: 'not-allowed' }
+                        : {}
+                    }
                   >
                     🛒 Tambahkan ke Keranjang
                   </button>
@@ -2334,24 +2382,24 @@ const SchoolPemesanan = () => {
               )}
 
               <div className="modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                {(orderPhase === 'Tahap 1' && !phase1Open) && (
+                {(effectiveCartPhase === 'Tahap 1' && !phase1Open) && (
                   <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
                     <strong>Tahap 1 Ditutup:</strong> Admin belum mengaktifkan pemesanan Tahap 1.
                   </div>
                 )}
-                {(orderPhase === 'Tahap 2' && !phase2Open) && (
+                {(effectiveCartPhase === 'Tahap 2' && !phase2Open) && (
                   <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
                     <strong>Tahap 2 Ditutup:</strong> Admin belum mengaktifkan pemesanan Tahap 2.
                   </div>
                 )}
-                {(orderPhase.includes('Tambahan') && !tambahanOpen) && (
+                {(effectiveCartPhase.includes('Tambahan') && !tambahanOpen) && (
                   <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '16px' }}>
-                    <strong>Fase Tambahan Ditutup:</strong> Admin sedang menutup akses pesanan Tambahan.
+                    <strong>🔒 Fase Tambahan Ditutup:</strong> Admin sedang menutup akses pesanan Tambahan. Barang tetap tersimpan di keranjang Anda.
                   </div>
                 )}
-                {(orderPhase.includes('Tambahan') && tambahanOpen && !isAllowedToInput) && (
+                {(effectiveCartPhase.includes('Tambahan') && tambahanOpen && !isAllowedToInput) && (
                   <div style={{ padding: '12px 16px', background: '#fee2e2', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.9rem', color: '#b91c1c', marginBottom: '16px' }}>
-                    <strong>Akses Dibatasi:</strong> Checkout tidak dapat dilakukan saat ini karena belum memasuki periode waktu pemesanan yang ditetapkan atau bukan jadwal hari pesanan jenjang Anda.
+                    <strong>🔒 Belum Memenuhi Persyaratan Pemesanan Tambahan:</strong> Pesanan tidak dapat dikirim saat ini karena belum memasuki rentang tanggal yang ditetapkan atau hari ini bukan jadwal pemesanan untuk jenjang <strong>{user?.schoolLevel}</strong> (Jadwal Hari: TK=Senin, SD/SPK-SD=Selasa, SMP/SPK-SMP=Rabu, SMA/SPK-SMA=Kamis).
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -2359,8 +2407,8 @@ const SchoolPemesanan = () => {
                     <button 
                       type="submit" 
                       className="btn-primary"
-                      disabled={(orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase.includes('Tambahan') && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0}
-                      style={((orderPhase === 'Tahap 1' && !phase1Open) || (orderPhase === 'Tahap 2' && !phase2Open) || (orderPhase.includes('Tambahan') && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                      disabled={(effectiveCartPhase === 'Tahap 1' && !phase1Open) || (effectiveCartPhase === 'Tahap 2' && !phase2Open) || (effectiveCartPhase.includes('Tambahan') && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0}
+                      style={((effectiveCartPhase === 'Tahap 1' && !phase1Open) || (effectiveCartPhase === 'Tahap 2' && !phase2Open) || (effectiveCartPhase.includes('Tambahan') && (!tambahanOpen || !isAllowedToInput)) || cartItems.length === 0) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
                     >
                       🚀 Pesan Sekarang
                     </button>

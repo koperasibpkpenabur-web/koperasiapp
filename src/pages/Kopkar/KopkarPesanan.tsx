@@ -667,7 +667,7 @@ const KopkarPesanan = () => {
 
                         <td>
                           <div className="kopkar-actions-col">
-                            <div style={{ marginBottom: '8px' }}>
+                            <div style={{ marginBottom: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                               <button
                                 className="btn-detail-dots"
                                 title="Lihat Detail Pesanan"
@@ -676,6 +676,17 @@ const KopkarPesanan = () => {
                               >
                                 ⋮ Detail
                               </button>
+                              {order.notes?.match(/\[Bukti GDrive:\s*(https?:\/\/[^\]]+)\]/)?.[1] && (
+                                <a
+                                  href={order.notes.match(/\[Bukti GDrive:\s*(https?:\/\/[^\]]+)\]/)![1]}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Buka Lembar Pemesanan Resmi (GDrive)"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '0.78rem', fontWeight: 600, borderRadius: '4px', border: '1px solid #86efac', background: '#f0fdf4', color: '#15803d', textDecoration: 'none' }}
+                                >
+                                  📄 Surat Kepsek
+                                </a>
+                              )}
                             </div>
                             {order.status === 'pending' && (
                               <div className="action-buttons">

@@ -24,10 +24,21 @@ const AdminDashboard = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedSchoolReset, setSelectedSchoolReset] = useState<string>('ALL');
   const [gdriveUrlInput, setGdriveUrlInput] = useState<string>('');
+  const [gdriveFolderInput, setGdriveFolderInput] = useState<string>('');
 
   useEffect(() => {
     setGdriveUrlInput(settings.gdriveWebAppUrl || '');
-  }, [settings.gdriveWebAppUrl]);
+    setGdriveFolderInput(settings.gdriveFolderUrl || '');
+  }, [settings.gdriveWebAppUrl, settings.gdriveFolderUrl]);
+
+  const extractDriveFolderId = (rawUrlOrId: string) => {
+    const clean = (rawUrlOrId || '').trim();
+    if (!clean) return '';
+    const folderMatch = clean.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    if (folderMatch && folderMatch[1]) return folderMatch[1];
+    const idMatch = clean.match(/[-\w]{25,}/);
+    return idMatch ? idMatch[0] : clean;
+  };
 
   const fetchStats = async () => {
     try {
@@ -590,31 +601,108 @@ const AdminDashboard = () => {
           </div>
 
           {/* Google Drive Direct Upload Settings */}
-          <div style={{ flex: '1 1 100%', background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ flex: '1 1 100%', background: '#f0f9ff', padding: '18px', borderRadius: '12px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>☁️</span> Integrasi Upload Langsung Lembar Pemesanan ke Google Drive Koperasi
             </div>
             <div style={{ fontSize: '0.82rem', color: '#334155', lineHeight: 1.5 }}>
-              Masukkan <strong>Web App URL (Google Apps Script)</strong> milik Google Drive Koperasi agar sekolah dapat meng-upload scan PDF/Foto Lembar Pemesanan yang sudah ditandatangani Kepala Sekolah & PIC langsung ke folder Google Drive Koperasi.
+              1. Tempel <strong>Link Folder Google Drive Tujuan</strong> di kolom pertama, lalu klik <strong>Salin Kode Google Apps Script</strong>.<br />
+              2. Pasang kode tersebut di <a href="https://script.google.com" target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', fontWeight: 700 }}>script.google.com</a> (Pilih <em>Deploy &gt; New deployment &gt; Web app &gt; Execute as: Me &gt; Who has access: Anyone</em>).<br />
+              3. Tempel <strong>Web App URL (berakhiran /exec)</strong> hasil deploy ke kolom kedua, lalu klik <strong>Simpan Pengaturan Google Drive</strong>.
             </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <input
-                type="url"
-                placeholder="https://script.google.com/macros/s/AKfycb.../exec"
-                value={gdriveUrlInput}
-                onChange={(e) => setGdriveUrlInput(e.target.value)}
-                style={{ flex: '1 1 320px', padding: '9px 12px', borderRadius: '8px', border: '1px solid #93c5fd', fontSize: '0.86rem' }}
-              />
-              <button
-                type="button"
-                onClick={async () => {
-                  await settings.updateGdriveWebAppUrl(gdriveUrlInput);
-                  alert('URL Google Drive Web App berhasil disimpan!');
-                }}
-                style={{ padding: '9px 18px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                💾 Simpan URL Google Drive
-              </button>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0c4a6e', marginBottom: '4px' }}>
+                  1. Link Folder Google Drive Tujuan (Tempat File Disimpan):
+                </label>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    placeholder="Contoh: https://drive.google.com/drive/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ12345"
+                    value={gdriveFolderInput}
+                    onChange={(e) => setGdriveFolderInput(e.target.value)}
+                    style={{ flex: '1 1 320px', padding: '9px 12px', borderRadius: '8px', border: '1px solid #93c5fd', fontSize: '0.85rem', background: '#fff' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fid = extractDriveFolderId(gdriveFolderInput) || 'ISI_DENGAN_FOLDER_ID_ANDA';
+                      const scriptCode = `const DEFAULT_FOLDER_ID = '${fid}';
+
+function extractId(raw) {
+  if (!raw) return DEFAULT_FOLDER_ID;
+  var m = String(raw).match(/\\/folders\\/([a-zA-Z0-9_-]+)/);
+  if (m && m[1]) return m[1];
+  var m2 = String(raw).match(/[-\\w]{25,}/);
+  return m2 ? m2[0] : String(raw).trim();
+}
+
+function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents);
+    var folderId = extractId(payload.folderId || DEFAULT_FOLDER_ID);
+    var folder = DriveApp.getFolderById(folderId);
+    var decodedBytes = Utilities.base64Decode(payload.base64Data);
+    var blob = Utilities.newBlob(decodedBytes, payload.mimeType || 'application/pdf', payload.fileName);
+    var file = folder.createFile(blob);
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (shareErr) {}
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      fileId: file.getId(),
+      fileUrl: file.getUrl(),
+      folderUrl: folder.getUrl(),
+      folderName: folder.getName()
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+                      navigator.clipboard.writeText(scriptCode);
+                      alert(`Kode Google Apps Script (dengan Folder ID: ${fid}) berhasil disalin ke Clipboard!\n\nSilakan Paste di script.google.com lalu klik Deploy > New deployment > Web app.`);
+                    }}
+                    style={{ padding: '9px 14px', backgroundColor: '#ffffff', color: '#0369a1', border: '1.5px solid #0284c7', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+                  >
+                    📋 Salin Kode Google Apps Script
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0c4a6e', marginBottom: '4px' }}>
+                  2. Web App URL (Google Apps Script yang berakhiran /exec):
+                </label>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <input
+                    type="url"
+                    placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                    value={gdriveUrlInput}
+                    onChange={(e) => setGdriveUrlInput(e.target.value)}
+                    style={{ flex: '1 1 320px', padding: '9px 12px', borderRadius: '8px', border: '1px solid #93c5fd', fontSize: '0.85rem', background: '#fff' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (gdriveUrlInput.includes('drive.google.com/drive/folders')) {
+                        alert('PERHATIAN:\nLink yang Anda masukkan di kolom ke-2 adalah Link Folder Google Drive biasa, bukan Web App URL dari Google Apps Script (https://script.google.com/macros/s/.../exec).\n\nSaya pindahkan Link Folder tersebut ke kolom 1. Silakan pasang juga Web App URL dari script.google.com di kolom 2 agar file benar-benar ter-upload otomatis ke dalam folder tersebut.');
+                        setGdriveFolderInput(gdriveUrlInput);
+                        await settings.updateGdriveWebAppUrl(gdriveUrlInput, gdriveUrlInput);
+                        return;
+                      }
+                      await settings.updateGdriveWebAppUrl(gdriveUrlInput, gdriveFolderInput);
+                      alert('Pengaturan Google Drive berhasil disimpan!');
+                    }}
+                    style={{ padding: '9px 18px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+                  >
+                    💾 Simpan Pengaturan Google Drive
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
