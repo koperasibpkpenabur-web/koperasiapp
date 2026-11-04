@@ -1,5 +1,8 @@
-import { useState, type FormEvent, useEffect, useMemo } from 'react';
+import { useState, type FormEvent, type ChangeEvent, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useProducts } from '../../context/ProductContext';
@@ -58,7 +61,7 @@ const SchoolPemesanan = () => {
   const { createOrder, receiveOrder, partialReceiveOrder, requestCancelOrder, deleteOrder, cartItems, setCartItems, showCartModal, setShowCartModal } = useOrders();
   const { getProductsByLevel } = useProducts();
   const { getReturnsBySchoolId } = useReturns();
-  const { phase1Open, phase2Open, tambahanOpen, tambahanUseDayRule, tambahanUseDateRule, tambahanStartDate, tambahanEndDate } = useSettings();
+  const { phase1Open, phase2Open, tambahanOpen, tambahanUseDayRule, tambahanUseDateRule, tambahanStartDate, tambahanEndDate, gdriveWebAppUrl } = useSettings();
 
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima), 'cancellations' (Riwayat Pembatalan)
   const [activeTab, setActiveTab] = useState<'active' | 'received' | 'cancellations'>('active');
@@ -221,6 +224,22 @@ const SchoolPemesanan = () => {
   );
   const [orderPhase, setOrderPhase] = useState<'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan'>('Tahap 1');
 
+  useEffect(() => {
+    if (user?.schoolLevel) {
+      setOrderLevelFilter(user.schoolLevel);
+    }
+  }, [user?.schoolLevel]);
+
+  const isAnyPhaseOpen = phase1Open || phase2Open || tambahanOpen;
+  const getDefaultOpenPhase = (): 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan' => {
+    if (phase1Open && !hasPhase1Order) return 'Tahap 1';
+    if (phase2Open && !hasPhase2Order) return 'Tahap 2';
+    if (tambahanOpen) return 'Tambahan Mingguan';
+    if (phase1Open) return 'Tahap 1';
+    if (phase2Open) return 'Tahap 2';
+    return 'Tambahan Mingguan';
+  };
+
   // Available products for current school level
   const availableCatalog = useMemo(() => getProductsByLevel(orderLevelFilter), [getProductsByLevel, orderLevelFilter]);
 
@@ -236,223 +255,35 @@ const SchoolPemesanan = () => {
   const [cartPhase, setCartPhase] = useState<'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan' | ''>('');
   const [formError, setFormError] = useState('');
 
-  // Derived categorized items for matrix tables
-  const { pakaianItems, kaosKakiItems, celanaItems, sepatuItems, aksesorisItems } = useMemo(() => {
-    const pakaian: any[] = [];
-    const kaosKaki: any[] = [];
-    const celana: any[] = [];
-    const sepatu: any[] = [];
-    const aksesoris: any[] = [];
+  // Offline Excel Template & Strict Upload Review states
+  const orderExcelInputRef = useRef<HTMLInputElement>(null);
+  const [hasUploadedOrderExcel, setHasUploadedOrderExcel] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [uploadedReviewRows, setUploadedReviewRows] = useState<{
+    no: number;
+    productId: string;
+    code: string;
+    name: string;
+    type: any;
+    size: string;
+    quantity: number;
+    priceKopkar: number;
+    feeSchool: number;
+    priceStudent: number;
+  }[]>([]);
 
-    matrixItems.forEach(row => {
-      const nameLower = row.name.toLowerCase();
-      
-      if (nameLower.includes('sepatu')) {
-        sepatu.push(row);
-      } else if (nameLower.includes('kaos kaki')) {
-        kaosKaki.push(row);
-      } else if (row.type === 'celana/rok' || nameLower.includes('celana') || nameLower.includes('rok') || nameLower.includes('kulot')) {
-        const isNumeric = row.variants.some((v: any) => /^\d+$/.test(v.size?.trim()));
-        if (isNumeric) {
-          celana.push(row);
-        } else {
-          pakaian.push(row);
-        }
-      } else if (row.type === 'aksesoris' || row.type === 'buku' || (row.variants.length <= 1 && (!row.variants[0]?.size || row.variants[0]?.size.trim().toUpperCase() === 'ALL SIZE'))) {
-        aksesoris.push(row);
-      } else {
-        pakaian.push(row);
-      }
-    });
+  // Official PDF Identity Form states (Attachment 1 & 2)
+  const [docNama, setDocNama] = useState(user?.name || '');
+  const [docEmail, setDocEmail] = useState(user?.username?.includes('@') ? user.username : '');
+  const [docPhone, setDocPhone] = useState('');
+  const [docKepsekName, setDocKepsekName] = useState('');
+  const [docPicName, setDocPicName] = useState(user?.name || '');
 
-    return {
-      pakaianItems: pakaian,
-      kaosKakiItems: kaosKaki,
-      celanaItems: celana,
-      sepatuItems: sepatu,
-      aksesorisItems: aksesoris,
-    };
-  }, [matrixItems]);
-
-  const renderMatrixTable = (items: any[], title: string) => {
-    if (items.length === 0) return null;
-
-    // Check if ALL items in this specific table are "All Size" (max 1 variant with no specific size)
-    const isAllSize = items.every(row => 
-      row.variants.length <= 1 && (!row.variants[0]?.size || row.variants[0]?.size.trim().toUpperCase() === 'ALL SIZE')
-    );
-
-    let allSizes: string[] = [];
-    if (!isAllSize) {
-      const sizeSet = new Set<string>();
-      items.forEach(row => {
-        row.variants.forEach((v: any) => {
-          if (v.size) sizeSet.add(v.size.trim().toUpperCase());
-        });
-      });
-      allSizes = Array.from(sizeSet);
-      allSizes = sortBySize(allSizes.map(s => ({size: s}))).map((v: any) => v.size);
-    }
-
-    return (
-      <div style={{ marginBottom: '32px' }} key={title}>
-        <h4 style={{ margin: '0 0 12px 0', color: '#1e293b', borderBottom: '2px solid #cbd5e1', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {title.includes('Pakaian') ? '👕' : title.includes('Celana') ? '👖' : title.includes('Kaos Kaki') ? '🧦' : title.includes('Sepatu') ? '👟' : '🎒'} {title}
-        </h4>
-        <div 
-          className="matrix-table-wrapper" 
-          style={{ 
-            maxHeight: '440px',
-            overflowY: 'auto',
-            overflowX: 'auto', 
-            background: '#fff', 
-            borderRadius: '8px', 
-            border: '1px solid #cbd5e1',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-            position: 'relative'
-          }}
-        >
-          <table 
-            className="order-table" 
-            style={{ 
-              minWidth: isAllSize ? '400px' : '800px', 
-              margin: 0, 
-              borderCollapse: 'separate', 
-              borderSpacing: 0 
-            }}
-          >
-            <thead>
-              <tr>
-                <th 
-                  style={{ 
-                    position: 'sticky', 
-                    top: 0, 
-                    left: 0, 
-                    zIndex: 30, 
-                    background: '#f1f5f9', 
-                    padding: '12px', 
-                    borderBottom: '2px solid #cbd5e1', 
-                    borderRight: '1px solid #cbd5e1',
-                    minWidth: '220px',
-                    boxShadow: '2px 2px 4px rgba(0,0,0,0.04)'
-                  }}
-                >
-                  Nama Barang
-                </th>
-                {!isAllSize && allSizes.map(sz => (
-                  <th 
-                    key={sz} 
-                    style={{ 
-                      position: 'sticky', 
-                      top: 0, 
-                      zIndex: 20, 
-                      background: '#f8fafc', 
-                      width: '40px', 
-                      textAlign: 'center', 
-                      padding: '12px 4px', 
-                      borderBottom: '2px solid #cbd5e1',
-                      borderRight: '1px solid #f1f5f9'
-                    }}
-                  >
-                    {sz}
-                  </th>
-                ))}
-                <th 
-                  style={{ 
-                    position: 'sticky', 
-                    top: 0, 
-                    zIndex: 20, 
-                    background: '#f8fafc', 
-                    width: '80px', 
-                    textAlign: 'center', 
-                    padding: '12px', 
-                    borderBottom: '2px solid #cbd5e1' 
-                  }}
-                >
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row) => {
-                const rowTotal = Object.values(row.sizesInput).reduce<number>((acc, val: any) => acc + (parseInt(val) || 0), 0);
-                const standardVariants = row.variants.filter((v: any) => allSizes.includes(v.size?.trim().toUpperCase()));
-
-                return (
-                  <tr key={row.name}>
-                    <td 
-                      style={{ 
-                        position: 'sticky', 
-                        left: 0, 
-                        zIndex: 10, 
-                        background: '#ffffff', 
-                        padding: '12px', 
-                        borderBottom: '1px solid #e2e8f0', 
-                        borderRight: '1px solid #cbd5e1',
-                        boxShadow: '2px 0 4px rgba(0,0,0,0.04)'
-                      }}
-                    >
-                      <strong style={{ color: '#1e293b' }}>{row.name}</strong>
-                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>
-                        Rp {new Intl.NumberFormat('id-ID').format(row.priceStudent)}
-                      </div>
-                    </td>
-                    
-                    {!isAllSize && allSizes.map(sz => {
-                      const variant = standardVariants.find((v: any) => v.size?.trim().toUpperCase() === sz);
-                      return (
-                        <td key={sz} style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #f1f5f9' }}>
-                          {variant ? (
-                            <input 
-                              type="number" 
-                              min="0" 
-                              value={row.sizesInput[variant.id] || ''}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 0;
-                                setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [variant.id]: val } } : it));
-                              }}
-                              style={{ width: '32px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                            />
-                          ) : (
-                            <div style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>-</div>
-                          )}
-                        </td>
-                      );
-                    })}
-
-                    {isAllSize && (
-                      <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #f1f5f9' }}>
-                        {row.variants.length > 0 ? (
-                          <div style={{ display: 'flex', justifyContent: 'center' }}>
-                            <input 
-                              type="number" 
-                              min="0" 
-                              value={row.sizesInput[row.variants[0].id] || ''}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 0;
-                                setMatrixItems(prev => prev.map(it => it.name === row.name ? { ...it, sizesInput: { ...it.sizesInput, [row.variants[0].id]: val } } : it));
-                              }}
-                              style={{ width: '32px', textAlign: 'center', padding: '6px 2px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                            />
-                          </div>
-                        ) : (
-                           <div style={{ color: '#ef4444', fontSize: '0.8rem' }}>Stok kosong</div>
-                        )}
-                      </td>
-                    )}
-
-                    <td style={{ textAlign: 'center', fontWeight: 700, padding: '12px', borderBottom: '1px solid #e2e8f0', color: rowTotal > 0 ? '#2563eb' : '#64748b' }}>
-                      {rowTotal}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
+  // Direct Upload to Google Drive states
+  const [signedScanFile, setSignedScanFile] = useState<File | null>(null);
+  const [isUploadingGdrive, setIsUploadingGdrive] = useState(false);
+  const [uploadedGdriveUrl, setUploadedGdriveUrl] = useState('');
+  const [gdriveUploadStatus, setGdriveUploadStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   // Modal Receive Confirmation
   const [receivingOrder, setReceivingOrder] = useState<Order | null>(null);
@@ -618,6 +449,426 @@ const SchoolPemesanan = () => {
     }
     setNotes('');
     setFormError('');
+    setHasUploadedOrderExcel(false);
+    setUploadedFileName('');
+    setUploadedReviewRows([]);
+    setDocNama(user?.name || '');
+    setDocEmail(user?.username?.includes('@') ? user.username : '');
+    setDocPicName(user?.name || '');
+    setSignedScanFile(null);
+    setUploadedGdriveUrl('');
+    setGdriveUploadStatus(null);
+  };
+
+  // 1. Download Template Excel Pemesanan (Strict dari Manajemen Barang sesuai Jenjang)
+  const handleDownloadOrderTemplate = () => {
+    if (groupedCatalogArray.length === 0) {
+      alert(`Katalog Manajemen Barang untuk jenjang ${orderLevelFilter} masih kosong.`);
+      return;
+    }
+
+    const templateRows: any[] = [];
+    let rowNo = 1;
+    groupedCatalogArray.forEach((group) => {
+      const sortedVariants = sortBySize(group.variants || []);
+      sortedVariants.forEach((v: any) => {
+        templateRows.push({
+          'No.': rowNo++,
+          'Jenis Item': group.name,
+          'Ukuran': (v.size || 'ALL SIZE').trim(),
+          'Total Pesanan': 0,
+        });
+      });
+    });
+
+    const ws = XLSX.utils.json_to_sheet(templateRows);
+    ws['!cols'] = [{ wch: 6 }, { wch: 38 }, { wch: 14 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Template_${orderLevelFilter}`);
+    const safeSchool = (user?.schoolName || user?.name || orderLevelFilter).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safePhase = orderPhase.replace(/\s+/g, '_');
+    XLSX.writeFile(wb, `Template_Pemesanan_${safePhase}_${safeSchool}.xlsx`);
+  };
+
+  // 2. Upload File Excel Pemesanan dengan Validasi Strict 100% terhadap Manajemen Barang
+  const handleUploadOrderExcel = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFormError('');
+
+    // Bangun daftar master strict dari Manajemen Barang (availableCatalog)
+    const expectedRows: { name: string; size: string; variant: any; group: any }[] = [];
+    const masterVariantMap = new Map<string, { variant: any; group: any }>();
+
+    groupedCatalogArray.forEach((group) => {
+      const sortedVariants = sortBySize(group.variants || []);
+      sortedVariants.forEach((v: any) => {
+        const cleanName = group.name.trim();
+        const cleanSize = (v.size || 'ALL SIZE').trim().toUpperCase();
+        expectedRows.push({ name: cleanName, size: cleanSize, variant: v, group });
+        masterVariantMap.set(`${cleanName.toLowerCase()}|||${cleanSize}`, { variant: v, group });
+      });
+    });
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonRows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+        if (!jsonRows || jsonRows.length === 0) {
+          const msg = 'File Excel kosong atau format tidak terbaca. Harap gunakan Template Pemesanan resmi dari sistem.';
+          alert('UPLOAD DITOLAK:\n' + msg);
+          setFormError(msg);
+          return;
+        }
+
+        // Pastikan kolom header wajib ada
+        const firstRowKeys = Object.keys(jsonRows[0]).map(k => k.trim().toLowerCase());
+        const hasJenisItemCol = firstRowKeys.some(k => k === 'jenis item' || k === 'nama barang');
+        const hasUkuranCol = firstRowKeys.some(k => k === 'ukuran' || k === 'size');
+        const hasTotalCol = firstRowKeys.some(k => k === 'total pesanan' || k === 'total' || k === 'jumlah');
+
+        if (!hasJenisItemCol || !hasUkuranCol || !hasTotalCol) {
+          const msg = 'Kolom Excel tidak sesuai template! Wajib memiliki kolom: "No.", "Jenis Item", "Ukuran", dan "Total Pesanan".';
+          alert('UPLOAD DITOLAK:\n' + msg);
+          setFormError(msg);
+          return;
+        }
+
+        const mismatchErrors: string[] = [];
+        const parsedReviewRows: typeof uploadedReviewRows = [];
+        const seenKeys = new Set<string>();
+
+        jsonRows.forEach((row, idx) => {
+          const excelRowNum = idx + 2; // baris di Excel (header di baris 1)
+          const rawName = String(row['Jenis Item'] ?? row['jenis item'] ?? row['Nama Barang'] ?? '').trim();
+          const rawSize = String(row['Ukuran'] ?? row['ukuran'] ?? row['Size'] ?? '').trim();
+          const rawQty = row['Total Pesanan'] ?? row['total pesanan'] ?? row['Total'] ?? row['Jumlah'] ?? 0;
+
+          if (!rawName && !rawSize && (rawQty === '' || rawQty === 0)) {
+            return; // abaikan baris kosong di paling bawah
+          }
+
+          const normalizedSize = (rawSize || 'ALL SIZE').toUpperCase();
+          const lookupKey = `${rawName.toLowerCase()}|||${normalizedSize}`;
+          const matched = masterVariantMap.get(lookupKey);
+
+          if (!matched || matched.group.name.trim() !== rawName) {
+            mismatchErrors.push(
+              `Baris ${excelRowNum}: Jenis Item "${rawName || '(Kosong)'}" / Ukuran "${rawSize || '(Kosong)'}" tidak terdaftar atau berbeda dengan Manajemen Barang (Jenjang ${orderLevelFilter}).`
+            );
+            return;
+          }
+
+          // Cek juga apakah urutan/baris diubah dari template asli
+          if (idx < expectedRows.length) {
+            const exp = expectedRows[idx];
+            if (exp.name !== rawName || exp.size !== normalizedSize) {
+              mismatchErrors.push(
+                `Baris ${excelRowNum}: Tertulis "${rawName} (${normalizedSize})", seharusnya "${exp.name} (${exp.size})" sesuai Manajemen Barang.`
+              );
+              return;
+            }
+          }
+
+          const qty = Math.max(0, parseInt(String(rawQty), 10) || 0);
+          seenKeys.add(lookupKey);
+
+          parsedReviewRows.push({
+            no: parsedReviewRows.length + 1,
+            productId: matched.variant.id,
+            code: matched.variant.code || '',
+            name: matched.group.name,
+            type: matched.group.type,
+            size: matched.variant.size || 'ALL SIZE',
+            quantity: qty,
+            priceKopkar: matched.variant.priceKopkar,
+            feeSchool: matched.variant.feeSchool,
+            priceStudent: matched.variant.priceStudent,
+          });
+        });
+
+        // Cek apakah ada item dari Manajemen Barang yang dihapus barisnya di Excel
+        if (mismatchErrors.length === 0 && seenKeys.size !== expectedRows.length) {
+          mismatchErrors.push(
+            `Jumlah baris barang di file Excel (${seenKeys.size} varian) tidak sama dengan jumlah varian di Manajemen Barang jenjang ${orderLevelFilter} (${expectedRows.length} varian). Dilarang menghapus atau menambah baris pada template.`
+          );
+        }
+
+        if (mismatchErrors.length > 0) {
+          const previewErr = mismatchErrors.slice(0, 6).join('\n- ');
+          const moreText = mismatchErrors.length > 6 ? `\n...dan ${mismatchErrors.length - 6} ketidaksesuaian lainnya.` : '';
+          const fullAlert = `PERINGATAN STRICT VALIDASI MANAJEMEN BARANG!\n\nFile Excel DITOLAK karena ditemukan perbedaan data dengan Master Manajemen Barang:\n- ${previewErr}${moreText}\n\nSekolah tidak diperbolehkan mengubah Jenis Item, Ukuran, atau menghapus baris pada Template Excel.`;
+          alert(fullAlert);
+          setFormError(`Upload ditolak: Ditemukan ${mismatchErrors.length} baris yang tidak sesuai dengan Manajemen Barang.`);
+          setHasUploadedOrderExcel(false);
+          setUploadedReviewRows([]);
+          if (orderExcelInputRef.current) orderExcelInputRef.current.value = '';
+          return;
+        }
+
+        const totalOrderedPcs = parsedReviewRows.reduce((acc, r) => acc + r.quantity, 0);
+        if (totalOrderedPcs <= 0) {
+          const msg = 'Seluruh baris pada kolom "Total Pesanan" masih bernilai 0. Harap isi jumlah pesanan minimal pada 1 ukuran barang.';
+          alert('PERINGATAN:\n' + msg);
+          setFormError(msg);
+          setHasUploadedOrderExcel(false);
+          setUploadedReviewRows([]);
+          if (orderExcelInputRef.current) orderExcelInputRef.current.value = '';
+          return;
+        }
+
+        // Sinkronkan ke matrixItems agar perhitungan harga & keranjang bekerja otomatis
+        const qtyByVariantId: Record<string, number> = {};
+        parsedReviewRows.forEach(r => {
+          if (r.quantity > 0) qtyByVariantId[r.productId] = r.quantity;
+        });
+
+        setMatrixItems(prev =>
+          prev.map(row => {
+            const newSizesInput: Record<string, number> = {};
+            row.variants.forEach((v: any) => {
+              if (qtyByVariantId[v.id] > 0) {
+                newSizesInput[v.id] = qtyByVariantId[v.id];
+              }
+            });
+            return { ...row, sizesInput: newSizesInput };
+          })
+        );
+
+        setUploadedReviewRows(parsedReviewRows);
+        setHasUploadedOrderExcel(true);
+        setUploadedFileName(file.name);
+      } catch (err: any) {
+        alert('Gagal membaca file Excel: ' + (err?.message || 'Format tidak valid'));
+      } finally {
+        if (orderExcelInputRef.current) orderExcelInputRef.current.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // 3. Generate & Download PDF Lembar Pemesanan Resmi (Persis Attachment 1 & 2)
+  const handleDownloadOfficialPdf = async (customItems?: { name: string; size?: string; quantity: number }[]) => {
+    const itemsForPdf = customItems
+      ? customItems.filter(i => i.quantity > 0)
+      : uploadedReviewRows.filter(r => r.quantity > 0);
+
+    if (itemsForPdf.length === 0) {
+      alert('Belum ada item pesanan dengan jumlah > 0. Silakan upload file Excel pemesanan terlebih dahulu.');
+      return;
+    }
+
+    if (!docNama.trim() || !docEmail.trim() || !docPhone.trim() || !docKepsekName.trim() || !docPicName.trim()) {
+      alert('Harap lengkapi seluruh kolom identitas dokumen:\n1. Nama\n2. Email Address\n3. No. Handphone\n4. Nama Kepala Sekolah\n5. Nama PIC Sekolah\nsebelum mendownload PDF Lembar Pemesanan Resmi.');
+      return;
+    }
+
+    const doc = new jsPDF('portrait', 'mm', 'a4');
+
+    // Load Logo Koperasi
+    try {
+      const logoUrl = `${import.meta.env.BASE_URL}logo_koperasi2.png`;
+      const resp = await fetch(logoUrl);
+      const blob = await resp.blob();
+      const base64Logo = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+      doc.addImage(base64Logo, 'PNG', 18, 12, 26, 26);
+    } catch {
+      // Lanjut jika logo gagal dimuat
+    }
+
+    // Kop Surat Koperasi (Sesuai Attachment 1)
+    doc.setFont('times', 'normal');
+    doc.setFontSize(13.5);
+    doc.text('KOPERASI KONSUMEN KARYAWAN', 50, 18);
+    doc.text('BPK PENABUR JAKARTA', 50, 24);
+    doc.setFontSize(12);
+    doc.text('Sekretariat Jl. Tanjung Duren Raya No. 4 Jakarta 11470', 50, 30);
+    doc.text('Telp.: 5666962 - 5666963 (Fax)', 50, 36);
+
+    // Garis ganda di bawah Kop Surat
+    doc.setLineWidth(0.5);
+    doc.line(18, 43, 192, 43);
+    doc.setLineWidth(0.2);
+    doc.line(18, 44, 192, 44);
+
+    // Timestamp format M/D/YYYY H:mm:ss seperti contoh gambar
+    const now = new Date();
+    const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const schoolLabel = user?.schoolName || user?.name || '-';
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    const metaRows = [
+      ['Timestamp', ':', timestampStr],
+      ['NAMA', ':', docNama.trim()],
+      ['Email Address', ':', docEmail.trim()],
+      ['NO HANDPHONE', ':', docPhone.trim()],
+      ['SEKOLAH', ':', schoolLabel],
+    ];
+
+    let metaY = 52;
+    metaRows.forEach(([label, sep, val]) => {
+      doc.text(label, 18, metaY);
+      doc.text(sep, 56, metaY);
+      doc.text(String(val), 62, metaY);
+      metaY += 5.2;
+    });
+
+    // Judul PEMESANAN
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.text('PEMESANAN', 18, metaY + 4);
+
+    // Tabel 4 Kolom: No. | Jenis Item | Ukuran | Total Pesanan
+    const tableBody = itemsForPdf.map((it, i) => [
+      i + 1,
+      it.name,
+      it.size || 'ALL SIZE',
+      it.quantity,
+    ]);
+
+    const totalAllPcs = itemsForPdf.reduce((acc, it) => acc + it.quantity, 0);
+    tableBody.push(['', 'TOTAL PESANAN', '', totalAllPcs]);
+
+    (doc as any).autoTable({
+      startY: metaY + 7,
+      margin: { left: 18, right: 18 },
+      head: [['No.', 'Jenis Item', 'Ukuran', 'Total Pesanan']],
+      body: tableBody,
+      theme: 'grid',
+      styles: {
+        fontSize: 9,
+        cellPadding: 2.2,
+        textColor: [20, 20, 20],
+        lineColor: [80, 80, 80],
+        lineWidth: 0.2,
+      },
+      headStyles: {
+        fillColor: [241, 245, 249],
+        textColor: [15, 23, 42],
+        fontStyle: 'bold',
+        halign: 'center',
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 14 },
+        1: { halign: 'left' },
+        2: { halign: 'center', cellWidth: 28 },
+        3: { halign: 'center', cellWidth: 32 },
+      },
+      didParseCell: (data: any) => {
+        if (data.row.index === tableBody.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [248, 250, 252];
+        }
+      },
+    });
+
+    // Bagian Bawah: Tanda Tangan Kepala Sekolah & PIC Sekolah (Sesuai Attachment 2)
+    let finalY = ((doc as any).lastAutoTable?.finalY || metaY + 40) + 14;
+    if (finalY > 245) {
+      doc.addPage();
+      finalY = 25;
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text('Mengetahui,', 24, finalY);
+    doc.text('yang membuat,', 128, finalY);
+
+    const signLineY = finalY + 26;
+    doc.setFont('times', 'normal');
+    doc.setFontSize(10.5);
+    doc.text(docKepsekName.trim(), 24, signLineY - 1.5);
+    doc.text(docPicName.trim(), 128, signLineY - 1.5);
+
+    doc.setLineWidth(0.35);
+    doc.line(24, signLineY, 82, signLineY);
+    doc.line(128, signLineY, 182, signLineY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.text('Kepala Sekolah', 24, signLineY + 5);
+    doc.text('PIC Sekolah', 128, signLineY + 5);
+
+    const safeSchool = schoolLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
+    doc.save(`Lembar_Pemesanan_Resmi_${safeSchool}_${orderPhase.replace(/\s+/g, '_')}.pdf`);
+  };
+
+  // 4. Direct Upload Lembar Pemesanan Bertanda Tangan ke Google Drive Koperasi
+  const handleUploadSignedToGdrive = async () => {
+    if (!signedScanFile) {
+      alert('Pilih file scan/foto Lembar Pemesanan yang sudah ditandatangani terlebih dahulu.');
+      return;
+    }
+    if (!gdriveWebAppUrl) {
+      alert('URL Google Drive Web App belum diatur oleh Admin Koperasi di menu Admin Dashboard.');
+      return;
+    }
+
+    setIsUploadingGdrive(true);
+    setGdriveUploadStatus(null);
+
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = String(reader.result || '');
+          const base64Clean = result.includes(',') ? result.split(',')[1] : result;
+          resolve(base64Clean);
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsDataURL(signedScanFile);
+      });
+
+      const schoolLabel = user?.schoolName || user?.name || 'Sekolah';
+      const timestampTag = new Date().toISOString().slice(0, 10);
+      const customFileName = `Lembar_Pemesanan_${schoolLabel}_${orderPhase}_${timestampTag}_${signedScanFile.name}`;
+
+      const response = await fetch(gdriveWebAppUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          fileName: customFileName,
+          mimeType: signedScanFile.type || 'application/pdf',
+          base64Data,
+          schoolName: schoolLabel,
+          schoolLevel: orderLevelFilter,
+          orderPhase,
+          picName: docPicName || user?.name || '',
+        }),
+      });
+
+      const resJson = await response.json();
+      if (resJson && resJson.success && resJson.fileUrl) {
+        setUploadedGdriveUrl(resJson.fileUrl);
+        setGdriveUploadStatus({
+          type: 'success',
+          msg: 'Berhasil di-upload langsung ke Google Drive Koperasi!',
+        });
+        setNotes((prev) => {
+          const cleanPrev = prev.replace(/\[Bukti GDrive:.*?\]/g, '').trim();
+          return `${cleanPrev ? cleanPrev + ' | ' : ''}[Bukti GDrive: ${resJson.fileUrl}]`;
+        });
+      } else {
+        throw new Error(resJson?.error || 'Respons Google Drive Web App tidak valid');
+      }
+    } catch (err: any) {
+      setGdriveUploadStatus({
+        type: 'error',
+        msg: 'Gagal upload ke Google Drive: ' + (err?.message || 'Pastikan URL Google Apps Script sudah benar & akses Anyone.'),
+      });
+    } finally {
+      setIsUploadingGdrive(false);
+    }
   };
 
 
@@ -851,10 +1102,22 @@ const SchoolPemesanan = () => {
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button 
             className="btn-primary" 
-            onClick={() => { resetCreateForm('Tambahan Mingguan'); setShowCreateModal(true); }}
-            style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            disabled={!isAnyPhaseOpen}
+            onClick={() => {
+              if (!isAnyPhaseOpen) return;
+              resetCreateForm(getDefaultOpenPhase());
+              setShowCreateModal(true);
+            }}
+            title={!isAnyPhaseOpen ? 'Periode pemesanan sedang ditutup oleh Koperasi' : 'Buat pesanan baru'}
+            style={{
+              padding: '8px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              ...( !isAnyPhaseOpen ? { background: '#94a3b8', cursor: 'not-allowed', opacity: 0.85 } : {} )
+            }}
           >
-            <span>➕</span> Buat Pesanan
+            <span>{isAnyPhaseOpen ? '➕' : '🔒'}</span> {isAnyPhaseOpen ? 'Buat Pesanan' : 'Periode Pemesanan Ditutup'}
           </button>
           <Link
             to="/school/retur"
@@ -1541,7 +1804,10 @@ const SchoolPemesanan = () => {
                   <label>Jenjang Sekolah</label>
                   <select
                     value={orderLevelFilter}
+                    disabled={user?.role === 'sekolah' && !!user?.schoolLevel && user.schoolLevel !== 'SEMUA'}
+                    style={(user?.role === 'sekolah' && !!user?.schoolLevel && user.schoolLevel !== 'SEMUA') ? { background: '#f1f5f9', cursor: 'not-allowed' } : undefined}
                     onChange={(e) => {
+                      if (user?.role === 'sekolah' && user?.schoolLevel && user.schoolLevel !== 'SEMUA') return;
                       const lvl = e.target.value as SchoolLevel;
                       setOrderLevelFilter(lvl);
                       const cat = getProductsByLevel(lvl);
@@ -1572,6 +1838,9 @@ const SchoolPemesanan = () => {
                     onChange={(e) => {
                       const p = e.target.value as 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan';
                       setOrderPhase(p);
+                      setHasUploadedOrderExcel(false);
+                      setUploadedFileName('');
+                      setUploadedReviewRows([]);
                       const grp = groupByCatalog(getProductsByLevel(orderLevelFilter));
                       if (!p.includes('Tambahan')) {
                         setMatrixItems(grp.map((g: any) => ({
@@ -1595,21 +1864,267 @@ const SchoolPemesanan = () => {
               </div>
 
               <div className="form-group">
-                <label>Pilih Barang dari Katalog Jenjang {orderLevelFilter}:</label>
-
                 {!orderPhase.includes('Tambahan') ? (
-                  <div className="matrix-tables-container" style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
-                    {matrixItems.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>Katalog kosong untuk jenjang ini.</div>
-                    ) : (
-                      <>
-                        {renderMatrixTable(pakaianItems, 'Pakaian Standar')}
-                        {renderMatrixTable(celanaItems, 'Celana')}
-                        {renderMatrixTable(kaosKakiItems, 'Kaos Kaki')}
-                        {renderMatrixTable(sepatuItems, 'Sepatu')}
-                        {renderMatrixTable(aksesorisItems, 'Aksesoris & Perlengkapan')}
-                      </>
-                    )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginBottom: '16px' }}>
+                    {/* LANGKAH 1 & 2: DOWNLOAD TEMPLATE & UPLOAD EXCEL STRICT */}
+                    <div style={{ background: '#f8fafc', padding: '18px 20px', borderRadius: '12px', border: '1.5px solid #cbd5e1' }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.96rem', color: '#1e293b', marginBottom: '6px' }}>
+                        📋 Langkah 1 & 2: Download Template & Upload Excel Pemesanan ({orderPhase} - Jenjang {orderLevelFilter})
+                      </div>
+                      <div style={{ fontSize: '0.84rem', color: '#475569', marginBottom: '14px', lineHeight: 1.5 }}>
+                        Daftar barang dan ukuran pada template ditarik <strong>100% strict dari Manajemen Barang</strong>. Sekolah wajib mengisi jumlah pesanan pada kolom <code>Total Pesanan</code> secara offline tanpa mengubah <code>Jenis Item</code> maupun <code>Ukuran</code>.
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={handleDownloadOrderTemplate}
+                          style={{
+                            padding: '10px 16px',
+                            background: '#ffffff',
+                            color: '#1e40af',
+                            border: '1.5px solid #3b82f6',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '0.86rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          📥 1. Download Template Pemesanan (.xlsx)
+                        </button>
+
+                        <input
+                          ref={orderExcelInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleUploadOrderExcel}
+                          style={{ display: 'none' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => orderExcelInputRef.current?.click()}
+                          style={{
+                            padding: '10px 16px',
+                            background: '#059669',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '0.86rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          📤 2. Upload File Excel Pemesanan (.xlsx)
+                        </button>
+
+                        {hasUploadedOrderExcel && (
+                          <span style={{ fontSize: '0.84rem', color: '#059669', fontWeight: 700, background: '#ecfdf5', padding: '6px 12px', borderRadius: '99px', border: '1px solid #a7f3d0' }}>
+                            ✅ File Terverifikasi: {uploadedFileName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* TABEL REVIEW TERKUNCI SETELAH UPLOAD EXCEL */}
+                    <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                          🔒 Review Data Pemesanan (Terkunci - Sesuai Manajemen Barang)
+                        </div>
+                        {hasUploadedOrderExcel && (
+                          <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#2563eb' }}>
+                            Total Item Dipesan: {uploadedReviewRows.filter(r => r.quantity > 0).length} varian ({uploadedReviewRows.reduce((a, b) => a + b.quantity, 0)} pcs)
+                          </div>
+                        )}
+                      </div>
+
+                      {!hasUploadedOrderExcel ? (
+                        <div style={{ textAlign: 'center', padding: '28px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#64748b', fontSize: '0.88rem' }}>
+                          Belum ada file Excel yang di-upload. Silakan <strong>Download Template</strong>, isi kolom <strong>Total Pesanan</strong> secara offline, lalu klik <strong>Upload File Excel Pemesanan</strong> di atas.
+                        </div>
+                      ) : (
+                        <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
+                          <table className="order-table" style={{ margin: 0, width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ position: 'sticky', top: 0, background: '#f1f5f9', zIndex: 5 }}>
+                                <th style={{ width: '60px', textAlign: 'center', padding: '10px', borderBottom: '2px solid #cbd5e1' }}>No.</th>
+                                <th style={{ textAlign: 'left', padding: '10px', borderBottom: '2px solid #cbd5e1' }}>Jenis Item</th>
+                                <th style={{ width: '120px', textAlign: 'center', padding: '10px', borderBottom: '2px solid #cbd5e1' }}>Ukuran</th>
+                                <th style={{ width: '140px', textAlign: 'center', padding: '10px', borderBottom: '2px solid #cbd5e1' }}>Total Pesanan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {uploadedReviewRows.filter(r => r.quantity > 0).map((row, idx) => (
+                                <tr key={`${row.productId}-${idx}`} style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
+                                  <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 600 }}>{idx + 1}</td>
+                                  <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>{row.name}</td>
+                                  <td style={{ textAlign: 'center', padding: '8px 10px' }}>
+                                    <span style={{ background: '#eff6ff', color: '#1d4ed8', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', fontSize: '0.82rem' }}>
+                                      {row.size}
+                                    </span>
+                                  </td>
+                                  <td style={{ textAlign: 'center', padding: '8px 10px' }}>
+                                    <input
+                                      type="number"
+                                      value={row.quantity}
+                                      disabled
+                                      readOnly
+                                      style={{ width: '90px', textAlign: 'center', padding: '5px 8px', background: '#f1f5f9', color: '#0f172a', fontWeight: 700, border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'not-allowed' }}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* LANGKAH 3: FORM IDENTITAS & DOWNLOAD PDF LEMBAR PEMESANAN RESMI */}
+                    <div style={{ background: '#fffbeb', padding: '18px 20px', borderRadius: '12px', border: '1.5px solid #fde68a' }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#92400e', marginBottom: '6px' }}>
+                        📄 Langkah 3: Isi Data Penandatangan & Download PDF Lembar Pemesanan Resmi
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: '#78350f', marginBottom: '14px' }}>
+                        Lengkapi data di bawah ini untuk mencetak <strong>Lembar Pemesanan Resmi Ber-Kop Koperasi</strong> (lengkap dengan kolom Tanda Tangan Kepala Sekolah & PIC Sekolah).
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label style={{ fontSize: '0.8rem' }}>Nama Pembuat *</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Maria Agustina"
+                            value={docNama}
+                            onChange={(e) => setDocNama(e.target.value)}
+                            style={{ background: '#fff' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label style={{ fontSize: '0.8rem' }}>Email Address *</label>
+                          <input
+                            type="email"
+                            placeholder="nama@bpkpenaburjakarta.or.id"
+                            value={docEmail}
+                            onChange={(e) => setDocEmail(e.target.value)}
+                            style={{ background: '#fff' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label style={{ fontSize: '0.8rem' }}>No. Handphone *</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: 08111111442"
+                            value={docPhone}
+                            onChange={(e) => setDocPhone(e.target.value)}
+                            style={{ background: '#fff' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label style={{ fontSize: '0.8rem' }}>Nama Kepala Sekolah (Tanda Tangan Kiri) *</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Damaris Fajar Dewanti, M.Pd"
+                            value={docKepsekName}
+                            onChange={(e) => setDocKepsekName(e.target.value)}
+                            style={{ background: '#fff' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label style={{ fontSize: '0.8rem' }}>Nama PIC Sekolah (Tanda Tangan Kanan) *</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Maria Agustina"
+                            value={docPicName}
+                            onChange={(e) => setDocPicName(e.target.value)}
+                            style={{ background: '#fff' }}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={!hasUploadedOrderExcel}
+                        onClick={() => handleDownloadOfficialPdf()}
+                        style={{
+                          padding: '10px 18px',
+                          background: hasUploadedOrderExcel ? '#d97706' : '#cbd5e1',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          fontSize: '0.86rem',
+                          cursor: hasUploadedOrderExcel ? 'pointer' : 'not-allowed',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        🖨️ 3. Download PDF Lembar Pemesanan Resmi (Siap Tanda Tangan & Cap)
+                      </button>
+                    </div>
+
+                    {/* LANGKAH 4: DIRECT UPLOAD LEMBAR BERTANDA TANGAN KE GOOGLE DRIVE */}
+                    <div style={{ background: '#f0f9ff', padding: '18px 20px', borderRadius: '12px', border: '1.5px solid #bae6fd' }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0369a1', marginBottom: '6px' }}>
+                        ☁️ Langkah 4: Upload Scan Lembar Pemesanan Bertanda Tangan (Direct ke Google Drive)
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: '#334155', marginBottom: '12px' }}>
+                        Setelah PDF Lembar Pemesanan dicetak, ditandatangani oleh <strong>Kepala Sekolah & PIC Sekolah</strong> serta diberi stempel sekolah, upload file scan/fotonya di bawah ini untuk dikirim langsung ke Google Drive Koperasi.
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => {
+                            setSignedScanFile(e.target.files?.[0] || null);
+                            setGdriveUploadStatus(null);
+                          }}
+                          style={{ padding: '7px', background: '#fff', border: '1px solid #93c5fd', borderRadius: '8px', fontSize: '0.84rem' }}
+                        />
+                        <button
+                          type="button"
+                          disabled={!signedScanFile || isUploadingGdrive}
+                          onClick={handleUploadSignedToGdrive}
+                          style={{
+                            padding: '10px 16px',
+                            background: (!signedScanFile || isUploadingGdrive) ? '#94a3b8' : '#0284c7',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '0.85rem',
+                            cursor: (!signedScanFile || isUploadingGdrive) ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {isUploadingGdrive ? '⏳ Mengupload ke Google Drive...' : '☁️ 4. Upload Direct ke Google Drive'}
+                        </button>
+
+                        {uploadedGdriveUrl && (
+                          <a
+                            href={uploadedGdriveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0284c7', textDecoration: 'underline' }}
+                          >
+                            🔗 Lihat File di Google Drive
+                          </a>
+                        )}
+                      </div>
+
+                      {gdriveUploadStatus && (
+                        <div style={{ marginTop: '10px', fontSize: '0.83rem', fontWeight: 600, color: gdriveUploadStatus.type === 'success' ? '#059669' : '#dc2626' }}>
+                          {gdriveUploadStatus.type === 'success' ? '✅ ' : '⚠️ '}{gdriveUploadStatus.msg}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="school-order-items-table">
@@ -1715,8 +2230,8 @@ const SchoolPemesanan = () => {
                   <button 
                     type="submit" 
                     className="btn-primary"
-                    disabled={(orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order)}
-                    style={((orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order)) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
+                    disabled={(orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order) || (!orderPhase.includes('Tambahan') && !hasUploadedOrderExcel)}
+                    style={((orderPhase === 'Tahap 1' && hasPhase1Order) || (orderPhase === 'Tahap 2' && hasPhase2Order) || (!orderPhase.includes('Tambahan') && !hasUploadedOrderExcel)) ? { background: '#94a3b8', cursor: 'not-allowed' } : {}}
                   >
                     🛒 Tambahkan ke Keranjang
                   </button>

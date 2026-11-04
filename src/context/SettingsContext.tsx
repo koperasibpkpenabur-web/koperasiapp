@@ -9,6 +9,7 @@ interface SettingsContextType {
   tambahanUseDateRule: boolean;
   tambahanStartDate: string;
   tambahanEndDate: string;
+  gdriveWebAppUrl: string;
   updatePhaseStatus: (phase: 1 | 2, isOpen: boolean) => Promise<void>;
   updateTambahanSettings: (settings: {
     isOpen?: boolean;
@@ -17,6 +18,7 @@ interface SettingsContextType {
     startDate?: string;
     endDate?: string;
   }) => Promise<void>;
+  updateGdriveWebAppUrl: (url: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -30,6 +32,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [tambahanUseDateRule, setTambahanUseDateRule] = useState(false);
   const [tambahanStartDate, setTambahanStartDate] = useState('');
   const [tambahanEndDate, setTambahanEndDate] = useState('');
+  const [gdriveWebAppUrl, setGdriveWebAppUrl] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchSettings = useCallback(async () => {
@@ -43,6 +46,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const tDateRule = data.find(d => d.key === 'tambahan_use_date_rule');
       const tStart = data.find(d => d.key === 'tambahan_start_date');
       const tEnd = data.find(d => d.key === 'tambahan_end_date');
+      const gdriveUrl = data.find(d => d.key === 'gdrive_webapp_url');
       
       if (p1) setPhase1Open(p1.value === 'true');
       if (p2) setPhase2Open(p2.value === 'true');
@@ -51,6 +55,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (tDateRule) setTambahanUseDateRule(tDateRule.value === 'true');
       if (tStart) setTambahanStartDate(tStart.value);
       if (tEnd) setTambahanEndDate(tEnd.value);
+      if (gdriveUrl) setGdriveWebAppUrl(gdriveUrl.value || '');
     }
     setIsLoading(false);
   }, []);
@@ -103,6 +108,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateGdriveWebAppUrl = async (url: string) => {
+    await supabase.from('app_settings').upsert({ key: 'gdrive_webapp_url', value: url.trim() });
+    await fetchSettings();
+  };
+
   return (
     <SettingsContext.Provider value={{ 
       phase1Open, 
@@ -112,8 +122,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       tambahanUseDateRule,
       tambahanStartDate,
       tambahanEndDate,
+      gdriveWebAppUrl,
       updatePhaseStatus, 
       updateTambahanSettings,
+      updateGdriveWebAppUrl,
       isLoading 
     }}>
       {children}

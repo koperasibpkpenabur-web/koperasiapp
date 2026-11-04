@@ -23,6 +23,11 @@ const AdminDashboard = () => {
   }[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedSchoolReset, setSelectedSchoolReset] = useState<string>('ALL');
+  const [gdriveUrlInput, setGdriveUrlInput] = useState<string>('');
+
+  useEffect(() => {
+    setGdriveUrlInput(settings.gdriveWebAppUrl || '');
+  }, [settings.gdriveWebAppUrl]);
 
   const fetchStats = async () => {
     try {
@@ -581,6 +586,35 @@ const AdminDashboard = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Google Drive Direct Upload Settings */}
+          <div style={{ flex: '1 1 100%', background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>☁️</span> Integrasi Upload Langsung Lembar Pemesanan ke Google Drive Koperasi
+            </div>
+            <div style={{ fontSize: '0.82rem', color: '#334155', lineHeight: 1.5 }}>
+              Masukkan <strong>Web App URL (Google Apps Script)</strong> milik Google Drive Koperasi agar sekolah dapat meng-upload scan PDF/Foto Lembar Pemesanan yang sudah ditandatangani Kepala Sekolah & PIC langsung ke folder Google Drive Koperasi.
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <input
+                type="url"
+                placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                value={gdriveUrlInput}
+                onChange={(e) => setGdriveUrlInput(e.target.value)}
+                style={{ flex: '1 1 320px', padding: '9px 12px', borderRadius: '8px', border: '1px solid #93c5fd', fontSize: '0.86rem' }}
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  await settings.updateGdriveWebAppUrl(gdriveUrlInput);
+                  alert('URL Google Drive Web App berhasil disimpan!');
+                }}
+                style={{ padding: '9px 18px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                💾 Simpan URL Google Drive
+              </button>
             </div>
           </div>
         </div>

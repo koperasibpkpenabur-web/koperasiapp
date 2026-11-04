@@ -13,6 +13,7 @@ const UserManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -44,8 +45,9 @@ const UserManagement = () => {
   const [sortField, setSortField] = useState<'name' | 'username' | 'role' | 'schoolName' | 'createdAt'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (retryCount = 0) => {
     setLoading(true);
+    setFetchError(null);
     let query = supabase.from('app_users').select('*', { count: 'exact' });
 
     if (search) {
@@ -68,7 +70,13 @@ const UserManagement = () => {
     query = query.range(from, to);
 
     const { data, count, error } = await query;
-    if (!error && data) {
+    if (error) {
+      if (retryCount < 1) {
+        setTimeout(() => fetchUsers(retryCount + 1), 800);
+        return;
+      }
+      setFetchError('Koneksi ke server terputus sementara. Silakan klik Muat Ulang.');
+    } else if (data) {
       setServerUsers(data.map(u => ({
         id: u.id,
         username: u.username,
@@ -427,6 +435,13 @@ const UserManagement = () => {
               ))}
             </tbody>
           </table>
+        ) : fetchError ? (
+          <div className="empty-state" style={{ color: '#b91c1c' }}>
+            <p>⚠️ {fetchError}</p>
+            <button className="btn-primary" onClick={() => fetchUsers()} style={{ marginTop: '8px' }}>
+              🔄 Muat Ulang Data
+            </button>
+          </div>
         ) : (
           <div className="empty-state">
             <p>Tidak ada pengguna ditemukan</p>
