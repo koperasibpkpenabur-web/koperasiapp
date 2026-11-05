@@ -353,16 +353,24 @@ export function ProductProvider({ children }: { children: ReactNode }) {
           autoCodeCount++;
         }
 
-        const existing = products.find(
-          (p) =>
-            (inputCode && p.code.toLowerCase() === inputCode.toLowerCase()) ||
-            (p.name.toLowerCase() === name.toLowerCase() && p.level === level && (p.size || '').trim().toLowerCase() === (size || '').trim().toLowerCase())
-        );
+        // Prioritaskan pencocokan berdasarkan Nama Barang + Jenjang + Ukuran terlebih dahulu
+        // agar ketika user mengubah/menukar Kode Barang di Excel lalu Import ulang,
+        // Kode Barang berhasil diperbarui tanpa tertukar dengan barang lain.
+        const existing =
+          products.find(
+            (p) =>
+              p.name.trim().toLowerCase() === name.toLowerCase() &&
+              p.level === level &&
+              (p.size || '').trim().toLowerCase() === (size || '').trim().toLowerCase()
+          ) ||
+          products.find(
+            (p) => inputCode && p.code.trim().toLowerCase() === inputCode.toLowerCase()
+          );
 
         if (existing) {
           itemsToUpsert.push({
             id: existing.id,
-            code: existing.code,
+            code: inputCode || existing.code,
             name,
             category,
             level,
@@ -373,7 +381,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
             storage_location: storageLocation,
             supplier_name: supplierName,
             school_name: schoolName,
-            stock: existing.stock, // keep existing stock
+            stock: stockIdx !== -1 && row[stockIdx] !== undefined && row[stockIdx] !== '' ? stock : existing.stock,
             min_stock: existing.minStock
           });
           itemsUpdated++;
