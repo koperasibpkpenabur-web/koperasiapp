@@ -56,6 +56,7 @@ const SchoolRekap = () => {
           items: (row.order_items || []).map((it: any) => ({
             name: it.name,
             type: it.type,
+            size: it.size || '',
             quantity: it.quantity,
             priceStudent: Number(it.price_student) || 0,
             priceKopkar: Number(it.price_kopkar) || 0,
@@ -74,6 +75,7 @@ const SchoolRekap = () => {
       phase: string;
       itemName: string;
       itemType: string;
+      size: string;
       quantity: number;
       priceStudent: number;
       priceKopkar: number;
@@ -92,6 +94,7 @@ const SchoolRekap = () => {
             phase: o.orderPhase || '-',
             itemName: it.name,
             itemType: it.type,
+            size: it.size || '',
             quantity: it.quantity,
             priceStudent: it.priceStudent,
             priceKopkar: it.priceKopkar,
@@ -174,6 +177,7 @@ const SchoolRekap = () => {
             phase: o.order_phase || '-',
             itemName: it.name,
             itemType: it.type,
+            size: it.size || '',
             quantity: it.quantity,
             priceStudent: Number(it.price_student) || 0,
             priceKopkar: Number(it.price_kopkar) || 0,
@@ -206,6 +210,7 @@ const SchoolRekap = () => {
       'No': index + 1,
       'Fase Pesanan': row.phase,
       'Nama Barang': row.itemName,
+      'Ukuran': row.size || '-',
       'Kategori': row.itemType,
       'Status Pesanan': row.status.toUpperCase(),
       'Kuantitas (pcs)': row.quantity,
@@ -220,7 +225,7 @@ const SchoolRekap = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     
     const wscols = [
-      { wch: 5 }, { wch: 20 }, { wch: 35 }, { wch: 15 }, { wch: 15 },
+      { wch: 5 }, { wch: 20 }, { wch: 35 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
       { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
       { wch: 20 }, { wch: 20 },
     ];
@@ -246,7 +251,7 @@ const SchoolRekap = () => {
     doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 14, 22);
     doc.text(`Filter Status: ${statusFilter} | Filter Fase: ${phaseFilter}`, 14, 28);
 
-    const tableColumn = ["No", "Fase", "Barang", "Status", "Qty", "H.Kopkar", "T.Kopkar", "Fee", "T.Fee", "H.Siswa", "T.Siswa"];
+    const tableColumn = ["No", "Fase", "Barang", "Ukuran", "Status", "Qty", "H.Kopkar", "T.Kopkar", "Fee", "T.Fee", "H.Siswa", "T.Siswa"];
     const tableRows: any[] = [];
     
     let sumQty = 0;
@@ -264,6 +269,7 @@ const SchoolRekap = () => {
         index + 1,
         row.phase,
         row.itemName,
+        row.size || '-',
         row.status,
         row.quantity,
         formatRupiah(row.priceKopkar),
@@ -278,7 +284,7 @@ const SchoolRekap = () => {
 
     // Add footer row
     tableRows.push([
-      '', '', 'TOTAL', '',
+      '', '', 'TOTAL', '', '',
       sumQty,
       '', formatRupiah(sumKopkar),
       '', formatRupiah(sumFee),
@@ -402,7 +408,7 @@ const SchoolRekap = () => {
                     <strong>{row.phase}</strong>
                   </td>
                   <td>
-                    {row.itemName}
+                    {row.itemName} {row.size ? <span style={{ color: '#2563eb', fontWeight: 600 }}> [{row.size}]</span> : ''}
                     <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
                       {row.itemType} • {row.status}
                     </div>

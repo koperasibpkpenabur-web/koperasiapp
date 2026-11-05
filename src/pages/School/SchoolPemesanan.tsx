@@ -445,7 +445,8 @@ const SchoolPemesanan = () => {
         size: ''
       }]);
     }
-    setNotes('');
+    // Pertahankan catatan jika sudah berisi tautan bukti upload Google Drive
+    setNotes((prev) => (prev.includes('[Bukti GDrive:') ? prev : ''));
     setFormError('');
     setHasUploadedOrderExcel(false);
     setUploadedFileName('');
@@ -892,10 +893,42 @@ const SchoolPemesanan = () => {
     let itemsToSubmit: OrderItem[] = [];
 
     if (!orderPhase.includes('Tambahan')) {
-      matrixItems.forEach(row => {
-        Object.entries(row.sizesInput).forEach(([variantId, qty]) => {
-          if ((qty as number) > 0) {
-            const variant = row.variants.find((v: any) => v.id === variantId);
+      if (hasUploadedOrderExcel && uploadedReviewRows.length > 0) {
+        itemsToSubmit = uploadedReviewRows
+          .filter(r => r.quantity > 0)
+          .map(r => ({
+            productId: r.productId,
+            code: r.code,
+            name: r.name,
+            type: r.type,
+            size: r.size,
+            quantity: r.quantity,
+            priceKopkar: r.priceKopkar,
+            feeSchool: r.feeSchool,
+            priceStudent: r.priceStudent,
+          }));
+      } else {
+        matrixItems.forEach(row => {
+          Object.entries(row.sizesInput).forEach(([variantId, qty]) => {
+            if ((qty as number) > 0) {
+              const variant = row.variants.find((v: any) => v.id === variantId);
+              if (variant) {
+                itemsToSubmit.push({
+                  productId: variant.id,
+                  code: variant.code,
+                  name: row.name,
+                  type: row.type,
+                  priceKopkar: variant.priceKopkar,
+                  feeSchool: variant.feeSchool,
+                  priceStudent: variant.priceStudent,
+                  size: variant.size,
+                  quantity: qty as number
+                });
+              }
+            }
+          });
+          if (row.customQty > 0 && row.customVariantId) {
+            const variant = row.variants.find((v: any) => v.id === row.customVariantId);
             if (variant) {
               itemsToSubmit.push({
                 productId: variant.id,
@@ -906,28 +939,12 @@ const SchoolPemesanan = () => {
                 feeSchool: variant.feeSchool,
                 priceStudent: variant.priceStudent,
                 size: variant.size,
-                quantity: qty as number
+                quantity: row.customQty
               });
             }
           }
         });
-        if (row.customQty > 0 && row.customVariantId) {
-          const variant = row.variants.find((v: any) => v.id === row.customVariantId);
-          if (variant) {
-            itemsToSubmit.push({
-              productId: variant.id,
-              code: variant.code,
-              name: row.name,
-              type: row.type,
-              priceKopkar: variant.priceKopkar,
-              feeSchool: variant.feeSchool,
-              priceStudent: variant.priceStudent,
-              size: variant.size,
-              quantity: row.customQty
-            });
-          }
-        }
-      });
+      }
     } else {
       itemsToSubmit = selectedItems.filter(it => it.quantity > 0 && it.productId); // must have selected a specific size/variant
       for (const item of itemsToSubmit) {
