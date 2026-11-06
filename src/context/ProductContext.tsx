@@ -439,7 +439,27 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const exportProductsCsv = useCallback(() => {
-    const data = products.map((p, idx) => ({
+    const LEVEL_RANK: Record<string, number> = {
+      'TK': 1,
+      'SD': 2,
+      'SMP': 3,
+      'SMA': 4,
+      'SPK-SD': 5,
+      'SPK-SMP': 6,
+      'SPK-SMA': 7,
+      'SEMUA': 8
+    };
+
+    const sortedProducts = [...products].sort((a, b) => {
+      const rankA = LEVEL_RANK[a.level] || 99;
+      const rankB = LEVEL_RANK[b.level] || 99;
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+      return (a.code || '').localeCompare(b.code || '', 'id', { numeric: true, sensitivity: 'base' });
+    });
+
+    const data = sortedProducts.map((p, idx) => ({
       No: idx + 1,
       'Kode Barang': p.code,
       'Nama Barang': p.name,
