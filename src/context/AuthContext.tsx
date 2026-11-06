@@ -22,10 +22,20 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const AUTH_KEY = 'koperasi_auth';
 const MAINTENANCE_KEY = 'synera_maintenance_mode';
 
+// BroadcastChannel untuk sinkronisasi sesi antar-tab selama browser masih terbuka (Opsi C)
+const authChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('sinara_auth_session_channel')
+  : null;
+
 function loadAuth(): User | null {
   try {
-    const raw = localStorage.getItem(AUTH_KEY);
-    if (raw) return JSON.parse(raw);
+    // 1. Baca dari sessionStorage (otomatis hilang saat browser / tab ditutup)
+    const sessionRaw = sessionStorage.getItem(AUTH_KEY);
+    if (sessionRaw) return JSON.parse(sessionRaw);
+
+    // 2. Pembersihan localStorage lama agar sesi tidak tersimpan permanen
+    localStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem('sb-fxyssksvbuxnbthfrpzy-auth-token');
   } catch {
     // corrupted
   }
@@ -44,12 +54,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => loadAuth());
   const [isMaintenanceMode, setIsMaintenanceMode] = useState<boolean>(() => loadMaintenanceMode());
 
+  // Simpan user ke sessionStorage (bukan localStorage) agar otomatis logout saat browser/tab ditutup
   useEffect(() => {
     if (user) {
-      localStorage.setItem(AUTH_KEY, JSON.stringify(user));
-    } else {
+      sessionStorage.setItem(AUTH_KEY, JSON.stringify(user));
       localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem('sb-fxyssksvbuxnbthfrpzy-auth-token');
+    } else {
+      sessionStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem('sb-fxyssksvbuxnbthfrpzy-auth-token');
     }
+  }, [user]);
+
+  // Sinkronisasi sesi antar-tab selama browser masih terbuka
+  useEffect(() => {
+    if (!authChannel) return;
+
+    // Jika tab baru dibuka tanpa sesi di sessionStorage, minta sesi dari tab SINARA lain yang sedang aktif
+    if (!user) {
+      authChannel.postMessage({ type: 'REQUEST_SESSION' });
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      const { type, payload } = event.data || {};
+      if (type === 'REQUEST_SESSION' && user) {
+        // Tab ini punya sesi aktif, kirimkan ke tab baru yang baru dibuka
+        authChannel.postMessage({ type: 'RECEIVE_SESSION', payload: user });
+      } else if (type === 'RECEIVE_SESSION' && payload && !user) {
+        // Tab baru menerima sesi aktif dari tab lain
+        setUser(payload);
+      } else if (type === 'LOGOUT_ALL') {
+        // Jika user logout di satu tab, tab lain ikut logout
+        setUser(null);
+      }
+    };
+
+    authChannel.addEventListener('message', handleMessage);
+    return () => {
+      authChannel.removeEventListener('message', handleMessage);
+    };
   }, [user]);
 
   useEffect(() => {
@@ -177,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       setUser(loggedInUser);
+      authChannel?.postMessage({ type: 'RECEIVE_SESSION', payload: loggedInUser });
       return { success: true };
     },
     [isMaintenanceMode]
@@ -302,6 +347,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       setUser(loggedInUser);
+      authChannel?.postMessage({ type: 'RECEIVE_SESSION', payload: loggedInUser });
       return { success: true };
     },
     [isMaintenanceMode]
@@ -310,7 +356,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     setUser(null);
     try {
+      sessionStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem('sb-fxyssksvbuxnbthfrpzy-auth-token');
       sessionStorage.removeItem('suppressed_notifications');
+      authChannel?.postMessage({ type: 'LOGOUT_ALL' });
     } catch {}
     await supabase.auth.signOut();
   }, []);

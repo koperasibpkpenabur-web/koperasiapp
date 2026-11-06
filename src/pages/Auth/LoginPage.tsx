@@ -118,7 +118,7 @@ const LoginPage = () => {
     setTimeout(async () => {
       const result = await login(username.trim(), password);
       if (result.success) {
-        const users = JSON.parse(localStorage.getItem('koperasi_auth') || '{}');
+        const users = JSON.parse(sessionStorage.getItem('koperasi_auth') || localStorage.getItem('koperasi_auth') || '{}');
         const destination = roleHome[users.role as UserRole] || '/';
         navigate(destination, { replace: true });
       } else {
@@ -168,12 +168,12 @@ const LoginPage = () => {
                 autoComplete="current-password"
               />
             </div>
-            
+
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.85rem', color: '#64748b' }}>
-              <input 
-                type="checkbox" 
-                id="show-password" 
-                checked={showPassword} 
+              <input
+                type="checkbox"
+                id="show-password"
+                checked={showPassword}
                 onChange={() => setShowPassword(!showPassword)}
                 style={{ cursor: 'pointer', width: '16px', height: '16px' }}
               />
@@ -190,17 +190,17 @@ const LoginPage = () => {
               <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>
             </div>
 
-            <button 
-              type="button" 
-              className="login-btn" 
-              style={{ 
-                backgroundColor: '#ffffff', 
-                color: '#334155', 
-                border: '1px solid #cbd5e1', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                gap: '8px' 
+            <button
+              type="button"
+              className="login-btn"
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#334155',
+                border: '1px solid #cbd5e1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
               }}
               onClick={handleGoogleLogin}
               disabled={isLoading || isGoogleLoading}
