@@ -9,8 +9,8 @@ const Topbar = () => {
   const { cartItems, setShowCartModal } = useOrders() || { cartItems: [], setShowCartModal: () => {} };
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login', { replace: true });
   };
 

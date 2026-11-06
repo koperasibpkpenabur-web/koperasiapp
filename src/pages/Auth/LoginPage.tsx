@@ -25,21 +25,57 @@ const LoginPage = () => {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    let isSubscribed = true;
+    let isProcessing = false;
+
+    const processSession = async (session: any) => {
+      if (isProcessing) return;
       const provider = session?.user?.app_metadata?.provider;
-      if (event === 'SIGNED_IN' && session?.user?.email && provider === 'google') {
+      const isGoogle =
+        provider === 'google' ||
+        session?.user?.app_metadata?.providers?.includes('google');
+
+      if (session?.user?.email && isGoogle) {
+        isProcessing = true;
         setIsGoogleLoading(true);
-        const result = await loginWithGoogleData(session.user.email, session.user.id);
-        if (result.success) {
-          navigate('/school', { replace: true });
-        } else {
-          setError(result.error || 'Login Google gagal');
+        setError('');
+        try {
+          const result = await loginWithGoogleData(session.user.email, session.user.id);
+          if (!isSubscribed) return;
+          if (result.success) {
+            navigate('/school', { replace: true });
+          } else {
+            setError(result.error || 'Login Google gagal');
+          }
+        } catch (err: any) {
+          if (isSubscribed) {
+            setError(err.message || 'Terjadi kesalahan saat memproses login Google');
+          }
+        } finally {
+          if (isSubscribed) {
+            setIsGoogleLoading(false);
+            isProcessing = false;
+          }
         }
-        setIsGoogleLoading(false);
+      }
+    };
+
+    // 1. Cek session aktif saat komponen mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (isSubscribed && session) {
+        processSession(session);
+      }
+    });
+
+    // 2. Dengarkan perubahan event auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (isSubscribed && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+        processSession(session);
       }
     });
 
     return () => {
+      isSubscribed = false;
       subscription.unsubscribe();
     };
   }, [loginWithGoogleData, navigate]);
@@ -48,11 +84,17 @@ const LoginPage = () => {
     try {
       setIsGoogleLoading(true);
       setError('');
+      // Bersihkan session lama sebelum memulai OAuth baru agar Google memunculkan pemilih akun
+      await supabase.auth.signOut();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + '/koperasiapp/'
-        }
+          redirectTo: window.location.origin + '/koperasiapp/',
+          queryParams: {
+            prompt: 'select_account',
+            access_type: 'offline',
+          },
+        },
       });
       if (error) throw error;
     } catch (err: any) {
