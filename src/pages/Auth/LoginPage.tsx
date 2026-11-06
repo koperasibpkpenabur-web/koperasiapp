@@ -133,7 +133,7 @@ const LoginPage = () => {
       <div className="login-card split-layout">
         <div className="login-left">
           <img
-            src={`${import.meta.env.BASE_URL}Logo Aksara.png`}
+            src={`${import.meta.env.BASE_URL}logo aksara png rev.png`}
             alt="Logo AKSARA"
             className="login-logo-img"
           />
