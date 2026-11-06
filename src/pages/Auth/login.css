@@ -39,13 +39,17 @@
 }
 
 .login-logo-img {
-  width: 160px;
-  max-width: 100%;
-  height: auto;
+  max-height: 210px;
+  width: auto;
+  max-width: 90%;
   display: block;
   margin: 0 auto;
-  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.22));
+  filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.25));
   transition: transform 0.3s ease;
+}
+
+.login-logo-img:hover {
+  transform: scale(1.03);
 }
 
 .login-left .login-welcome-title {
@@ -83,7 +87,8 @@
     padding: 32px 20px;
   }
   .login-logo-img {
-    width: 125px;
+    max-height: 145px;
+    width: auto;
   }
   .login-left .login-welcome-title {
     font-size: 1.2rem;
