@@ -450,13 +450,77 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       'SEMUA': 8
     };
 
+    const LETTER_SIZE_ORDER = [
+      'SS', 'XS', 'S', 'M', 'L',
+      'XL', 'XXL', '2XL', '2L',
+      '3XL', '3L', '4XL', '4L',
+      '5XL', '5L', '6XL', '6L',
+      '7XL', '7L', '8XL', '8L',
+      '9XL', '9L', '10XL', '10L',
+      'KHUSUS', 'CUSTOM'
+    ];
+
+    const compareSize = (a?: string, b?: string): number => {
+      const sA = (a || '').trim().toUpperCase();
+      const sB = (b || '').trim().toUpperCase();
+
+      if (sA === sB) return 0;
+      if (!sA || sA === 'ALL SIZE' || sA === 'SEMUA UKURAN') return -1;
+      if (!sB || sB === 'ALL SIZE' || sB === 'SEMUA UKURAN') return 1;
+
+      // Cek apakah angka numerik (misal '28', '29', '1', '2')
+      const numA = Number(sA);
+      const numB = Number(sB);
+      const isNumA = !isNaN(numA) && !isNaN(parseFloat(sA)) && String(numA) === sA;
+      const isNumB = !isNaN(numB) && !isNaN(parseFloat(sB)) && String(numB) === sB;
+
+      if (isNumA && isNumB) {
+        return numA - numB;
+      }
+      if (isNumA) return -1;
+      if (isNumB) return 1;
+
+      // Keduanya berupa teks / huruf
+      const idxA = LETTER_SIZE_ORDER.indexOf(sA);
+      const idxB = LETTER_SIZE_ORDER.indexOf(sB);
+
+      if (idxA !== -1 && idxB !== -1) {
+        return idxA - idxB;
+      }
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+
+      return sA.localeCompare(sB, undefined, { numeric: true });
+    };
+
+    // Tentukan kode barang pertama untuk setiap kelompok nama barang agar urutan kelompok stabil
+    const nameFirstCodeMap = new Map<string, string>();
+    products.forEach((p) => {
+      const currentMin = nameFirstCodeMap.get(p.name);
+      if (!currentMin || (p.code && p.code.localeCompare(currentMin, 'id', { numeric: true }) < 0)) {
+        nameFirstCodeMap.set(p.name, p.code || '');
+      }
+    });
+
     const sortedProducts = [...products].sort((a, b) => {
+      // 1. Kunci Utama: Tingkatan Jenjang
       const rankA = LEVEL_RANK[a.level] || 99;
       const rankB = LEVEL_RANK[b.level] || 99;
       if (rankA !== rankB) {
         return rankA - rankB;
       }
-      return (a.code || '').localeCompare(b.code || '', 'id', { numeric: true, sensitivity: 'base' });
+
+      // 2. Kunci Kedua: Kelompok Nama Barang
+      if (a.name !== b.name) {
+        const codeA = nameFirstCodeMap.get(a.name) || a.code || '';
+        const codeB = nameFirstCodeMap.get(b.name) || b.code || '';
+        const codeCompare = codeA.localeCompare(codeB, 'id', { numeric: true, sensitivity: 'base' });
+        if (codeCompare !== 0) return codeCompare;
+        return a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' });
+      }
+
+      // 3. Kunci Ketiga: Urutan Ukuran (Size)
+      return compareSize(a.size, b.size);
     });
 
     const data = sortedProducts.map((p, idx) => ({
