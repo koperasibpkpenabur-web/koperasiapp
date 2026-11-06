@@ -2,8 +2,17 @@ import { useState, type FormEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
 import { useProducts } from '../../context/ProductContext';
+import { generateReturnPdf } from '../../utils/returnPdf';
 import type { ReturnRequest } from '../../types';
 import '../School/returns.css';
+
+const formatRupiah = (num: number) => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+  }).format(num);
+};
 
 const KopkarReturn = () => {
   const { user } = useAuth();
@@ -18,6 +27,21 @@ const KopkarReturn = () => {
   const [acceptingReturn, setAcceptingReturn] = useState<ReturnRequest | null>(null);
   const [rejectingReturn, setRejectingReturn] = useState<ReturnRequest | null>(null);
   const [viewingReturn, setViewingReturn] = useState<ReturnRequest | null>(null);
+
+  // Print Return Document states
+  const [printingReturn, setPrintingReturn] = useState<ReturnRequest | null>(null);
+  const [printRecipient, setPrintRecipient] = useState<string>('');
+  const [printSender, setPrintSender] = useState<string>('');
+  const [printDate, setPrintDate] = useState<string>('');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+
+  const handleOpenPrintModal = (ret: ReturnRequest) => {
+    const today = new Date().toISOString().split('T')[0];
+    setPrintingReturn(ret);
+    setPrintRecipient(ret.confirmedByName ? `${ret.confirmedByName} / Koperasi BPK PENABUR` : (user?.name ? `${user.name} / Koperasi BPK PENABUR` : 'Pengurus / Bagian Logistik Koperasi'));
+    setPrintSender(ret.schoolName || 'PIC Sekolah');
+    setPrintDate(ret.departureDate && ret.departureDate !== '-' ? ret.departureDate : today);
+  };
 
   // Acceptance Form State
   const todayStr = new Date().toISOString().split('T')[0];
@@ -458,6 +482,17 @@ const KopkarReturn = () => {
                     🔍 Lihat Rincian
                   </button>
 
+                  {(isConfirmed || isSent || isReceived) && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => handleOpenPrintModal(ret)}
+                      style={{ padding: '6px 12px', borderRadius: '6px', border: '1.5px solid #0284c7', color: '#0284c7', background: '#fff', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      🖨️ Cetak Tanda Terima
+                    </button>
+                  )}
+
                   {isPending && (
                     <>
                       <button
@@ -779,7 +814,21 @@ const KopkarReturn = () => {
               </div>
             </div>
 
-            <div className="return-modal-footer">
+            <div className="return-modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              {(viewingReturn.status === 'koperasi_confirmed' || viewingReturn.status === 'sekolah_dikirim' || viewingReturn.status === 'koperasi_diterima') ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    const ret = viewingReturn;
+                    setViewingReturn(null);
+                    handleOpenPrintModal(ret);
+                  }}
+                  style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid #0284c7', color: '#0284c7', background: '#fff', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  🖨️ Cetak Tanda Terima Retur
+                </button>
+              ) : <div />}
               <button
                 type="button"
                 className="btn-new-return"
@@ -787,6 +836,206 @@ const KopkarReturn = () => {
               >
                 Tutup
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POP-UP MODAL: Cetak Dokumen Tanda Terima Retur */}
+      {printingReturn && (
+        <div className="return-modal-overlay">
+          <div className="return-modal-card" style={{ maxWidth: '680px' }}>
+            <div className="return-modal-header" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.3rem' }}>🖨️</span>
+                <h3 style={{ margin: 0, fontSize: '1.15rem' }}>Cetak Dokumen Tanda Terima Retur</h3>
+              </div>
+              <button
+                type="button"
+                className="btn-modal-close"
+                onClick={() => setPrintingReturn(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="return-modal-body" style={{ maxHeight: '72vh', overflowY: 'auto', padding: '20px 24px' }}>
+              <div style={{ background: '#f8fafc', padding: '14px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px', fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
+                ℹ️ Dokumen tanda terima fisik barang retur sekolah. Anda dapat mengedit nama penerima atau pengirim sebelum mengunduh atau mencetak dokumen.
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '18px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '5px' }}>
+                    1. Kepada Yth (Tujuan di Koperasi):
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={printRecipient}
+                    onChange={(e) => setPrintRecipient(e.target.value)}
+                    placeholder="Contoh: Pengurus / Bagian Logistik Koperasi"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '5px' }}>
+                    2. Pengirim Retur (Nama PIC Sekolah):
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={printSender}
+                    onChange={(e) => setPrintSender(e.target.value)}
+                    placeholder="Contoh: Budi Santoso (PIC Sekolah)"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '5px' }}>
+                    3. Tanggal Dokumen Retur:
+                  </label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={printDate}
+                    onChange={(e) => setPrintDate(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '5px' }}>
+                    No. Dokumen Retur:
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={printingReturn.id}
+                    disabled
+                    style={{ background: '#f1f5f9', color: '#64748b' }}
+                  />
+                </div>
+              </div>
+
+              {/* Tabel Ringkasan Barang Retur */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+                  Preview Barang yang Terlampir:
+                </label>
+                <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead>
+                      <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
+                        <th style={{ padding: '8px 10px', width: '35px', textAlign: 'center' }}>No</th>
+                        <th style={{ padding: '8px 10px' }}>Nama Barang</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'center' }}>Size</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'center' }}>Qty</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Harga Satuan</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Jumlah</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {printingReturn.items.map((it, idx) => {
+                        const prod = products.find(p => p.id === it.productId);
+                        const size = prod?.size || (it as any).size || '-';
+                        const price = prod?.priceKopkar || 0;
+                        const subtotal = (it.quantity || 0) * price;
+                        return (
+                          <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>{idx + 1}</td>
+                            <td style={{ padding: '8px 10px', fontWeight: 600 }}>{it.productName}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>{size}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>{it.quantity} Pcs</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right' }}>{formatRupiah(price)}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{formatRupiah(subtotal)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: '#f8fafc', fontWeight: 700 }}>
+                        <td colSpan={3} style={{ padding: '8px 10px', textAlign: 'center' }}>TOTAL</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                          {printingReturn.items.reduce((sum, it) => sum + (it.quantity || 0), 0)} Pcs
+                        </td>
+                        <td></td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', color: '#0369a1' }}>
+                          {formatRupiah(
+                            printingReturn.items.reduce((sum, it) => {
+                              const prod = products.find(p => p.id === it.productId);
+                              return sum + ((it.quantity || 0) * (prod?.priceKopkar || 0));
+                            }, 0)
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="return-modal-footer" style={{ borderTop: '1px solid #e2e8f0', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn-view-detail"
+                onClick={() => setPrintingReturn(null)}
+              >
+                ✕ Batal
+              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={isGeneratingPdf}
+                  onClick={async () => {
+                    setIsGeneratingPdf(true);
+                    try {
+                      await generateReturnPdf({
+                        ret: printingReturn,
+                        schoolName: printingReturn.schoolName || 'Sekolah BPK PENABUR',
+                        recipientName: printRecipient,
+                        senderName: printSender,
+                        documentDate: printDate,
+                        products,
+                        action: 'print',
+                      });
+                    } catch (err: any) {
+                      alert('Gagal membuka cetak: ' + (err?.message || 'Error'));
+                    } finally {
+                      setIsGeneratingPdf(false);
+                    }
+                  }}
+                  style={{ padding: '9px 16px', borderRadius: '8px', border: '1.5px solid #0284c7', color: '#0284c7', background: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  🖨️ Cetak Langsung
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={isGeneratingPdf}
+                  onClick={async () => {
+                    setIsGeneratingPdf(true);
+                    try {
+                      await generateReturnPdf({
+                        ret: printingReturn,
+                        schoolName: printingReturn.schoolName || 'Sekolah BPK PENABUR',
+                        recipientName: printRecipient,
+                        senderName: printSender,
+                        documentDate: printDate,
+                        products,
+                        action: 'download',
+                      });
+                    } catch (err: any) {
+                      alert('Gagal mendownload PDF: ' + (err?.message || 'Error'));
+                    } finally {
+                      setIsGeneratingPdf(false);
+                    }
+                  }}
+                  style={{ padding: '9px 18px', borderRadius: '8px', background: '#0284c7', color: '#fff', border: 'none', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  {isGeneratingPdf ? '⏳ Memproses...' : '📄 Download PDF (A4)'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
