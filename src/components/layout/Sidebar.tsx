@@ -19,11 +19,11 @@ const Sidebar = () => {
       <div className="sidebar-header">
         <div className="sidebar-logo-wrap" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
-            <img src={`${import.meta.env.BASE_URL}logo-synera.png`} alt="SINARA" className="sidebar-logo" style={{ height: '60px', width: 'auto', filter: 'grayscale(100%) brightness(1.2)' }} />
+            <img src={`${import.meta.env.BASE_URL}Logo Aksara.png`} alt="AKSARA" className="sidebar-logo" style={{ height: '60px', width: 'auto' }} />
             <img src={`${import.meta.env.BASE_URL}logo_koperasi2.png`} alt="Koperasi" className="sidebar-logo" style={{ height: '60px', width: 'auto', filter: 'grayscale(100%) brightness(1.2)' }} />
           </div>
-          <h1 className="sidebar-logo-text" style={{ marginTop: '12px', marginBottom: '2px', fontSize: '1.4rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.05em', lineHeight: 1 }}>SINARA</h1>
-          <p className="sidebar-logo-subtext" style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600, letterSpacing: '0.02em', textTransform: 'uppercase' }}>Sinergi Administrasi Koperasi</p>
+          <h1 className="sidebar-logo-text" style={{ marginTop: '12px', marginBottom: '2px', fontSize: '1.4rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.05em', lineHeight: 1 }}>AKSARA</h1>
+          <p className="sidebar-logo-subtext" style={{ margin: 0, fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600, letterSpacing: '0.02em', textTransform: 'uppercase', textAlign: 'center' }}>Akses Sistem Administrasi Koperasi BPK PENABUR</p>
         </div>
         <div className="sidebar-title-row">
           <button
@@ -268,7 +268,7 @@ const Sidebar = () => {
       {/* Sidebar Footer */}
       <div className="sidebar-bottom-section">
         <div className="sidebar-footer-brand">
-          © 2026 SINARA • Sinergi Administrasi Koperasi
+          © 2026 AKSARA • Akses Sistem Administrasi Koperasi BPK PENABUR
         </div>
       </div>
     </aside>

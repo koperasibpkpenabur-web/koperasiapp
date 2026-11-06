@@ -8,7 +8,7 @@
     "dev": "vite",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
-    "build": "tsc -b && vite build && node -e \"require('fs').copyFileSync('dist/index.html', 'dist/404.html')\"",
+    "build": "tsc -b && vite build && node -e \"const fs = require('fs'); fs.copyFileSync('dist/index.html', 'dist/404.html'); try { if (fs.existsSync('dist/Logo Aksara.png')) fs.copyFileSync('dist/Logo Aksara.png', 'dist/Logo AKSARA.png'); } catch(e){}\"",
     "lint": "oxlint",
     "preview": "vite preview"
   },

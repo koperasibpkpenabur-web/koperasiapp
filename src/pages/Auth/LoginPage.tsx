@@ -133,11 +133,11 @@ const LoginPage = () => {
       <div className="login-card split-layout">
         <div className="login-left">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-            <img src={`${import.meta.env.BASE_URL}logo-synera1.png`} alt="Logo SINARA" className="login-logo-img" style={{ margin: 0, width: '100px', height: 'auto' }} />
+            <img src={`${import.meta.env.BASE_URL}Logo Aksara.png`} alt="Logo AKSARA" className="login-logo-img" style={{ margin: 0, width: '100px', height: 'auto' }} />
             <img src={`${import.meta.env.BASE_URL}logo_koperasi2.png`} alt="Logo Koperasi" className="login-logo-img" style={{ margin: 0, width: '100px', height: 'auto' }} />
           </div>
-          <h1 className="login-welcome-title">Welcome to SINARA</h1>
-          <p className="login-tagline">Sinergi Administrasi Koperasi</p>
+          <h1 className="login-welcome-title">Welcome to AKSARA PENABUR</h1>
+          <p className="login-tagline">Akses Sistem Administrasi Koperasi BPK PENABUR</p>
         </div>
 
         <div className="login-right">
@@ -211,7 +211,7 @@ const LoginPage = () => {
           </form>
 
           <div className="login-footer">
-            © 2026 SINARA • Sinergi Administrasi Koperasi
+            © 2026 AKSARA • Akses Sistem Administrasi Koperasi BPK PENABUR
           </div>
         </div>
       </div>
