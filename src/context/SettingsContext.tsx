@@ -11,6 +11,7 @@ interface SettingsContextType {
   tambahanEndDate: string;
   gdriveWebAppUrl: string;
   gdriveFolderUrl: string;
+  gdrivePaymentFolderUrl: string;
   updatePhaseStatus: (phase: 1 | 2, isOpen: boolean) => Promise<void>;
   updateTambahanSettings: (settings: {
     isOpen?: boolean;
@@ -19,7 +20,7 @@ interface SettingsContextType {
     startDate?: string;
     endDate?: string;
   }) => Promise<void>;
-  updateGdriveWebAppUrl: (url: string, folderUrl?: string) => Promise<void>;
+  updateGdriveWebAppUrl: (url: string, folderUrl?: string, paymentFolderUrl?: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -35,6 +36,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [tambahanEndDate, setTambahanEndDate] = useState('');
   const [gdriveWebAppUrl, setGdriveWebAppUrl] = useState('');
   const [gdriveFolderUrl, setGdriveFolderUrl] = useState('');
+  const [gdrivePaymentFolderUrl, setGdrivePaymentFolderUrl] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchSettings = useCallback(async () => {
@@ -50,6 +52,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const tEnd = data.find(d => d.key === 'tambahan_end_date');
       const gdriveUrl = data.find(d => d.key === 'gdrive_webapp_url');
       const gdriveFolder = data.find(d => d.key === 'gdrive_folder_url');
+      const gdrivePaymentFolder = data.find(d => d.key === 'gdrive_payment_folder_url');
       
       if (p1) setPhase1Open(p1.value === 'true');
       if (p2) setPhase2Open(p2.value === 'true');
@@ -60,6 +63,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (tEnd) setTambahanEndDate(tEnd.value);
       if (gdriveUrl) setGdriveWebAppUrl(gdriveUrl.value || '');
       if (gdriveFolder) setGdriveFolderUrl(gdriveFolder.value || '');
+      if (gdrivePaymentFolder) setGdrivePaymentFolderUrl(gdrivePaymentFolder.value || '');
     }
     setIsLoading(false);
   }, []);
@@ -112,12 +116,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateGdriveWebAppUrl = async (url: string, folderUrl?: string) => {
+  const updateGdriveWebAppUrl = async (url: string, folderUrl?: string, paymentFolderUrl?: string) => {
     const upserts: { key: string; value: string }[] = [
       { key: 'gdrive_webapp_url', value: url.trim() },
     ];
     if (folderUrl !== undefined) {
       upserts.push({ key: 'gdrive_folder_url', value: folderUrl.trim() });
+    }
+    if (paymentFolderUrl !== undefined) {
+      upserts.push({ key: 'gdrive_payment_folder_url', value: paymentFolderUrl.trim() });
     }
     await supabase.from('app_settings').upsert(upserts);
     await fetchSettings();
@@ -134,6 +141,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       tambahanEndDate,
       gdriveWebAppUrl,
       gdriveFolderUrl,
+      gdrivePaymentFolderUrl,
       updatePhaseStatus, 
       updateTambahanSettings,
       updateGdriveWebAppUrl,

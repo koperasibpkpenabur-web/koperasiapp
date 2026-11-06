@@ -346,6 +346,35 @@ const KopkarPesanan = () => {
       return;
     }
 
+    // Validasi stok fisik di gudang Koperasi sebelum membuat Surat Jalan
+    const kopkarItemsToCheck = shippingOrder.items
+      .map((it, idx) => ({ it, qty: shippedKopkarQuantities[idx] || 0 }))
+      .filter(x => x.qty > 0 && x.it.productId);
+
+    if (kopkarItemsToCheck.length > 0) {
+      const pIds = kopkarItemsToCheck.map(x => x.it.productId!);
+      const { data: prods, error: pError } = await supabase.from('products').select('id, name, size, stock').in('id', pIds);
+      if (pError) {
+        setShipError('Gagal memeriksa stok gudang Koperasi: ' + pError.message);
+        return;
+      }
+
+      const outOfStock: string[] = [];
+      for (const check of kopkarItemsToCheck) {
+        const p = prods?.find(prod => prod.id === check.it.productId);
+        const currentStock = p ? (p.stock || 0) : 0;
+        if (currentStock < check.qty) {
+          const label = `${check.it.name}${check.it.size ? ` [Ukuran: ${check.it.size}]` : ''}`;
+          outOfStock.push(`• ${label} (Dibutuhkan: ${check.qty} pcs, Stok Gudang: ${currentStock} pcs)`);
+        }
+      }
+
+      if (outOfStock.length > 0) {
+        setShipError(`Stok fisik di gudang Koperasi tidak mencukupi:\n${outOfStock.join('\n')}\n\nHarap sesuaikan kuantitas kirim dari Koperasi atau lakukan restock.`);
+        return;
+      }
+    }
+
     const stafName = user ? user.name : 'Karyawan Koperasi';
     const shippingData: ShippingInfo = {
       shippedAtDate: shipDate,
@@ -718,8 +747,13 @@ const KopkarPesanan = () => {
                                 </button>
                                 <button className="btn-ship" onClick={async () => {
                                   if(window.confirm('Kurir sudah berangkat? Konfirmasi kirim barang dan potong stok?')) {
-                                    await shipOrder(order.id, order.shippingInfo!);
-                                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'shipped' } : o));
+                                    try {
+                                      await shipOrder(order.id, order.shippingInfo!);
+                                      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'shipped' } : o));
+                                      alert('Pengiriman berhasil dikonfirmasi dan stok gudang koperasi telah dipotong!');
+                                    } catch (err: any) {
+                                      alert(err?.message || 'Gagal mengirim barang.');
+                                    }
                                   }
                                 }} style={{ backgroundColor: '#10b981' }}>
                                   🚚 Konfirmasi Kirim
@@ -855,8 +889,13 @@ const KopkarPesanan = () => {
                           </button>
                           <button className="btn-ship full-width-touch" onClick={async () => {
                             if(window.confirm('Kurir sudah berangkat? Konfirmasi kirim barang dan potong stok?')) {
-                              await shipOrder(order.id, order.shippingInfo!);
-                              setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'shipped' } : o));
+                              try {
+                                await shipOrder(order.id, order.shippingInfo!);
+                                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'shipped' } : o));
+                                alert('Pengiriman berhasil dikonfirmasi dan stok gudang koperasi telah dipotong!');
+                              } catch (err: any) {
+                                alert(err?.message || 'Gagal mengirim barang.');
+                              }
                             }
                           }} style={{ backgroundColor: '#10b981' }}>
                             🚚 Konfirmasi Kirim

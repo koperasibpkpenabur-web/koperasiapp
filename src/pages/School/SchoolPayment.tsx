@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useOrders } from '../../context/OrderContext';
+import { useSettings } from '../../context/SettingsContext';
 import './school.css';
 
 const SchoolPayment = () => {
   const { user } = useAuth();
   const { uploadPaymentReceipt } = useOrders();
+  const { gdriveWebAppUrl, gdrivePaymentFolderUrl, gdriveFolderUrl } = useSettings();
 
   const [unpaidOrders, setUnpaidOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,32 +73,47 @@ const SchoolPayment = () => {
       }
       
       try {
-        const params = new URLSearchParams();
-        params.append('data', base64Str);
-        params.append('mimeType', file.type);
-        // Use the first ID as part of the filename, just for reference
-        params.append('filename', `Bukti_Transfer_Batch_${uploadingIds[0]}_${file.name}`);
+        const targetUrl = gdriveWebAppUrl || GAS_URL;
+        if (!targetUrl) {
+          alert('URL Google Drive Web App belum diatur oleh Admin Koperasi di menu Admin Dashboard.');
+          setUploadingIds([]);
+          setIsUploading(false);
+          return;
+        }
 
-        const response = await fetch(GAS_URL, {
+        const targetFolder = gdrivePaymentFolderUrl || gdriveFolderUrl || '';
+        const schoolLabel = user?.schoolName || user?.name || 'Sekolah';
+        const customFileName = `Bukti_Transfer_${schoolLabel}_Batch_${uploadingIds[0]}_${file.name}`;
+
+        const response = await fetch(targetUrl, {
           method: 'POST',
-          body: params,
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            fileName: customFileName,
+            mimeType: file.type || 'image/jpeg',
+            base64Data: base64Str,
+            folderId: targetFolder,
+            schoolName: schoolLabel,
+            orderIds: uploadingIds,
+          }),
         });
         
         const result = await response.json();
-        if (result.status === 'success') {
+        const fileUrl = result.fileUrl || result.url;
+        if ((result.success || result.status === 'success') && fileUrl) {
           // Update all selected orders
           for (const orderId of uploadingIds) {
-            await uploadPaymentReceipt(orderId, result.url);
+            await uploadPaymentReceipt(orderId, fileUrl);
           }
           fetchUnpaidOrders(); // Refresh table
           setSelectedOrderIds([]); // Clear selection
           alert(`Bukti transfer berhasil diupload untuk ${uploadingIds.length} pesanan!`);
         } else {
-          alert('Gagal upload: ' + result.message);
+          alert('Gagal upload: ' + (result.error || result.message || 'Terjadi kesalahan sistem'));
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        alert('Terjadi kesalahan koneksi saat mengupload bukti transfer.');
+        alert('Terjadi kesalahan koneksi saat mengupload bukti transfer: ' + (err.message || 'Koneksi error'));
       } finally {
         setUploadingIds([]);
         setIsUploading(false);
@@ -116,7 +133,7 @@ const SchoolPayment = () => {
       .select('*, order_items(*)', { count: 'exact' })
       .eq('school_user_id', user.id)
       .eq('payment_status', 'unpaid')
-      .not('status', 'in', '("cancelled","rejected","cancellation_requested")');
+      .eq('status', 'received');
 
     // Pagination
     const from = (currentPage - 1) * itemsPerPage;

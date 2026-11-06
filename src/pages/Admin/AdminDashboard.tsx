@@ -25,11 +25,13 @@ const AdminDashboard = () => {
   const [selectedSchoolReset, setSelectedSchoolReset] = useState<string>('ALL');
   const [gdriveUrlInput, setGdriveUrlInput] = useState<string>('');
   const [gdriveFolderInput, setGdriveFolderInput] = useState<string>('');
+  const [gdrivePaymentFolderInput, setGdrivePaymentFolderInput] = useState<string>('');
 
   useEffect(() => {
     setGdriveUrlInput(settings.gdriveWebAppUrl || '');
     setGdriveFolderInput(settings.gdriveFolderUrl || '');
-  }, [settings.gdriveWebAppUrl, settings.gdriveFolderUrl]);
+    setGdrivePaymentFolderInput(settings.gdrivePaymentFolderUrl || '');
+  }, [settings.gdriveWebAppUrl, settings.gdriveFolderUrl, settings.gdrivePaymentFolderUrl]);
 
   const extractDriveFolderId = (rawUrlOrId: string) => {
     const clean = (rawUrlOrId || '').trim();
@@ -603,18 +605,18 @@ const AdminDashboard = () => {
           {/* Google Drive Direct Upload Settings */}
           <div style={{ flex: '1 1 100%', background: '#f0f9ff', padding: '18px', borderRadius: '12px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>☁️</span> Integrasi Upload Langsung Lembar Pemesanan ke Google Drive Koperasi
+              <span>☁️</span> Integrasi Upload Google Drive Koperasi (Lembar Pemesanan & Bukti Pelunasan)
             </div>
             <div style={{ fontSize: '0.82rem', color: '#334155', lineHeight: 1.5 }}>
-              1. Tempel <strong>Link Folder Google Drive Tujuan</strong> di kolom pertama, lalu klik <strong>Salin Kode Google Apps Script</strong>.<br />
-              2. Pasang kode tersebut di <a href="https://script.google.com" target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', fontWeight: 700 }}>script.google.com</a> (Pilih <em>Deploy &gt; New deployment &gt; Web app &gt; Execute as: Me &gt; Who has access: Anyone</em>).<br />
-              3. Tempel <strong>Web App URL (berakhiran /exec)</strong> hasil deploy ke kolom kedua, lalu klik <strong>Simpan Pengaturan Google Drive</strong>.
+              1. Masukkan <strong>Link Folder Google Drive Pemesanan</strong> dan (opsional) <strong>Link Folder Bukti Pelunasan Tagihan</strong>.<br />
+              2. Klik tombol <strong>Salin Kode Google Apps Script</strong>, lalu pasang di <a href="https://script.google.com" target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', fontWeight: 700 }}>script.google.com</a> (Pilih <em>Deploy &gt; New deployment &gt; Web app &gt; Execute as: Me &gt; Who has access: Anyone</em>).<br />
+              3. Cukup gunakan <strong>1 Web App URL</strong> hasil deploy untuk mengunggah otomatis file pemesanan maupun bukti pelunasan ke folder masing-masing.
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0c4a6e', marginBottom: '4px' }}>
-                  1. Link Folder Google Drive Tujuan (Tempat File Disimpan):
+                  1. Link Folder Google Drive Lembar Pemesanan (Tahap 1 & 2):
                 </label>
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <input
@@ -627,7 +629,7 @@ const AdminDashboard = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const fid = extractDriveFolderId(gdriveFolderInput) || 'ISI_DENGAN_FOLDER_ID_ANDA';
+                      const fid = extractDriveFolderId(gdriveFolderInput) || extractDriveFolderId(gdrivePaymentFolderInput) || 'ISI_DENGAN_FOLDER_ID_ANDA';
                       const scriptCode = `const DEFAULT_FOLDER_ID = '${fid}';
 
 function extractId(raw) {
@@ -640,31 +642,53 @@ function extractId(raw) {
 
 function doPost(e) {
   try {
-    var payload = JSON.parse(e.postData.contents);
-    var folderId = extractId(payload.folderId || DEFAULT_FOLDER_ID);
+    var payload = {};
+    if (e.postData && e.postData.contents) {
+      try {
+        payload = JSON.parse(e.postData.contents);
+      } catch (errJson) {
+        payload = e.parameter || {};
+      }
+    } else if (e.parameter) {
+      payload = e.parameter;
+    }
+
+    var rawFolderId = payload.folderId || DEFAULT_FOLDER_ID;
+    var folderId = extractId(rawFolderId);
     var folder = DriveApp.getFolderById(folderId);
-    var decodedBytes = Utilities.base64Decode(payload.base64Data);
-    var blob = Utilities.newBlob(decodedBytes, payload.mimeType || 'application/pdf', payload.fileName);
+
+    var b64 = payload.base64Data || payload.data;
+    var decodedBytes = Utilities.base64Decode(b64);
+    var fileName = payload.fileName || payload.filename || ('Upload_' + new Date().getTime());
+    var mimeType = payload.mimeType || 'application/octet-stream';
+    var blob = Utilities.newBlob(decodedBytes, mimeType, fileName);
     var file = folder.createFile(blob);
+
     try {
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     } catch (shareErr) {}
+
+    var fileUrl = file.getUrl();
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
+      status: 'success',
       fileId: file.getId(),
-      fileUrl: file.getUrl(),
+      fileUrl: fileUrl,
+      url: fileUrl,
       folderUrl: folder.getUrl(),
       folderName: folder.getName()
     })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({
       success: false,
-      error: err.toString()
+      status: 'error',
+      error: err.toString(),
+      message: err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }`;
                       navigator.clipboard.writeText(scriptCode);
-                      alert(`Kode Google Apps Script (dengan Folder ID: ${fid}) berhasil disalin ke Clipboard!\n\nSilakan Paste di script.google.com lalu klik Deploy > New deployment > Web app.`);
+                      alert(`Kode Google Apps Script berhasil disalin ke Clipboard!\n\nDefault Folder ID: ${fid}\nScript ini otomatis mendukung folder Lembar Pemesanan & Bukti Pelunasan secara terpisah.\n\nSilakan Paste di script.google.com lalu klik Deploy > New deployment > Web app.`);
                     }}
                     style={{ padding: '9px 14px', backgroundColor: '#ffffff', color: '#0369a1', border: '1.5px solid #0284c7', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
                   >
@@ -675,7 +699,20 @@ function doPost(e) {
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0c4a6e', marginBottom: '4px' }}>
-                  2. Web App URL (Google Apps Script yang berakhiran /exec):
+                  2. Link Folder Google Drive Bukti Pelunasan Tagihan Sekolah:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: https://drive.google.com/drive/folders/... (Jika dikosongkan, bukti transfer akan disimpan di folder pemesanan di atas)"
+                  value={gdrivePaymentFolderInput}
+                  onChange={(e) => setGdrivePaymentFolderInput(e.target.value)}
+                  style={{ width: '100%', maxWidth: '640px', padding: '9px 12px', borderRadius: '8px', border: '1px solid #93c5fd', fontSize: '0.85rem', background: '#fff', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0c4a6e', marginBottom: '4px' }}>
+                  3. Web App URL (Google Apps Script yang berakhiran /exec):
                 </label>
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <input
@@ -689,12 +726,12 @@ function doPost(e) {
                     type="button"
                     onClick={async () => {
                       if (gdriveUrlInput.includes('drive.google.com/drive/folders')) {
-                        alert('PERHATIAN:\nLink yang Anda masukkan di kolom ke-2 adalah Link Folder Google Drive biasa, bukan Web App URL dari Google Apps Script (https://script.google.com/macros/s/.../exec).\n\nSaya pindahkan Link Folder tersebut ke kolom 1. Silakan pasang juga Web App URL dari script.google.com di kolom 2 agar file benar-benar ter-upload otomatis ke dalam folder tersebut.');
+                        alert('PERHATIAN:\nLink yang Anda masukkan di kolom Web App URL adalah Link Folder Google Drive biasa, bukan Web App URL dari Google Apps Script (https://script.google.com/macros/s/.../exec).\n\nSaya pindahkan Link Folder tersebut ke kolom 1. Silakan pasang juga Web App URL dari script.google.com di kolom 3 agar file benar-benar ter-upload otomatis ke dalam folder tersebut.');
                         setGdriveFolderInput(gdriveUrlInput);
-                        await settings.updateGdriveWebAppUrl(gdriveUrlInput, gdriveUrlInput);
+                        await settings.updateGdriveWebAppUrl(gdriveUrlInput, gdriveUrlInput, gdrivePaymentFolderInput);
                         return;
                       }
-                      await settings.updateGdriveWebAppUrl(gdriveUrlInput, gdriveFolderInput);
+                      await settings.updateGdriveWebAppUrl(gdriveUrlInput, gdriveFolderInput, gdrivePaymentFolderInput);
                       alert('Pengaturan Google Drive berhasil disimpan!');
                     }}
                     style={{ padding: '9px 18px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
