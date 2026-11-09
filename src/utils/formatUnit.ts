@@ -18,6 +18,12 @@ export function resolveItemUnit(
     if (rawUnit === 'pcs' || rawUnit === 'pc' || rawUnit === 'piece' || rawUnit === 'pieces') {
       return quantity === 1 ? 'pc' : 'pcs';
     }
+    if (rawUnit === 'pasang' || rawUnit === 'psg' || rawUnit === 'pair' || rawUnit === 'pairs') {
+      return 'psg';
+    }
+    if (rawUnit === 'pack' || rawUnit === 'pak') {
+      return 'pack';
+    }
     return item.unit!.trim();
   }
 
@@ -52,3 +58,4 @@ export function getDefaultUnit(name: string = '', category: string = 'seragam'):
   }
   return 'pcs';
 }
+

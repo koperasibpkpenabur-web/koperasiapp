@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { Order, OrderItem, ShippingInfo, ReceiveInfo, CancellationInfo } from '../types';
 import { supabase } from '../lib/supabase';
+import { resolveItemUnit } from '../utils/formatUnit';
 
 interface OrderContextType {
   createOrder: (orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>, initialStatus?: import('../types').OrderStatus) => Promise<{ success: boolean; newOrderId?: string; error?: string }>;
@@ -695,6 +696,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           type: item.type,
           quantity: item.quantity,
           size: item.size,
+          unit: item.unit || resolveItemUnit(item, item.quantity),
           priceKopkar: Number(item.price_kopkar),
           feeSchool: Number(item.fee_school),
           priceStudent: Number(item.price_student)

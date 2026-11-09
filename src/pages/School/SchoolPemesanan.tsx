@@ -10,6 +10,7 @@ import { useReturns } from '../../context/ReturnContext';
 import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, OrderItem, SchoolLevel } from '../../types';
+import { resolveItemUnit } from '../../utils/formatUnit';
 import './school.css';
 
 // Urutan ukuran standar dari terkecil ke terbesar
@@ -154,6 +155,7 @@ const SchoolPemesanan = () => {
            type: it.type,
            size: it.size,
            gender: it.gender,
+           unit: it.unit || resolveItemUnit(it, it.quantity),
            quantity: it.quantity,
            priceKopkar: Number(it.price_kopkar),
            feeSchool: Number(it.fee_school),
@@ -262,6 +264,7 @@ const SchoolPemesanan = () => {
     name: string;
     type: any;
     size: string;
+    unit?: string;
     quantity: number;
     priceKopkar: number;
     feeSchool: number;
@@ -475,13 +478,14 @@ const SchoolPemesanan = () => {
           'No.': rowNo++,
           'Jenis Item': group.name,
           'Ukuran': (v.size || 'ALL SIZE').trim(),
+          'Satuan': v.unit || (group as any).unit || resolveItemUnit({ name: group.name, category: group.type }),
           'Total Pesanan': 0,
         });
       });
     });
 
     const ws = XLSX.utils.json_to_sheet(templateRows);
-    ws['!cols'] = [{ wch: 6 }, { wch: 38 }, { wch: 14 }, { wch: 16 }];
+    ws['!cols'] = [{ wch: 6 }, { wch: 38 }, { wch: 14 }, { wch: 12 }, { wch: 16 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `Template_${orderLevelFilter}`);
     const safeSchool = (user?.schoolName || user?.name || orderLevelFilter).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -584,6 +588,7 @@ const SchoolPemesanan = () => {
             name: matched.group.name,
             type: matched.group.type,
             size: matched.variant.size || 'ALL SIZE',
+            unit: matched.variant.unit || resolveItemUnit(matched.variant || { name: matched.group.name, category: matched.group.type }),
             quantity: qty,
             priceKopkar: matched.variant.priceKopkar,
             feeSchool: matched.variant.feeSchool,
@@ -902,6 +907,7 @@ const SchoolPemesanan = () => {
             name: r.name,
             type: r.type,
             size: r.size,
+            unit: r.unit || resolveItemUnit(r),
             quantity: r.quantity,
             priceKopkar: r.priceKopkar,
             feeSchool: r.feeSchool,
@@ -922,6 +928,7 @@ const SchoolPemesanan = () => {
                   feeSchool: variant.feeSchool,
                   priceStudent: variant.priceStudent,
                   size: variant.size,
+                  unit: variant.unit || resolveItemUnit(variant),
                   quantity: qty as number
                 });
               }
@@ -939,6 +946,7 @@ const SchoolPemesanan = () => {
                 feeSchool: variant.feeSchool,
                 priceStudent: variant.priceStudent,
                 size: variant.size,
+                unit: variant.unit || resolveItemUnit(variant),
                 quantity: row.customQty
               });
             }
@@ -1987,6 +1995,7 @@ const SchoolPemesanan = () => {
                                 <th style={{ width: '60px', textAlign: 'center', padding: '10px', borderBottom: '2px solid #cbd5e1' }}>No.</th>
                                 <th style={{ textAlign: 'left', padding: '10px', borderBottom: '2px solid #cbd5e1' }}>Jenis Item</th>
                                 <th style={{ width: '120px', textAlign: 'center', padding: '10px', borderBottom: '2px solid #cbd5e1' }}>Ukuran</th>
+                                <th style={{ width: '90px', textAlign: 'center', padding: '10px', borderBottom: '2px solid #cbd5e1' }}>Satuan</th>
                                 <th style={{ width: '140px', textAlign: 'center', padding: '10px', borderBottom: '2px solid #cbd5e1' }}>Total Pesanan</th>
                               </tr>
                             </thead>
@@ -1999,6 +2008,9 @@ const SchoolPemesanan = () => {
                                     <span style={{ background: '#eff6ff', color: '#1d4ed8', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', fontSize: '0.82rem' }}>
                                       {row.size}
                                     </span>
+                                  </td>
+                                  <td style={{ textAlign: 'center', padding: '8px 10px', color: '#64748b', fontWeight: 600, fontSize: '0.85rem' }}>
+                                    {resolveItemUnit(row, row.quantity)}
                                   </td>
                                   <td style={{ textAlign: 'center', padding: '8px 10px' }}>
                                     <input

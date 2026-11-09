@@ -170,15 +170,15 @@ const StockManagement = () => {
   const handleSaveRepair = async (e: FormEvent) => {
     e.preventDefault();
     if (!repairingItem || repairQty <= 0) return;
-    
+
     const newStock = (repairingItem.stock || 0) + repairQty;
     const newStockRusak = Math.max(0, (repairingItem.stockRusak || 0) - repairQty);
-    
+
     await updateProduct(repairingItem.id, {
       stock: newStock,
       stockRusak: newStockRusak
     });
-    
+
     setRepairingItem(null);
   };
 
@@ -289,10 +289,10 @@ const StockManagement = () => {
           <button className="btn-template" onClick={downloadTemplateCsv} title="Unduh Template Format 8 Kolom">
             📥 Unduh Template Excel
           </button>
-          
-          <button 
-            className="btn-browse" 
-            onClick={() => fileInputRef.current?.click()} 
+
+          <button
+            className="btn-browse"
+            onClick={() => fileInputRef.current?.click()}
             title="Import data dari Excel"
             style={{ padding: '9px 16px', backgroundColor: '#e2e8f0', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
@@ -649,10 +649,10 @@ const StockManagement = () => {
                           🗑️
                         </button>
                       </div>
-                      
+
                       {activeMenuId === p.id && (
-                        <div 
-                          className={`action-dropdown-menu ${(currentItems.length > 3 && idx >= currentItems.length - 2) ? 'dropup' : ''}`} 
+                        <div
+                          className={`action-dropdown-menu ${(currentItems.length > 3 && idx >= currentItems.length - 2) ? 'dropup' : ''}`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button onClick={() => { setActiveMenuId(null); handleOpenSetStock(p); }}>
@@ -665,8 +665,8 @@ const StockManagement = () => {
                             <span>🏢</span> Atur Supplier & Jenjang
                           </button>
                           {(p.stockRusak && p.stockRusak > 0) ? (
-                            <button 
-                              className="text-danger" 
+                            <button
+                              className="text-danger"
                               onClick={() => { setActiveMenuId(null); setRepairingItem(p); setRepairQty(p.stockRusak || 0); }}
                             >
                               <span>🔧</span> Perbaiki Barang Rusak
@@ -689,9 +689,9 @@ const StockManagement = () => {
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: '#64748b', marginRight: '8px' }}>
-              Baris per halaman: 
-              <select 
-                value={itemsPerPage} 
+              Baris per halaman:
+              <select
+                value={itemsPerPage}
                 onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
                 style={{ marginLeft: '8px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
               >
@@ -701,8 +701,8 @@ const StockManagement = () => {
                 <option value={100}>100</option>
               </select>
             </span>
-            <button 
-              disabled={currentPage === 1} 
+            <button
+              disabled={currentPage === 1}
               onClick={() => handlePageChange(currentPage - 1)}
               style={{ padding: '6px 12px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px' }}
             >
@@ -711,8 +711,8 @@ const StockManagement = () => {
             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
               Halaman {currentPage} dari {totalPages || 1}
             </span>
-            <button 
-              disabled={currentPage === totalPages || totalPages === 0} 
+            <button
+              disabled={currentPage === totalPages || totalPages === 0}
               onClick={() => handlePageChange(currentPage + 1)}
               style={{ padding: '6px 12px', cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px' }}
             >
@@ -1060,7 +1060,7 @@ const StockManagement = () => {
                   />
                 </div>
               </div>
-              
+
               <div className="form-group">
                 <label>Harga Siswa (Otomatis)</label>
                 <input

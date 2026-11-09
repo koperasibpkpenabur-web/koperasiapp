@@ -86,6 +86,7 @@ const KopkarPesanan = () => {
         type: it.type,
         size: it.size,
         gender: it.gender,
+        unit: it.unit || resolveItemUnit(it, it.quantity),
         quantity: it.quantity,
         priceKopkar: Number(it.price_kopkar),
         feeSchool: Number(it.fee_school),

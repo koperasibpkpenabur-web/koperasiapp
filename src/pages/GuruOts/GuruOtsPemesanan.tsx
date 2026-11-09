@@ -4,6 +4,7 @@ import { useOrders } from '../../context/OrderContext';
 import { useProducts } from '../../context/ProductContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, OrderItem, SchoolLevel } from '../../types';
+import { resolveItemUnit } from '../../utils/formatUnit';
 import KwitansiPrint from '../Kopkar/KwitansiPrint';
 import './guruOts.css';
 
@@ -97,6 +98,7 @@ const GuruOtsPemesanan = () => {
             type: it.type,
             size: it.size,
             gender: it.gender,
+            unit: it.unit || resolveItemUnit(it, it.quantity),
             quantity: it.quantity,
             priceKopkar: Number(it.price_kopkar),
             feeSchool: Number(it.fee_school),
@@ -213,6 +215,7 @@ const GuruOtsPemesanan = () => {
           name: variant.name,
           type: variant.category,
           size: variant.size || '-',
+          unit: variant.unit || resolveItemUnit(variant),
           quantity: qty,
           priceKopkar: variant.priceKopkar,
           feeSchool: variant.feeSchool,
@@ -643,7 +646,7 @@ const GuruOtsPemesanan = () => {
                       <div style={{ fontSize: '0.85rem' }}>
                         {ord.items.map((it, i) => (
                           <div key={i}>
-                            • {it.name} [{it.size || '-'}] ({it.quantity} pcs)
+                            • {it.name} [{it.size || '-'}] ({it.quantity} {resolveItemUnit(it, it.quantity)})
                           </div>
                         ))}
                       </div>

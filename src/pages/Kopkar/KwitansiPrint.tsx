@@ -87,7 +87,7 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
 
   // Ringkasan barang yang dipesan
   const orderItemsSummary = order.items && order.items.length > 0
-    ? order.items.filter(it => it.quantity > 0).map(it => `${it.name}${it.size ? ` (${it.size})` : ''} [${it.quantity} pcs]`).join(', ')
+    ? order.items.filter(it => it.quantity > 0).map(it => `${it.name}${it.size ? ` (${it.size})` : ''} [${it.quantity} ${resolveItemUnit(it, it.quantity)}]`).join(', ')
     : order.id;
 
   const renderTableRows = (items: any[]) => {
