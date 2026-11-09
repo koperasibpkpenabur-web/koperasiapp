@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { ProductItem, SchoolLevel } from '../types';
 import { supabase } from '../lib/supabase';
+import { resolveItemUnit } from '../utils/formatUnit';
 import * as XLSX from 'xlsx';
 
 interface ProductContextType {
@@ -92,6 +93,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         stockVendor: d.stock_vendor || 0,
         minStock: d.min_stock,
         size: d.size,
+        unit: d.unit || resolveItemUnit({ name: d.name, category: d.category }),
         storageLocation: d.storage_location,
         supplierName: d.supplier_name,
         schoolName: d.school_name
@@ -154,6 +156,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       stock_vendor: productData.stockVendor !== undefined ? productData.stockVendor : 0,
       min_stock: productData.minStock || 15,
       size: productData.size,
+      unit: productData.unit || resolveItemUnit({ name: productData.name, category: productData.category }),
       storage_location: productData.storageLocation,
       supplier_name: productData.supplierName,
       school_name: productData.schoolName
@@ -190,6 +193,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     if (updated.stockRusak !== undefined) updates.stock_rusak = updated.stockRusak;
     if (updated.minStock !== undefined) updates.min_stock = updated.minStock;
     if (updated.size !== undefined) updates.size = updated.size;
+    if (updated.unit !== undefined) updates.unit = updated.unit;
     if (updated.storageLocation !== undefined) updates.storage_location = updated.storageLocation;
     if (updated.supplierName !== undefined) updates.supplier_name = updated.supplierName;
     if (updated.schoolName !== undefined) updates.school_name = updated.schoolName;
@@ -298,6 +302,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       const studentIdx = header.findIndex((h) => h.includes('siswa') || h.includes('jual') || h.includes('student'));
 
       const sizeIdx = header.findIndex((h) => h.includes('ukuran'));
+      const unitIdx = header.findIndex((h) => h.includes('satuan') || h.includes('unit'));
       const stockIdx = header.findIndex((h) => h.includes('stock gudang') || h.includes('stok gudang') || h === 'stock' || h === 'stok');
       const locationIdx = header.findIndex((h) => h.includes('lokasi') || h.includes('penyimpanan'));
       const supplierIdx = header.findIndex((h) => h.includes('supplier') || h.includes('penjahit'));
@@ -343,6 +348,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
         let inputCode = codeIdx !== -1 && row[codeIdx] ? String(row[codeIdx]).trim() : '';
         const size = sizeIdx !== -1 && row[sizeIdx] ? String(row[sizeIdx]).trim() : undefined;
+        const unit = unitIdx !== -1 && row[unitIdx] ? String(row[unitIdx]).trim() : resolveItemUnit({ name, category });
         const stock = stockIdx !== -1 && row[stockIdx] !== undefined && row[stockIdx] !== '' ? parseInt(String(row[stockIdx]), 10) || 0 : 0;
         const storageLocation = locationIdx !== -1 && row[locationIdx] ? String(row[locationIdx]).trim() : undefined;
         const supplierName = supplierIdx !== -1 && row[supplierIdx] ? String(row[supplierIdx]).trim() : undefined;
@@ -378,6 +384,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
             fee_school: feeSchool,
             price_student: priceStudent,
             size,
+            unit: unit || existing.unit || resolveItemUnit({ name, category }),
             storage_location: storageLocation,
             supplier_name: supplierName,
             school_name: schoolName,
@@ -398,6 +405,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
             stock: stock,
             min_stock: 20,
             size,
+            unit: unit || resolveItemUnit({ name, category }),
             storage_location: storageLocation,
             supplier_name: supplierName,
             school_name: schoolName,
@@ -423,14 +431,14 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
   const downloadTemplateCsv = useCallback(() => {
     const data = [
-      { No: 1, 'Kode Barang': 'SRG-TK-01', 'Nama Barang': 'Seragam Olahraga TK', Ukuran: 'M', Kategori: 'seragam', Jenjang: 'TK', 'Harga Koperasi': 75000, 'Fee Sekolah': 15000, 'Harga Siswa': 90000, 'Stock Gudang': 50, 'Lokasi Penyimpanan': 'Gudang A', Supplier: 'Andryna', Sekolah: '' },
-      { No: 2, 'Kode Barang': '', 'Nama Barang': 'Buku Mewarnai TK', Ukuran: '', Kategori: 'buku', Jenjang: 'TK', 'Harga Koperasi': 25000, 'Fee Sekolah': 5000, 'Harga Siswa': 30000, 'Stock Gudang': 100, 'Lokasi Penyimpanan': 'Rak 1', Supplier: '', Sekolah: '' },
-      { No: 3, 'Kode Barang': 'SRG-SD-01', 'Nama Barang': 'Seragam Pramuka SD', Ukuran: 'L', Kategori: 'seragam', Jenjang: 'SD', 'Harga Koperasi': 85000, 'Fee Sekolah': 15000, 'Harga Siswa': 100000, 'Stock Gudang': 75, 'Lokasi Penyimpanan': 'Gudang A', Supplier: 'Berkat', Sekolah: '' },
-      { No: 4, 'Kode Barang': '', 'Nama Barang': 'Buku Bahasa Inggris SD', Ukuran: '', Kategori: 'buku', Jenjang: 'SD', 'Harga Koperasi': 60000, 'Fee Sekolah': 10000, 'Harga Siswa': 70000, 'Stock Gudang': 40, 'Lokasi Penyimpanan': 'Rak 2', Supplier: '', Sekolah: '' },
-      { No: 5, 'Kode Barang': 'SRG-SMP-01', 'Nama Barang': 'Seragam Putih Biru SMP', Ukuran: 'XL', Kategori: 'seragam', Jenjang: 'SMP', 'Harga Koperasi': 105000, 'Fee Sekolah': 20000, 'Harga Siswa': 125000, 'Stock Gudang': 60, 'Lokasi Penyimpanan': 'Gudang B', Supplier: 'Harmoni', Sekolah: '' },
-      { No: 6, 'Kode Barang': '', 'Nama Barang': 'Seragam Pramuka SMP', Ukuran: 'M', Kategori: 'seragam', Jenjang: 'SMP', 'Harga Koperasi': 95000, 'Fee Sekolah': 15000, 'Harga Siswa': 110000, 'Stock Gudang': 55, 'Lokasi Penyimpanan': 'Gudang B', Supplier: 'Jemima', Sekolah: '' },
-      { No: 7, 'Kode Barang': 'SRG-SMA-01', 'Nama Barang': 'Seragam Putih Abu SMA', Ukuran: 'L', Kategori: 'seragam', Jenjang: 'SMA', 'Harga Koperasi': 115000, 'Fee Sekolah': 25000, 'Harga Siswa': 140000, 'Stock Gudang': 45, 'Lokasi Penyimpanan': 'Gudang C', Supplier: 'Loki', Sekolah: 'SMAK 1 PENABUR' },
-      { No: 8, 'Kode Barang': '', 'Nama Barang': 'Buku Fisika SMA Kelas 10', Ukuran: '', Kategori: 'buku', Jenjang: 'SMA', 'Harga Koperasi': 85000, 'Fee Sekolah': 15000, 'Harga Siswa': 100000, 'Stock Gudang': 30, 'Lokasi Penyimpanan': 'Rak 3', Supplier: '', Sekolah: '' },
+      { No: 1, 'Kode Barang': 'SRG-TK-01', 'Nama Barang': 'Seragam Olahraga TK', Ukuran: 'M', Satuan: 'pcs', Kategori: 'seragam', Jenjang: 'TK', 'Harga Koperasi': 75000, 'Fee Sekolah': 15000, 'Harga Siswa': 90000, 'Stock Gudang': 50, 'Lokasi Penyimpanan': 'Gudang A', Supplier: 'Andryna', Sekolah: '' },
+      { No: 2, 'Kode Barang': '', 'Nama Barang': 'Buku Mewarnai TK', Ukuran: '', Satuan: 'pack', Kategori: 'buku', Jenjang: 'TK', 'Harga Koperasi': 25000, 'Fee Sekolah': 5000, 'Harga Siswa': 30000, 'Stock Gudang': 100, 'Lokasi Penyimpanan': 'Rak 1', Supplier: '', Sekolah: '' },
+      { No: 3, 'Kode Barang': 'SRG-SD-01', 'Nama Barang': 'Kaos Kaki Putih SD', Ukuran: 'L', Satuan: 'psg', Kategori: 'seragam', Jenjang: 'SD', 'Harga Koperasi': 15000, 'Fee Sekolah': 5000, 'Harga Siswa': 20000, 'Stock Gudang': 75, 'Lokasi Penyimpanan': 'Gudang A', Supplier: 'Berkat', Sekolah: '' },
+      { No: 4, 'Kode Barang': '', 'Nama Barang': 'Buku Tulis Garis SD', Ukuran: '', Satuan: 'pack', Kategori: 'buku', Jenjang: 'SD', 'Harga Koperasi': 35000, 'Fee Sekolah': 5000, 'Harga Siswa': 40000, 'Stock Gudang': 40, 'Lokasi Penyimpanan': 'Rak 2', Supplier: '', Sekolah: '' },
+      { No: 5, 'Kode Barang': 'SRG-SMP-01', 'Nama Barang': 'Seragam Putih Biru SMP', Ukuran: 'XL', Satuan: 'pcs', Kategori: 'seragam', Jenjang: 'SMP', 'Harga Koperasi': 105000, 'Fee Sekolah': 20000, 'Harga Siswa': 125000, 'Stock Gudang': 60, 'Lokasi Penyimpanan': 'Gudang B', Supplier: 'Harmoni', Sekolah: '' },
+      { No: 6, 'Kode Barang': '', 'Nama Barang': 'Sepatu Kets Hitam SMP', Ukuran: '39', Satuan: 'psg', Kategori: 'seragam', Jenjang: 'SMP', 'Harga Koperasi': 120000, 'Fee Sekolah': 15000, 'Harga Siswa': 135000, 'Stock Gudang': 55, 'Lokasi Penyimpanan': 'Gudang B', Supplier: 'Jemima', Sekolah: '' },
+      { No: 7, 'Kode Barang': 'SRG-SMA-01', 'Nama Barang': 'Seragam Putih Abu SMA', Ukuran: 'L', Satuan: 'pcs', Kategori: 'seragam', Jenjang: 'SMA', 'Harga Koperasi': 115000, 'Fee Sekolah': 25000, 'Harga Siswa': 140000, 'Stock Gudang': 45, 'Lokasi Penyimpanan': 'Gudang C', Supplier: 'Loki', Sekolah: 'SMAK 1 PENABUR' },
+      { No: 8, 'Kode Barang': '', 'Nama Barang': 'Buku Fisika SMA Kelas 10', Ukuran: '', Satuan: 'pack', Kategori: 'buku', Jenjang: 'SMA', 'Harga Koperasi': 85000, 'Fee Sekolah': 15000, 'Harga Siswa': 100000, 'Stock Gudang': 30, 'Lokasi Penyimpanan': 'Rak 3', Supplier: '', Sekolah: '' },
     ];
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -528,6 +536,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       'Kode Barang': p.code,
       'Nama Barang': p.name,
       Ukuran: p.size || '',
+      Satuan: p.unit || resolveItemUnit(p),
       Kategori: p.category,
       Jenjang: p.level,
       'Harga Koperasi': p.priceKopkar,

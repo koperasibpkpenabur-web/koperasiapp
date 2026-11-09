@@ -36,6 +36,7 @@ export interface ProductItem {
   stockVendor?: number;    // Jumlah stok fisik di tempat vendor (stock_vendor)
   minStock?: number;       // Batas minimum stok
   size?: string;           // Ukuran
+  unit?: string;           // Satuan barang (pcs, pack, psg)
   storageLocation?: string; // Lokasi Penyimpanan
   supplierName?: string;   // Nama Supplier (penjahit, penerbit, dll)
   schoolName?: string;     // Nama Sekolah spesifik (jika khusus untuk 1 sekolah)
@@ -63,6 +64,7 @@ export interface OrderItem {
   type: OrderItemType;
   quantity: number;
   size?: string;           // Added size field
+  unit?: string;           // Satuan (pcs, pc, pack, psg)
   priceKopkar: number;     // Harga Koperasi satuan
   feeSchool: number;       // Fee Sekolah satuan
   priceStudent: number;    // Harga Siswa satuan (Kopkar + Fee)

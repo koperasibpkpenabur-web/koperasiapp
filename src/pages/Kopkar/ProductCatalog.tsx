@@ -1,6 +1,7 @@
 import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { useProducts } from '../../context/ProductContext';
 import type { ProductItem, SchoolLevel, OrderItemType } from '../../types';
+import { resolveItemUnit, getDefaultUnit } from '../../utils/formatUnit';
 import './catalog.css';
 
 const ProductCatalog = () => {
@@ -33,6 +34,7 @@ const ProductCatalog = () => {
   const [formCategory, setFormCategory] = useState<OrderItemType>('seragam');
   const [formLevel, setFormLevel] = useState<SchoolLevel>('SMP');
   const [formSize, setFormSize] = useState('');
+  const [formUnit, setFormUnit] = useState<string>('pcs');
   const [formPriceKopkar, setFormPriceKopkar] = useState<number>(100000);
   const [formFeeSchool, setFormFeeSchool] = useState<number>(20000);
   const [formStock, setFormStock] = useState<number>(50);
@@ -106,6 +108,7 @@ const ProductCatalog = () => {
     setFormCategory('seragam');
     setFormLevel('SMP');
     setFormSize('');
+    setFormUnit('pcs');
     setFormPriceKopkar(100000);
     setFormFeeSchool(20000);
     setFormStock(50);
@@ -120,6 +123,7 @@ const ProductCatalog = () => {
     setFormCategory(p.category);
     setFormLevel(p.level);
     setFormSize(p.size || '');
+    setFormUnit(p.unit || resolveItemUnit(p));
     setFormPriceKopkar(p.priceKopkar);
     setFormFeeSchool(p.feeSchool);
     setFormStock(p.stock !== undefined ? p.stock : 50);
@@ -150,6 +154,7 @@ const ProductCatalog = () => {
         category: formCategory,
         level: formLevel,
         size: formSize.trim() || undefined,
+        unit: formUnit,
         priceKopkar: formPriceKopkar,
         feeSchool: formFeeSchool,
         priceStudent,
@@ -162,6 +167,7 @@ const ProductCatalog = () => {
         category: formCategory,
         level: formLevel,
         size: formSize.trim() || undefined,
+        unit: formUnit,
         priceKopkar: formPriceKopkar,
         feeSchool: formFeeSchool,
         priceStudent,
@@ -280,6 +286,7 @@ const ProductCatalog = () => {
               <th style={{ width: '40px' }}>No.</th>
               <th>Nama Barang</th>
               <th>Ukuran</th>
+              <th>Satuan</th>
               <th>Jenjang</th>
               <th>Harga Koperasi</th>
               <th>Fee Sekolah</th>
@@ -295,6 +302,11 @@ const ProductCatalog = () => {
                   <strong>{p.name}</strong>
                 </td>
                 <td>{p.size || '-'}</td>
+                <td>
+                  <span style={{ fontWeight: 600, color: '#334155' }}>
+                    {p.unit || resolveItemUnit(p)}
+                  </span>
+                </td>
                 <td>
                   <span className={`badge-level ${p.level}`}>{p.level}</span>
                 </td>
@@ -412,19 +424,31 @@ const ProductCatalog = () => {
                   <input
                     type="text"
                     value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setFormName(name);
+                      if (!editingId) {
+                        setFormUnit(getDefaultUnit(name, formCategory));
+                      }
+                    }}
                     placeholder="Contoh: Seragam Putih Biru SMP"
                     required
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
                 <div className="form-group">
                   <label>Kategori</label>
                   <select
                     value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value as OrderItemType)}
+                    onChange={(e) => {
+                      const cat = e.target.value as OrderItemType;
+                      setFormCategory(cat);
+                      if (!editingId) {
+                        setFormUnit(getDefaultUnit(formName, cat));
+                      }
+                    }}
                   >
                     <option value="seragam">Seragam</option>
                     <option value="buku">Buku</option>
@@ -456,6 +480,18 @@ const ProductCatalog = () => {
                     onChange={(e) => setFormSize(e.target.value)}
                     placeholder="Cth: S, M, L, XL, ALL SIZE"
                   />
+                </div>
+
+                <div className="form-group">
+                  <label>Satuan</label>
+                  <select
+                    value={formUnit}
+                    onChange={(e) => setFormUnit(e.target.value)}
+                  >
+                    <option value="pcs">pcs (Seragam)</option>
+                    <option value="pack">pack (Buku Tulis)</option>
+                    <option value="psg">psg (Kaos Kaki/Sepatu)</option>
+                  </select>
                 </div>
               </div>
 

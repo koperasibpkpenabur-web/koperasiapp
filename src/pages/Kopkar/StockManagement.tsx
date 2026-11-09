@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { useProducts } from '../../context/ProductContext';
 import type { ProductItem, SchoolLevel } from '../../types';
+import { resolveItemUnit } from '../../utils/formatUnit';
 import './catalog.css';
 
 const StockManagement = () => {
@@ -531,6 +532,7 @@ const StockManagement = () => {
               <th style={{ width: '40px' }}>No.</th>
               <th>Nama Barang</th>
               <th>Ukuran</th>
+              <th>Satuan</th>
               <th>Jenjang</th>
               <th>Stock Gudang</th>
               <th>Stock Vendor</th>
@@ -542,7 +544,7 @@ const StockManagement = () => {
           <tbody>
             {currentItems.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '36px', color: '#586b84' }}>
+                <td colSpan={11} style={{ textAlign: 'center', padding: '36px', color: '#586b84' }}>
                   Tidak ada barang yang sesuai dengan filter atau pencarian Anda.
                 </td>
               </tr>
@@ -559,6 +561,11 @@ const StockManagement = () => {
                       <strong>{p.name}</strong>
                     </td>
                     <td>{p.size || '-'}</td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: '#334155' }}>
+                        {p.unit || resolveItemUnit(p)}
+                      </span>
+                    </td>
                     <td>
                       <span className={`badge-level ${p.level}`}>{p.level}</span>
                     </td>

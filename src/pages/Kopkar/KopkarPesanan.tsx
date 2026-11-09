@@ -9,6 +9,7 @@ import type { Order, ShippingInfo } from '../../types';
 import { playOrderNotificationSound } from '../../utils/sound';
 import SuratJalanPrint from './SuratJalanPrint';
 import { generateSuratJalanExcel } from '../../utils/excelGenerator';
+import { resolveItemUnit } from '../../utils/formatUnit';
 import './kopkar.css';
 
 const KopkarPesanan = () => {
@@ -1355,7 +1356,7 @@ const KopkarPesanan = () => {
                 {detailOrder.items.map((it, idx) => (
                   <li key={idx} style={{ padding: '6px 0', borderBottom: '1px dashed #e2e8f0', fontSize: '0.88rem' }}>
                     <span className={`item-type ${it.type}`} style={{ marginRight: '8px' }}>{it.type}</span>
-                    <strong>{it.name}</strong> {it.size && `[${it.size}] `}— {it.quantity} pcs
+                    <strong>{it.name}</strong> {it.size && `[${it.size}] `}— {it.quantity} {resolveItemUnit(it, it.quantity)}
                   </li>
                 ))}
               </ul>
