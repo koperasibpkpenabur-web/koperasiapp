@@ -8,7 +8,6 @@ import { supabase } from '../../lib/supabase';
 import type { Order, ShippingInfo } from '../../types';
 import { playOrderNotificationSound } from '../../utils/sound';
 import SuratJalanPrint from './SuratJalanPrint';
-import KwitansiPrint from './KwitansiPrint';
 import { generateSuratJalanExcel } from '../../utils/excelGenerator';
 import './kopkar.css';
 
@@ -181,7 +180,6 @@ const KopkarPesanan = () => {
 
   // Print Order state
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
-  const [printingKwitansiOrder, setPrintingKwitansiOrder] = useState<Order | null>(null);
 
   // Cancellation action menu and detail state
   const [openCancelMenuId, setOpenCancelMenuId] = useState<string | null>(null);
@@ -196,16 +194,6 @@ const KopkarPesanan = () => {
       return () => clearTimeout(timer);
     }
   }, [printingOrder]);
-
-  useEffect(() => {
-    if (printingKwitansiOrder) {
-      const timer = setTimeout(() => {
-        window.print();
-        setPrintingKwitansiOrder(null);
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [printingKwitansiOrder]);
 
   // 1. Pesanan Berjalan: pending, approved, shipped
   const activeOrders = orders.filter(
@@ -1340,9 +1328,8 @@ const KopkarPesanan = () => {
         </div>
       )}
 
-      {/* Print Only Surat Jalan & Kwitansi */}
+      {/* Print Only Surat Jalan */}
       <SuratJalanPrint order={printingOrder} />
-      <KwitansiPrint order={printingKwitansiOrder} />
       {/* Modal Detail Order */}
       {detailOrder && (
         <div className="modal-overlay" onClick={() => setDetailOrder(null)}>
@@ -1402,20 +1389,12 @@ const KopkarPesanan = () => {
               </div>
             </div>
 
-            <div className="modal-actions" style={{ marginTop: '24px', display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setPrintingKwitansiOrder(detailOrder)}
-                style={{ background: '#0284c7', borderColor: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flex: 1 }}
-              >
-                🧾 Cetak Kwitansi
-              </button>
+            <div className="modal-actions" style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => setDetailOrder(null)}
-                style={{ flex: 1 }}
+                style={{ minWidth: '120px' }}
               >
                 Tutup
               </button>

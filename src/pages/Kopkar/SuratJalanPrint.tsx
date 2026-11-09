@@ -88,14 +88,14 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       const jumlah = harga * item.renderQty;
       return (
         <tr key={idx}>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{idx + 1}</td>
-          <td style={{ border: '1px solid #000', padding: '2px' }}>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'center' }}>{idx + 1}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px' }}>
             [{item.type}] {item.name}
           </td>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.size || '-'}</td>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.renderQty}</td>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(harga)}</td>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(jumlah)}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'center' }}>{item.size || '-'}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'center', fontWeight: 'bold' }}>{item.renderQty}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'right' }}>{formatRupiah(harga)}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(jumlah)}</td>
         </tr>
       );
     });
@@ -113,10 +113,12 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
         padding-left: 5mm;
       }
       .print-surat-jalan {
-        font-family: 'Courier New', Courier, monospace !important;
-        -webkit-font-smoothing: none;
-        color: #000 !important;
-        font-size: 13px !important;
+        font-family: 'Times New Roman', Times, serif !important;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        color: #000000 !important;
+        font-size: 13.5px !important;
+        line-height: 1.3;
       }
       .print-surat-jalan h1,
       .print-surat-jalan h2,
@@ -124,18 +126,23 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       .print-surat-jalan h4,
       .print-surat-jalan h5,
       .print-surat-jalan h6 {
-        font-family: inherit !important;
+        font-family: 'Times New Roman', Times, serif !important;
+        color: #000000 !important;
       }
       .print-surat-jalan table {
         width: 100%;
         border-collapse: collapse;
       }
       .print-surat-jalan table th, .print-surat-jalan table td {
-        border: 1px solid #000 !important;
-        font-size: 13px !important;
-        padding: 2px 4px !important; 
+        border: 1px solid #000000 !important;
+        font-size: 13.5px !important;
+        padding: 3px 5px !important; 
+        color: #000000 !important;
         word-wrap: break-word;
         overflow-wrap: break-word;
+      }
+      .print-surat-jalan table th {
+        font-weight: bold;
       }
       .print-surat-jalan table tr {
         page-break-inside: avoid; /* Jangan memotong baris setengah di lipatan kertas */
@@ -148,49 +155,53 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       <style>{pageStyle}</style>
       
       {/* Header / Kop Surat (Hanya muncul sekali di paling atas) */}
-      <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-          <img src={`${import.meta.env.BASE_URL}logo_koperasi2.png`} alt="Logo" style={{ width: '38px', height: 'auto', filter: 'grayscale(100%)', marginTop: '2px' }} />
+      <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img 
+            src={`${import.meta.env.BASE_URL}logo_koperasi_mono.png`} 
+            alt="Logo Koperasi" 
+            style={{ width: '46px', height: 'auto', display: 'block' }} 
+          />
           <div>
-            <h2 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'bold' }}>
+            <h2 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 'bold', letterSpacing: '0.2px' }}>
               KOPERASI KONSUMEN KARYAWAN BPK PENABUR JAKARTA
             </h2>
-            <div style={{ fontSize: '13px', lineHeight: '1.2' }}>
+            <div style={{ fontSize: '13.5px', lineHeight: '1.25' }}>
               Kepada Yth,<br />
               Bapak/Ibu <strong>{order.schoolName}</strong><br />
               di Tempat
             </div>
           </div>
         </div>
-        <div style={{ fontSize: '13px', textAlign: 'right' }}>
+        <div style={{ fontSize: '13.5px', textAlign: 'right' }}>
           <div>Tanggal: {today}</div>
         </div>
       </div>
 
-      <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-        <h3 style={{ margin: '0', fontSize: '14px', textDecoration: 'underline', fontWeight: 'bold' }}>Surat Jalan</h3>
-        <div style={{ fontSize: '13px', marginTop: '2px' }}>No. Pesanan: {order.id}</div>
+      <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+        <h3 style={{ margin: '0', fontSize: '15px', textDecoration: 'underline', fontWeight: 'bold' }}>Surat Jalan</h3>
+        <div style={{ fontSize: '13.5px', marginTop: '2px', fontWeight: 'bold' }}>No. Pesanan: {order.id}</div>
       </div>
 
       {/* Tabel Barang */}
       {!isMixed ? (
-        <div style={{ marginBottom: '4px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+        <div style={{ marginBottom: '6px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
             <thead>
               <tr>
-                <th style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>No</th>
-                <th style={{ border: '1px solid #000', padding: '2px', textAlign: 'left' }}>Nama Barang</th>
-                <th style={{ border: '1px solid #000', padding: '2px', width: '10%', textAlign: 'center' }}>Size</th>
-                <th style={{ border: '1px solid #000', padding: '2px', width: '5%', textAlign: 'center' }}>Qty</th>
-                <th style={{ border: '1px solid #000', padding: '2px', width: '15%', textAlign: 'right' }}>Harga</th>
-                <th style={{ border: '1px solid #000', padding: '2px', width: '18%', textAlign: 'right' }}>Jumlah</th>
+                <th style={{ border: '1px solid #000', padding: '3px 5px', width: '5%', textAlign: 'center' }}>No</th>
+                <th style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'left' }}>Nama Barang</th>
+                <th style={{ border: '1px solid #000', padding: '3px 5px', width: '10%', textAlign: 'center' }}>Size</th>
+                <th style={{ border: '1px solid #000', padding: '3px 5px', width: '6%', textAlign: 'center' }}>Qty</th>
+                <th style={{ border: '1px solid #000', padding: '3px 5px', width: '16%', textAlign: 'right' }}>Harga</th>
+                <th style={{ border: '1px solid #000', padding: '3px 5px', width: '18%', textAlign: 'right' }}>Jumlah</th>
               </tr>
             </thead>
             <tbody>
               {renderTableRows(kopkarItems.length > 0 ? kopkarItems : vendorItems)}
               <tr>
-                <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Total Keseluruhan</td>
-                <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(grandTotal)}</td>
+                <td colSpan={5} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>Total Keseluruhan</td>
+                <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(grandTotal)}</td>
               </tr>
             </tbody>
           </table>
@@ -198,65 +209,65 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       ) : (
         <>
           <div style={{ marginBottom: '8px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '2px' }}>A. DIKIRIM DARI GUDANG KOPERASI</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <div style={{ fontSize: '13.5px', fontWeight: 'bold', marginBottom: '3px' }}>A. DIKIRIM DARI GUDANG KOPERASI</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
               <thead>
                 <tr>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>No</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', textAlign: 'left' }}>Nama Barang</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '10%', textAlign: 'center' }}>Size</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '5%', textAlign: 'center' }}>Qty</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '15%', textAlign: 'right' }}>Harga</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '18%', textAlign: 'right' }}>Jumlah</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '5%', textAlign: 'center' }}>No</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'left' }}>Nama Barang</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '10%', textAlign: 'center' }}>Size</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '6%', textAlign: 'center' }}>Qty</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '16%', textAlign: 'right' }}>Harga</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '18%', textAlign: 'right' }}>Jumlah</th>
                 </tr>
               </thead>
               <tbody>
                 {renderTableRows(kopkarItems)}
                 <tr>
-                  <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Sub-Total Koperasi</td>
-                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(totalKopkar)}</td>
+                  <td colSpan={5} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>Sub-Total Koperasi</td>
+                  <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(totalKopkar)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
           <div style={{ marginBottom: '8px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '2px' }}>B. DIKIRIM LANGSUNG DARI VENDOR PENJAHIT/PENERBIT</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <div style={{ fontSize: '13.5px', fontWeight: 'bold', marginBottom: '3px' }}>B. DIKIRIM LANGSUNG DARI VENDOR PENJAHIT/PENERBIT</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
               <thead>
                 <tr>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '5%' }}>No</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', textAlign: 'left' }}>Nama Barang</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '10%', textAlign: 'center' }}>Size</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '5%', textAlign: 'center' }}>Qty</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '15%', textAlign: 'right' }}>Harga</th>
-                  <th style={{ border: '1px solid #000', padding: '2px', width: '18%', textAlign: 'right' }}>Jumlah</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '5%', textAlign: 'center' }}>No</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'left' }}>Nama Barang</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '10%', textAlign: 'center' }}>Size</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '6%', textAlign: 'center' }}>Qty</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '16%', textAlign: 'right' }}>Harga</th>
+                  <th style={{ border: '1px solid #000', padding: '3px 5px', width: '18%', textAlign: 'right' }}>Jumlah</th>
                 </tr>
               </thead>
               <tbody>
                 {renderTableRows(vendorItems)}
                 <tr>
-                  <td colSpan={5} style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>Sub-Total Vendor</td>
-                  <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(totalVendor)}</td>
+                  <td colSpan={5} style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>Sub-Total Vendor</td>
+                  <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(totalVendor)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
           
-          <div style={{ fontSize: '13px', fontWeight: 'bold', textAlign: 'right', marginBottom: '8px', padding: '4px', border: '1px solid #000' }}>
+          <div style={{ fontSize: '13.5px', fontWeight: 'bold', textAlign: 'right', marginBottom: '8px', padding: '4px 6px', border: '1px solid #000' }}>
             TOTAL KESELURUHAN (A + B): {formatRupiah(grandTotal)}
           </div>
         </>
       )}
 
-      <div style={{ fontSize: '13px', fontStyle: 'italic', marginBottom: '6px', fontWeight: 'bold' }}>
+      <div style={{ fontSize: '13.5px', fontStyle: 'italic', marginBottom: '8px', fontWeight: 'bold' }}>
         Terbilang: {terbilang(grandTotal)} Rupiah
       </div>
 
       {/* Catatan */}
       <div style={{ fontSize: '13px', marginBottom: '8px', pageBreakInside: 'avoid' }}>
         <strong>Catatan:</strong>
-        <ol style={{ margin: '2px 0 0 0', paddingLeft: '16px', lineHeight: '1.2' }}>
+        <ol style={{ margin: '2px 0 0 0', paddingLeft: '16px', lineHeight: '1.25' }}>
           <li>Mohon lembar 1(Putih) dikembalikan ke Koperasi</li>
           <li>Rek BCA 0760256757 a/n Koperasi Konsumen Karyawan BPK Penabur</li>
           {order.shippingInfo?.source === 'vendor' && !order.shippingInfo?.shippedItems && (
@@ -266,7 +277,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
       </div>
 
       {/* Tanda Tangan */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginTop: '16px', pageBreakInside: 'avoid' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13.5px', marginTop: '16px', pageBreakInside: 'avoid' }}>
         <div style={{ textAlign: 'center', width: '140px' }}>
           <div>Diterima oleh,</div>
           <div style={{ marginTop: '30px', borderBottom: '1px solid #000' }}></div>
@@ -274,7 +285,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
         <div style={{ textAlign: 'center', width: '140px' }}>
           <div>Pengirim,</div>
           <div style={{ marginTop: '30px', borderBottom: '1px solid #000' }}></div>
-          <div style={{ marginTop: '2px' }}>Sri Mulyani</div>
+          <div style={{ marginTop: '2px', fontWeight: 'bold' }}>Sri Mulyani</div>
         </div>
       </div>
     </div>

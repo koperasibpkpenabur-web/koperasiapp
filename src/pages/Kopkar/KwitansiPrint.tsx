@@ -95,14 +95,14 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
       const jumlah = harga * item.renderQty;
       return (
         <tr key={idx}>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{idx + 1}</td>
-          <td style={{ border: '1px solid #000', padding: '2px' }}>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'center' }}>{idx + 1}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px' }}>
             [{item.type}] {item.name}
           </td>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.size || '-'}</td>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'center' }}>{item.renderQty}</td>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(harga)}</td>
-          <td style={{ border: '1px solid #000', padding: '2px', textAlign: 'right' }}>{formatRupiah(jumlah)}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'center' }}>{item.size || '-'}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'center', fontWeight: 'bold' }}>{item.renderQty}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'right' }}>{formatRupiah(harga)}</td>
+          <td style={{ border: '1px solid #000', padding: '3px 5px', textAlign: 'right', fontWeight: 'bold' }}>{formatRupiah(jumlah)}</td>
         </tr>
       );
     });
@@ -132,10 +132,12 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
       .print-only,
       .print-surat-jalan {
         display: block !important;
-        font-family: 'Courier New', Courier, monospace !important;
-        -webkit-font-smoothing: none;
-        color: #000 !important;
-        font-size: 13px !important;
+        font-family: 'Times New Roman', Times, serif !important;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        color: #000000 !important;
+        font-size: 13.5px !important;
+        line-height: 1.3;
         width: 190mm !important;
         margin: 0 auto !important;
       }
@@ -145,18 +147,23 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
       .print-surat-jalan h4,
       .print-surat-jalan h5,
       .print-surat-jalan h6 {
-        font-family: inherit !important;
+        font-family: 'Times New Roman', Times, serif !important;
+        color: #000000 !important;
       }
       .print-surat-jalan table {
         width: 100%;
         border-collapse: collapse;
       }
       .print-surat-jalan table th, .print-surat-jalan table td {
-        border: 1px solid #000 !important;
-        font-size: 13px !important;
-        padding: 2px 4px !important; 
+        border: 1px solid #000000 !important;
+        font-size: 13.5px !important;
+        padding: 3px 5px !important; 
+        color: #000000 !important;
         word-wrap: break-word;
         overflow-wrap: break-word;
+      }
+      .print-surat-jalan table th {
+        font-weight: bold;
       }
       .print-surat-jalan table tr {
         page-break-inside: avoid; /* Jangan memotong baris setengah di lipatan kertas */
@@ -169,14 +176,18 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
       <style>{pageStyle}</style>
 
       {/* Header / Kop Kwitansi (Sama persis dengan Surat Jalan) */}
-      <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-          <img src={`${import.meta.env.BASE_URL}logo_koperasi2.png`} alt="Logo" style={{ width: '38px', height: 'auto', filter: 'grayscale(100%)', marginTop: '2px' }} />
+      <div className="print-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img 
+            src={`${import.meta.env.BASE_URL}logo_koperasi_mono.png`} 
+            alt="Logo Koperasi" 
+            style={{ width: '46px', height: 'auto', display: 'block' }} 
+          />
           <div>
-            <h2 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'bold' }}>
+            <h2 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 'bold', letterSpacing: '0.2px' }}>
               KOPERASI KONSUMEN KARYAWAN BPK PENABUR JAKARTA
             </h2>
-            <div style={{ fontSize: '13px', lineHeight: '1.2' }}>
+            <div style={{ fontSize: '13.5px', lineHeight: '1.25' }}>
               Kepada Yth,<br />
               Bapak/Ibu <strong>{order.schoolName}</strong><br />
               di Tempat
