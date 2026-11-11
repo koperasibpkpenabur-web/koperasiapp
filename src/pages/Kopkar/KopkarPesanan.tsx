@@ -145,12 +145,14 @@ const KopkarPesanan = () => {
     disburseSchoolFee,
     saveShippingInfo,
     shipRemainingOrder,
+    deleteOrder,
   } = useOrders();
 
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima/Selesai), 'cancellations' (Riwayat Pembatalan)
   const [activeTab, setActiveTab] = useState<'active' | 'received' | 'cancellations'>('active');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
+  const [cancelStatusFilter, setCancelStatusFilter] = useState<'all' | 'cancellation_requested' | 'cancelled' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Rejection modal (initial reject for pending order)
@@ -183,9 +185,11 @@ const KopkarPesanan = () => {
   // Print Order state
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
 
-  // Cancellation action menu and detail state
+  // Cancellation action menu, reject-cancel modal, and detail state
   const [openCancelMenuId, setOpenCancelMenuId] = useState<string | null>(null);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  const [rejectingCancelOrder, setRejectingCancelOrder] = useState<Order | null>(null);
+  const [cancelRejectReason, setCancelRejectReason] = useState<string>('');
 
   useEffect(() => {
     if (printingOrder) {
@@ -252,13 +256,21 @@ const KopkarPesanan = () => {
     return matchesPayment && matchesSearch;
   });
 
-  const filteredCancellationOrders = cancellationOrders.filter((ord) => {
-    return (
-      ord.schoolName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.items.some((it) => it.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  });
+  const filteredCancellationOrders = cancellationOrders
+    .filter((ord) => {
+      const matchesCancelStatus = cancelStatusFilter === 'all' || ord.status === cancelStatusFilter;
+      const matchesSearch =
+        ord.schoolName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ord.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ord.items.some((it) => it.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesCancelStatus && matchesSearch;
+    })
+    .sort((a, b) => {
+      // Prioritaskan Pengajuan Batal (menunggu approval) di paling atas
+      if (a.status === 'cancellation_requested' && b.status !== 'cancellation_requested') return -1;
+      if (a.status !== 'cancellation_requested' && b.status === 'cancellation_requested') return 1;
+      return 0;
+    });
 
   // Approve Pending Order
   const handleApprove = async (order: Order) => {
@@ -481,8 +493,59 @@ const KopkarPesanan = () => {
     const stafName = user ? user.name : 'Karyawan Koperasi';
     if (window.confirm(`Setujui permintaan pembatalan pesanan ${order.id} dari "${order.schoolName}"?`)) {
       await approveCancelOrder(order.id, stafName);
-      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o));
+      const nowIso = new Date().toISOString();
+      setOrders(prev => prev.map(o => o.id === order.id ? {
+        ...o,
+        status: 'cancelled',
+        cancellationInfo: {
+          ...(o.cancellationInfo || { cancelledByRole: 'sekolah', cancelledByName: o.schoolName }),
+          cancelledAt: nowIso,
+          reason: `${o.cancellationInfo?.reason || 'Pengajuan pembatalan sekolah'} (Disetujui oleh ${stafName})`,
+        },
+      } : o));
     }
+  };
+
+  // Reject Cancellation Request from School (restore order back to approved/pending)
+  const handleOpenRejectCancelModal = (order: Order) => {
+    setRejectingCancelOrder(order);
+    setCancelRejectReason('');
+  };
+
+  const handleConfirmRejectSchoolCancel = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!rejectingCancelOrder) return;
+
+    const stafName = user ? user.name : 'Karyawan Koperasi';
+    const restoredStatus = rejectingCancelOrder.processedAt ? 'approved' : 'pending';
+    const reasonText = cancelRejectReason.trim() || 'Pengajuan pembatalan ditolak oleh Koperasi';
+    const updatedCancelInfo = {
+      ...(rejectingCancelOrder.cancellationInfo || {}),
+      rejectedAt: new Date().toISOString(),
+      rejectedByName: stafName,
+      cancelRejectionReason: reasonText,
+    };
+
+    const { error } = await supabase
+      .from('orders')
+      .update({
+        status: restoredStatus,
+        cancellation_info: updatedCancelInfo,
+      })
+      .eq('id', rejectingCancelOrder.id);
+
+    if (error) {
+      alert('Gagal menolak pengajuan batal: ' + error.message);
+      return;
+    }
+
+    setOrders(prev => prev.map(o => o.id === rejectingCancelOrder.id ? {
+      ...o,
+      status: restoredStatus,
+      cancellationInfo: updatedCancelInfo,
+    } : o));
+    setRejectingCancelOrder(null);
+    setCancelRejectReason('');
   };
 
   const formatRupiah = (num?: number) => {
@@ -564,35 +627,136 @@ const KopkarPesanan = () => {
 
       {/* Operational Highlights */}
       <div className="kopkar-stats operational-stats">
-        <div className="kopkar-stat-card summary-card">
+        <div
+          className="kopkar-stat-card summary-card"
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            setActiveTab('active');
+            setStatusFilter(statusFilter === 'pending' && activeTab === 'active' ? 'all' : 'pending');
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              setActiveTab('active');
+              setStatusFilter('pending');
+            }
+          }}
+          title="Klik untuk melihat pesanan yang menunggu persetujuan"
+          style={{
+            cursor: 'pointer',
+            border: activeTab === 'active' && statusFilter === 'pending' ? '2px solid #d97706' : undefined,
+            background: activeTab === 'active' && statusFilter === 'pending' ? '#fffbeb' : undefined,
+          }}
+        >
           <div className="stat-icon">📋</div>
           <div className="stat-label">Menunggu Persetujuan</div>
           <div className="stat-value warning">{pendingOrders}</div>
         </div>
-        <div className="kopkar-stat-card summary-card">
+
+        <div
+          className="kopkar-stat-card summary-card"
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            setActiveTab('active');
+            setStatusFilter(statusFilter === 'shipped' && activeTab === 'active' ? 'all' : 'shipped');
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              setActiveTab('active');
+              setStatusFilter('shipped');
+            }
+          }}
+          title="Klik untuk melihat pesanan yang sedang dikirim"
+          style={{
+            cursor: 'pointer',
+            border: activeTab === 'active' && statusFilter === 'shipped' ? '2px solid #2563eb' : undefined,
+            background: activeTab === 'active' && statusFilter === 'shipped' ? '#eff6ff' : undefined,
+          }}
+        >
           <div className="stat-icon">🚚</div>
           <div className="stat-label">Sedang Dikirim</div>
           <div className="stat-value info">{shippedOrders}</div>
         </div>
-        <div className="kopkar-stat-card summary-card">
+
+        <div
+          className="kopkar-stat-card summary-card"
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            setActiveTab('cancellations');
+            setCancelStatusFilter(cancelRequestsCount > 0 ? 'cancellation_requested' : 'all');
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              setActiveTab('cancellations');
+              setCancelStatusFilter(cancelRequestsCount > 0 ? 'cancellation_requested' : 'all');
+            }
+          }}
+          title="Klik untuk melihat & memproses pengajuan pembatalan dari sekolah"
+          style={{
+            cursor: 'pointer',
+            border: activeTab === 'cancellations'
+              ? '2px solid #e11d48'
+              : cancelRequestsCount > 0
+                ? '1.5px solid #fda4af'
+                : undefined,
+            background: activeTab === 'cancellations'
+              ? '#fff1f2'
+              : cancelRequestsCount > 0
+                ? '#fff5f5'
+                : undefined,
+          }}
+        >
           <div className="stat-icon">🚫</div>
           <div className="stat-label">Pengajuan Batal</div>
           <div className="stat-value danger">{cancelRequestsCount}</div>
+          <div style={{ fontSize: '0.74rem', color: cancelRequestsCount > 0 ? '#be123c' : '#64748b', marginTop: '4px', fontWeight: 600 }}>
+            {cancelRequestsCount > 0 ? 'Klik untuk tinjau & setujui →' : 'Klik untuk lihat riwayat batal →'}
+          </div>
         </div>
       </div>
+
       {/* 3 Tabs Navigation */}
       <div className="dashboard-tabs">
         <button
           className={`tab-button ${activeTab === 'active' ? 'active' : ''}`}
-          onClick={() => setActiveTab('active')}
+          onClick={() => {
+            setActiveTab('active');
+            setStatusFilter('all');
+          }}
         >
-          💰 Tagihan Berjalan ({activeOrders.length})
+          📋 Pesanan Berjalan ({activeOrders.length})
         </button>
         <button
           className={`tab-button ${activeTab === 'received' ? 'active' : ''}`}
           onClick={() => setActiveTab('received')}
         >
           ✅ Riwayat Selesai ({receivedCount})
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'cancellations' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('cancellations');
+            setCancelStatusFilter('all');
+          }}
+        >
+          🚫 Pengajuan & History Batal ({cancellationOrders.length})
+          {cancelRequestsCount > 0 && (
+            <span
+              style={{
+                marginLeft: '8px',
+                background: '#e11d48',
+                color: '#ffffff',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '2px 7px',
+                borderRadius: '99px',
+              }}
+            >
+              {cancelRequestsCount} Pending
+            </span>
+          )}
         </button>
       </div>
 
@@ -1046,121 +1210,309 @@ const KopkarPesanan = () => {
         </div>
       )}
 
-      {/* TAB 3: HISTORY PEMBATALAN */}
+      {/* TAB 3: HISTORY PEMBATALAN & APPROVAL PENGAJUAN BATAL */}
       {activeTab === 'cancellations' && (
         <div className="tab-pane">
           <div className="kopkar-toolbar">
-            <h3>Riwayat Pembatalan & Permintaan Batal Sekolah</h3>
+            <h3>Pengajuan Batal Sekolah & Riwayat Pembatalan</h3>
+            <div className="kopkar-filters">
+              <input
+                type="text"
+                placeholder="Cari sekolah, ID order, atau item..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <select
+                value={cancelStatusFilter}
+                onChange={(e) => setCancelStatusFilter(e.target.value as any)}
+              >
+                <option value="all">Semua Status ({cancellationOrders.length})</option>
+                <option value="cancellation_requested">⏳ Menunggu Approval ({cancelRequestsCount})</option>
+                <option value="cancelled">🚫 Sudah Dibatalkan</option>
+                <option value="rejected">❌ Ditolak Awal</option>
+              </select>
+            </div>
           </div>
 
+          {cancelRequestsCount > 0 && (
+            <div
+              style={{
+                background: '#fff1f2',
+                border: '1px solid #fecdd3',
+                borderLeft: '4px solid #e11d48',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                marginBottom: '16px',
+                color: '#881337',
+                fontSize: '0.88rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <strong>⏳ {cancelRequestsCount} Pengajuan Pembatalan Menunggu Persetujuan:</strong>{' '}
+                Klik <strong>✓ Setujui Batal</strong> untuk menyetujui pembatalan, atau <strong>↩ Tolak Batal</strong> agar pesanan tetap dilanjutkan.
+              </div>
+              {cancelStatusFilter !== 'cancellation_requested' && (
+                <button
+                  type="button"
+                  onClick={() => setCancelStatusFilter('cancellation_requested')}
+                  style={{
+                    background: '#e11d48',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Tampilkan Hanya Pending ({cancelRequestsCount})
+                </button>
+              )}
+            </div>
+          )}
+
           {filteredCancellationOrders.length > 0 ? (
-            <div className="kopkar-table-container desktop-table-view">
-              <table className="kopkar-table">
-                <thead>
-                  <tr>
-                    <th>ID & Sekolah</th>
-                    <th>Daftar Item</th>
-                    <th>Status</th>
-                    <th>Pihak Pembatal</th>
-                    <th>Alasan Pembatalan</th>
-                    <th>Waktu</th>
-                    <th>Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCancellationOrders.map((order) => (
-                    <tr key={order.id}>
-                      <td>
-                        <strong>{order.id}</strong>
-                        <div style={{ fontWeight: 600, color: '#334155' }}>{order.schoolName}</div>
-                      </td>
-                      <td>
-                        <ul className="order-items-list">
-                          {order.items.map((it, idx) => (
-                            <li key={idx}>
-                              <span className={`item-type ${it.type}`}>{it.type}</span>
-                              {it.name} ({it.quantity} pcs)
-                            </li>
-                          ))}
-                        </ul>
-                      </td>
-                      <td>
-                        {order.status === 'cancellation_requested' && (
-                          <span className="status-badge requested">⏳ Request Batal</span>
-                        )}
-                        {order.status === 'cancelled' && (
-                          <span className="status-badge cancelled">🚫 Dibatalkan</span>
-                        )}
-                        {order.status === 'rejected' && (
-                          <span className="status-badge rejected">❌ Ditolak</span>
-                        )}
-                      </td>
-                      <td>
-                        {order.cancellationInfo?.cancelledByName || 'Koperasi'}
-                      </td>
-                      <td>
-                        <div className="reason-text-box">
-                          {order.cancellationInfo?.reason || order.rejectionReason || 'Tidak ada alasan'}
-                        </div>
-                      </td>
-                      <td>
-                        {formatDate(order.cancellationInfo?.cancelledAt || order.createdAt)}
-                      </td>
-                      <td>
-                        <div className="action-buttons-col" style={{ position: 'relative' }}>
-                          <button
-                            className="btn-detail-dots"
-                            title="Opsi"
-                            onClick={() => setOpenCancelMenuId(openCancelMenuId === order.id ? null : order.id)}
-                          >
-                            ⋮
-                          </button>
-                          {openCancelMenuId === order.id && (
-                            <div className="action-menu-dropdown">
+            <>
+              {/* Desktop Table View */}
+              <div className="kopkar-table-container desktop-table-view">
+                <table className="kopkar-table">
+                  <thead>
+                    <tr>
+                      <th>ID & Sekolah</th>
+                      <th>Daftar Item</th>
+                      <th>Status</th>
+                      <th>Pihak Pemohon</th>
+                      <th>Alasan Pembatalan</th>
+                      <th>Waktu</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCancellationOrders.map((order) => (
+                      <tr
+                        key={order.id}
+                        style={
+                          order.status === 'cancellation_requested'
+                            ? { background: '#fff9fa' }
+                            : undefined
+                        }
+                      >
+                        <td>
+                          <strong>{order.id}</strong>
+                          <div style={{ fontWeight: 600, color: '#334155' }}>{order.schoolName}</div>
+                          {order.orderPhase && (
+                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Fase: {order.orderPhase}</span>
+                          )}
+                        </td>
+                        <td>
+                          <ul className="order-items-list">
+                            {order.items.map((it, idx) => (
+                              <li key={idx}>
+                                <span className={`item-type ${it.type}`}>{it.type}</span>
+                                {it.name} {it.size ? `[${it.size}] ` : ''}({it.quantity} {resolveItemUnit(it, it.quantity)})
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                        <td>
+                          {order.status === 'cancellation_requested' && (
+                            <span className="status-badge requested">⏳ Menunggu Approval</span>
+                          )}
+                          {order.status === 'cancelled' && (
+                            <span className="status-badge cancelled">🚫 Dibatalkan</span>
+                          )}
+                          {order.status === 'rejected' && (
+                            <span className="status-badge rejected">❌ Ditolak</span>
+                          )}
+                        </td>
+                        <td>
+                          {order.cancellationInfo?.cancelledByName || 'Koperasi'}
+                        </td>
+                        <td>
+                          <div className="reason-text-box">
+                            {order.cancellationInfo?.reason || order.rejectionReason || 'Tidak ada alasan'}
+                          </div>
+                        </td>
+                        <td>
+                          {formatDate(
+                            order.status === 'cancellation_requested'
+                              ? (order.cancellationInfo?.requestedAt || order.createdAt)
+                              : (order.cancellationInfo?.cancelledAt || order.createdAt)
+                          )}
+                        </td>
+                        <td>
+                          {order.status === 'cancellation_requested' ? (
+                            <div className="kopkar-actions-col" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                               <button
-                                className="dropdown-item"
-                                onClick={() => {
-                                  setDetailOrder(order);
-                                  setOpenCancelMenuId(null);
-                                }}
+                                className="btn-approve"
+                                onClick={() => handleApproveSchoolCancel(order)}
+                                title="Setujui pembatalan pesanan ini"
+                              >
+                                ✓ Setujui Batal
+                              </button>
+                              <button
+                                className="btn-reject"
+                                style={{ background: '#fff', color: '#b45309', border: '1px solid #f59e0b' }}
+                                onClick={() => handleOpenRejectCancelModal(order)}
+                                title="Tolak pengajuan batal & lanjutkan pesanan"
+                              >
+                                ↩ Tolak Batal
+                              </button>
+                              <button
+                                className="btn-detail-dots"
+                                title="Lihat Detail Pesanan"
+                                onClick={() => setDetailOrder(order)}
+                                style={{ fontSize: '0.8rem', padding: '4px 8px' }}
                               >
                                 📄 Detail
                               </button>
-                              {order.status === 'cancellation_requested' && (
-                                <button
-                                  className="dropdown-item"
-                                  onClick={() => {
-                                    handleApproveSchoolCancel(order);
-                                    setOpenCancelMenuId(null);
-                                  }}
-                                  style={{ color: '#059669' }}
-                                >
-                                  ✓ Setujui Batal
-                                </button>
-                              )}
+                            </div>
+                          ) : (
+                            <div className="action-buttons-col" style={{ position: 'relative' }}>
                               <button
-                                className="dropdown-item delete"
-                                onClick={() => {
-                                  if(window.confirm('Yakin ingin menghapus permanen riwayat pembatalan ini?')) {
-                                    deleteOrder(order.id);
-                                  }
-                                  setOpenCancelMenuId(null);
-                                }}
+                                className="btn-detail-dots"
+                                title="Opsi"
+                                onClick={() => setOpenCancelMenuId(openCancelMenuId === order.id ? null : order.id)}
                               >
-                                🗑️ Hapus Riwayat
+                                ⋮
                               </button>
+                              {openCancelMenuId === order.id && (
+                                <div className="action-menu-dropdown">
+                                  <button
+                                    className="dropdown-item"
+                                    onClick={() => {
+                                      setDetailOrder(order);
+                                      setOpenCancelMenuId(null);
+                                    }}
+                                  >
+                                    📄 Detail
+                                  </button>
+                                  <button
+                                    className="dropdown-item delete"
+                                    onClick={async () => {
+                                      if (window.confirm('Yakin ingin menghapus permanen riwayat pembatalan ini?')) {
+                                        await deleteOrder(order.id);
+                                        setOrders(prev => prev.filter(o => o.id !== order.id));
+                                      }
+                                      setOpenCancelMenuId(null);
+                                    }}
+                                  >
+                                    🗑️ Hapus Riwayat
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="mobile-cards-view">
+                {filteredCancellationOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="mobile-order-card"
+                    style={
+                      order.status === 'cancellation_requested'
+                        ? { borderLeft: '4px solid #e11d48', background: '#fff9fa' }
+                        : undefined
+                    }
+                  >
+                    <div className="mobile-card-header">
+                      <div>
+                        <span className="mobile-order-id">{order.id}</span>
+                        <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#1e2d42' }}>{order.schoolName}</div>
+                        <div className="mobile-card-date">
+                          {formatDate(
+                            order.status === 'cancellation_requested'
+                              ? (order.cancellationInfo?.requestedAt || order.createdAt)
+                              : (order.cancellationInfo?.cancelledAt || order.createdAt)
+                          )}
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                      <span className={`status-badge ${order.status === 'cancellation_requested' ? 'requested' : order.status}`}>
+                        {order.status === 'cancellation_requested' && '⏳ Menunggu Approval'}
+                        {order.status === 'cancelled' && '🚫 Dibatalkan'}
+                        {order.status === 'rejected' && '❌ Ditolak'}
+                      </span>
+                    </div>
+
+                    <div className="mobile-items-box">
+                      <div className="mobile-label">Daftar Item:</div>
+                      <ul className="order-items-list">
+                        {order.items.map((it, idx) => (
+                          <li key={idx}>
+                            <span className={`item-type ${it.type}`}>{it.type}</span>
+                            {it.name} {it.size ? `[${it.size}] ` : ''}— {it.quantity} {resolveItemUnit(it, it.quantity)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="reason-text-box" style={{ marginTop: '8px' }}>
+                      <strong>Pemohon ({order.cancellationInfo?.cancelledByName || 'Koperasi'}):</strong>{' '}
+                      {order.cancellationInfo?.reason || order.rejectionReason || 'Tidak ada alasan'}
+                    </div>
+
+                    <div className="mobile-card-actions" style={{ marginTop: '12px' }}>
+                      {order.status === 'cancellation_requested' ? (
+                        <>
+                          <button
+                            className="btn-approve full-width-touch"
+                            onClick={() => handleApproveSchoolCancel(order)}
+                          >
+                            ✓ Setujui Pembatalan
+                          </button>
+                          <button
+                            className="btn-reject full-width-touch"
+                            style={{ background: '#fff', color: '#b45309', border: '1px solid #f59e0b' }}
+                            onClick={() => handleOpenRejectCancelModal(order)}
+                          >
+                            ↩ Tolak Batal (Lanjutkan Pesanan)
+                          </button>
+                        </>
+                      ) : null}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn-secondary"
+                          style={{ flex: 1, padding: '8px' }}
+                          onClick={() => setDetailOrder(order)}
+                        >
+                          📄 Detail
+                        </button>
+                        {order.status !== 'cancellation_requested' && (
+                          <button
+                            className="btn-reject"
+                            style={{ flex: 1, padding: '8px' }}
+                            onClick={async () => {
+                              if (window.confirm('Yakin ingin menghapus permanen riwayat pembatalan ini?')) {
+                                await deleteOrder(order.id);
+                                setOrders(prev => prev.filter(o => o.id !== order.id));
+                              }
+                            }}
+                          >
+                            🗑️ Hapus
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="kopkar-empty">
-              <p>Tidak ada riwayat pembatalan pesanan.</p>
+              <p>Tidak ada data pengajuan pembatalan atau riwayat pembatalan.</p>
             </div>
           )}
         </div>
@@ -1330,6 +1682,42 @@ const KopkarPesanan = () => {
         </div>
       )}
 
+      {/* Modal Tolak Pengajuan Batal dari Sekolah */}
+      {rejectingCancelOrder && (
+        <div className="modal-overlay" onClick={() => setRejectingCancelOrder(null)}>
+          <div className="modal" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ color: '#b45309' }}>↩ Tolak Pengajuan Pembatalan</h3>
+            <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '10px' }}>
+              Pesanan: <strong>{rejectingCancelOrder.id}</strong> — {rejectingCancelOrder.schoolName}
+            </p>
+            <div style={{ fontSize: '0.84rem', background: '#fffbeb', border: '1px solid #fde68a', padding: '10px 12px', borderRadius: '8px', marginBottom: '14px', color: '#92400e' }}>
+              ℹ️ Jika pengajuan batal ditolak, pesanan akan dikembalikan ke status aktif (<strong>{rejectingCancelOrder.processedAt ? 'Disetujui / Siap Kirim' : 'Menunggu Persetujuan'}</strong>) dan dilanjutkan prosesnya.
+            </div>
+            <form className="modal-form" onSubmit={handleConfirmRejectSchoolCancel}>
+              <div className="form-group">
+                <label>Alasan Penolakan Pembatalan (ditampilkan ke sekolah):</label>
+                <textarea
+                  value={cancelRejectReason}
+                  onChange={(e) => setCancelRejectReason(e.target.value)}
+                  placeholder="Contoh: Barang sudah dipacking / sudah masuk jadwal pengiriman..."
+                  rows={3}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setRejectingCancelOrder(null)}>
+                  Batal
+                </button>
+                <button type="submit" className="btn-reject" style={{ background: '#d97706' }}>
+                  Konfirmasi Tolak Batal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Print Only Surat Jalan */}
       <SuratJalanPrint order={printingOrder} />
       {/* Modal Detail Order */}
@@ -1382,8 +1770,12 @@ const KopkarPesanan = () => {
                 )}
               </div>
               <div>
-                <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>Status Pengiriman</div>
-                <span className={`status-badge ${detailOrder.status}`}>
+                <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>Status Pesanan</div>
+                <span className={`status-badge ${detailOrder.status === 'cancellation_requested' ? 'requested' : detailOrder.status}`}>
+                  {detailOrder.status === 'pending' && '⏳ Menunggu Persetujuan'}
+                  {detailOrder.status === 'approved' && '👍 Disetujui (Siap Kirim)'}
+                  {detailOrder.status === 'shipped' && '🚚 Sedang Dikirim'}
+                  {detailOrder.status === 'received' && '✅ Selesai Diterima'}
                   {detailOrder.status === 'cancellation_requested' && '⏳ Permintaan Batal'}
                   {detailOrder.status === 'cancelled' && '🚫 Dibatalkan'}
                   {detailOrder.status === 'rejected' && '❌ Ditolak Koperasi'}
@@ -1391,7 +1783,41 @@ const KopkarPesanan = () => {
               </div>
             </div>
 
-            <div className="modal-actions" style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+            {(detailOrder.cancellationInfo?.reason || detailOrder.rejectionReason) && (
+              <div style={{ marginTop: '16px', padding: '10px 12px', borderRadius: '8px', background: '#fff1f2', border: '1px solid #fecdd3', fontSize: '0.86rem', color: '#881337' }}>
+                <strong>Alasan Pembatalan / Penolakan:</strong>{' '}
+                {detailOrder.cancellationInfo?.reason || detailOrder.rejectionReason}
+              </div>
+            )}
+
+            <div className="modal-actions" style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+              {detailOrder.status === 'cancellation_requested' && (
+                <>
+                  <button
+                    type="button"
+                    className="btn-reject"
+                    style={{ background: '#fff', color: '#b45309', border: '1px solid #f59e0b' }}
+                    onClick={() => {
+                      const target = detailOrder;
+                      setDetailOrder(null);
+                      handleOpenRejectCancelModal(target);
+                    }}
+                  >
+                    ↩ Tolak Batal
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-approve"
+                    onClick={async () => {
+                      const target = detailOrder;
+                      setDetailOrder(null);
+                      await handleApproveSchoolCancel(target);
+                    }}
+                  >
+                    ✓ Setujui Batal
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 className="btn-secondary"

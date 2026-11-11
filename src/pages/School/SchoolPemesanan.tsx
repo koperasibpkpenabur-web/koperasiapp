@@ -1213,25 +1213,30 @@ const SchoolPemesanan = () => {
           <div className="stat-label">History Diterima</div>
           <div className="stat-value" style={{ color: '#059669' }}>{receivedCount}</div>
         </div>
+        <div className="order-stat-card" onClick={() => { setActiveTab('cancellations'); setCurrentPage(1); }} style={{ cursor: 'pointer', background: activeTab === 'cancellations' ? '#fff1f2' : '#fff', border: activeTab === 'cancellations' ? '1px solid #fda4af' : undefined }}>
+          <div className="stat-icon">🚫</div>
+          <div className="stat-label">Pengajuan / Batal</div>
+          <div className="stat-value" style={{ color: '#e11d48' }}>{cancellationsCount}</div>
+        </div>
       </div>
 
       {/* 3 Tabs Navigation */}
       <div className="dashboard-tabs">
         <button
           className={`tab-button ${activeTab === 'active' ? 'active' : ''}`}
-          onClick={() => setActiveTab('active')}
+          onClick={() => { setActiveTab('active'); setCurrentPage(1); }}
         >
           📋 Pesanan Berjalan ({paginatedOrders.length})
         </button>
         <button
           className={`tab-button ${activeTab === 'received' ? 'active' : ''}`}
-          onClick={() => setActiveTab('received')}
+          onClick={() => { setActiveTab('received'); setCurrentPage(1); }}
         >
           ✅ History Diterima ({receivedCount})
         </button>
         <button
           className={`tab-button ${activeTab === 'cancellations' ? 'active' : ''}`}
-          onClick={() => setActiveTab('cancellations')}
+          onClick={() => { setActiveTab('cancellations'); setCurrentPage(1); }}
         >
           🚫 History Pembatalan ({cancellationsCount})
         </button>
@@ -1292,6 +1297,11 @@ const SchoolPemesanan = () => {
                           )}
                           {order.status === 'approved' && (
                             <span className="status-badge approved">👍 Disetujui (Siap Kirim)</span>
+                          )}
+                          {(order.status === 'pending' || order.status === 'approved') && (order.cancellationInfo as any)?.cancelRejectionReason && (
+                            <div style={{ fontSize: '0.75rem', marginTop: '6px', color: '#92400e', background: '#fffbeb', padding: '4px 8px', borderRadius: '6px', border: '1px solid #fde68a' }}>
+                              ℹ️ Pengajuan batal ditolak: {(order.cancellationInfo as any).cancelRejectionReason}
+                            </div>
                           )}
                           {order.status === 'shipped' && !order.receiveInfo?.isPartial && !order.receiveInfo?.isSusulan && (
                             <div className="shipping-badge-container">
