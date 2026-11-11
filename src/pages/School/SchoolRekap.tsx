@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { resolveItemUnit } from '../../utils/formatUnit';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -68,6 +69,7 @@ const SchoolRekap = () => {
 
   const [rawRows, setRawRows] = useState<FlatRecapRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
 
@@ -85,6 +87,7 @@ const SchoolRekap = () => {
   const fetchRekapData = useCallback(async (silent = false) => {
     if (!user?.id) return;
     if (!silent) setLoading(true);
+    setFetchError(null);
 
     try {
       const PAGE_SIZE = 1000;
@@ -95,13 +98,14 @@ const SchoolRekap = () => {
       while (hasMore) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, created_at, order_phase, status, order_items(name, type, size, unit, quantity, price_student, price_kopkar, fee_school)')
+          .select('id, created_at, order_phase, status, order_items(name, type, size, quantity, price_student, price_kopkar, fee_school)')
           .eq('school_user_id', user.id)
           .order('created_at', { ascending: false })
           .range(from, from + PAGE_SIZE - 1);
 
         if (error) {
           console.error('Gagal mengambil data rekap sekolah:', error);
+          setFetchError(error.message || 'Gagal memuat data rekapitulasi pesanan dari server.');
           break;
         }
 
@@ -136,7 +140,7 @@ const SchoolRekap = () => {
               name: it.name || '-',
               type: it.type || 'seragam',
               size: (it.size || '').trim(),
-              unit: it.unit || 'pcs',
+              unit: resolveItemUnit({ name: it.name, type: it.type }, qty),
               quantity: qty,
               priceStudent: pStudent,
               priceKopkar: pKopkar,
@@ -163,6 +167,7 @@ const SchoolRekap = () => {
       setRawRows(flattened);
     } catch (err) {
       console.error('Error in fetchRekapData:', err);
+      setFetchError('Terjadi kesalahan saat memproses data rekapitulasi pesanan.');
     } finally {
       if (!silent) setLoading(false);
     }
@@ -170,6 +175,26 @@ const SchoolRekap = () => {
 
   useEffect(() => {
     fetchRekapData();
+
+    const handleAutoRefresh = () => {
+      fetchRekapData(true);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchRekapData(true);
+      }
+    };
+
+    window.addEventListener('school-order-updated', handleAutoRefresh);
+    window.addEventListener('focus', handleAutoRefresh);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('school-order-updated', handleAutoRefresh);
+      window.removeEventListener('focus', handleAutoRefresh);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [fetchRekapData]);
 
   // Client-side Reactive Filtering
@@ -177,7 +202,7 @@ const SchoolRekap = () => {
     return rawRows.filter((row) => {
       // 1. Status Filter
       if (statusFilter === 'all_active') {
-        if (!['pending', 'approved', 'shipped', 'received'].includes(row.status)) {
+        if (row.status === 'cancelled' || row.status === 'rejected') {
           return false;
         }
       } else if (statusFilter !== 'all') {
@@ -278,7 +303,8 @@ const SchoolRekap = () => {
         'Ukuran': row.size || '-',
         'Kategori': row.type === 'seragam' ? 'Seragam' : 'Buku',
         'Status': getStatusBadge(row.status).label,
-        'Kuantitas (pcs)': row.quantity,
+        'Kuantitas': row.quantity,
+        'Satuan': row.unit || 'pcs',
         'Harga Modal Kopkar (Rp)': row.priceKopkar,
         'Total Modal Kopkar (Rp)': row.totalKopkar,
         'Fee Sekolah (Rp)': row.feeSchool,
@@ -297,12 +323,13 @@ const SchoolRekap = () => {
         'Ukuran': '',
         'Kategori': '',
         'Status': `${filteredRows.length} item (${uniqueOrdersCount} berkas order)`,
-        'Kuantitas (pcs)': totalQuantity,
-        'Harga Modal Kopkar (Rp)': 0,
+        'Kuantitas': totalQuantity,
+        'Satuan': 'item',
+        'Harga Modal Kopkar (Rp)': '' as any,
         'Total Modal Kopkar (Rp)': totalRupiahKopkar,
-        'Fee Sekolah (Rp)': 0,
+        'Fee Sekolah (Rp)': '' as any,
         'Total Fee Sekolah (Rp)': totalRupiahFee,
-        'Harga Siswa (Rp)': 0,
+        'Harga Siswa (Rp)': '' as any,
         'Total Tagihan Siswa (Rp)': totalRupiahStudent,
         'No. Pesanan': '',
       });
@@ -316,7 +343,8 @@ const SchoolRekap = () => {
         { wch: 10 },
         { wch: 12 },
         { wch: 22 },
-        { wch: 16 },
+        { wch: 12 },
+        { wch: 10 },
         { wch: 22 },
         { wch: 22 },
         { wch: 18 },
@@ -385,7 +413,7 @@ const SchoolRekap = () => {
           row.size || '-',
           row.type === 'seragam' ? 'Seragam' : 'Buku',
           getStatusBadge(row.status).label,
-          row.quantity,
+          `${row.quantity} ${row.unit || 'pcs'}`,
           formatRupiah(row.priceKopkar),
           formatRupiah(row.totalKopkar),
           formatRupiah(row.feeSchool),
@@ -403,7 +431,7 @@ const SchoolRekap = () => {
         '',
         '',
         '',
-        totalQuantity,
+        totalQuantity.toLocaleString('id-ID'),
         '',
         formatRupiah(totalRupiahKopkar),
         '',
@@ -482,6 +510,45 @@ const SchoolRekap = () => {
           </button>
         </div>
       </div>
+
+      {fetchError && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap',
+            padding: '12px 16px',
+            marginBottom: '16px',
+            borderRadius: '12px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#b91c1c',
+            fontSize: '0.88rem',
+            fontWeight: 500,
+          }}
+        >
+          <span>⚠️ Gagal menyinkronkan data rekap: {fetchError}</span>
+          <button
+            type="button"
+            onClick={() => fetchRekapData()}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              border: '1px solid #fca5a5',
+              background: '#ffffff',
+              color: '#b91c1c',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            🔄 Coba Muat Ulang
+          </button>
+        </div>
+      )}
 
       {/* 2. THE 4 STAT CARDS */}
       <div className="rekap-cards-grid">
@@ -569,13 +636,15 @@ const SchoolRekap = () => {
                 value={statusFilter}
                 onChange={(e) => handleFilterChange(setStatusFilter, e.target.value)}
               >
-                <option value="all_active">Semua Aktif (Berjalan & Selesai)</option>
+                <option value="all_active">Semua Aktif (Berjalan &amp; Selesai)</option>
                 <option value="received">✅ Selesai (Diterima)</option>
                 <option value="shipped">🚚 Sedang Dikirim</option>
                 <option value="approved">👍 Disetujui (Siap Kirim)</option>
                 <option value="pending">⏳ Menunggu Persetujuan</option>
+                <option value="cancellation_requested">⚠️ Permohonan Batal</option>
                 <option value="all">Semua Status (Termasuk Batal)</option>
                 <option value="cancelled">❌ Dibatalkan</option>
+                <option value="rejected">🚫 Ditolak</option>
               </select>
             </div>
 
