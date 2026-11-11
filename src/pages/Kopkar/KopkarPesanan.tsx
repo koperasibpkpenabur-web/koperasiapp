@@ -1519,104 +1519,196 @@ const KopkarPesanan = () => {
       )}
 
       {/* Modal Input Pengiriman Barang */}
-      {shippingOrder && (
-        <div className="modal-overlay" onClick={() => setShippingOrder(null)}>
-          <div className="modal" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>📄 Buat Surat Jalan</h3>
-            <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '14px' }}>
-              Pesanan No: <strong>{shippingOrder.id}</strong> ({shippingOrder.schoolName})
-            </p>
+      {shippingOrder && (() => {
+        const totalShippedNow = shippingOrder.items.reduce(
+          (sum, _, idx) => sum + (shippedKopkarQuantities[idx] || 0) + (shippedVendorQuantities[idx] || 0),
+          0
+        );
+        const totalOrdered = shippingOrder.items.reduce((sum, it) => sum + it.quantity, 0);
 
-            <form className="modal-form" onSubmit={handleConfirmShip}>
-              {shipError && <div className="modal-error">{shipError}</div>}
+        const allocateAllToSource = (target: 'kopkar' | 'vendor') => {
+          const allocated = shippingOrder.items.map((it, idx) => {
+            const currentTotal = (shippedKopkarQuantities[idx] || 0) + (shippedVendorQuantities[idx] || 0);
+            return currentTotal > 0 ? currentTotal : (!isShippingRemainder ? it.quantity : 0);
+          });
+          const zeros = shippingOrder.items.map(() => 0);
+          if (target === 'kopkar') {
+            setShippedKopkarQuantities(allocated);
+            setShippedVendorQuantities(zeros);
+          } else {
+            setShippedKopkarQuantities(zeros);
+            setShippedVendorQuantities(allocated);
+          }
+        };
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div className="form-group">
-                  <label htmlFor="shipDate">Tanggal Kirim *</label>
-                  <input
-                    id="shipDate"
-                    type="date"
-                    value={shipDate}
-                    onChange={(e) => setShipDate(e.target.value)}
-                    required
-                  />
+        return (
+          <div className="modal-overlay" onClick={() => setShippingOrder(null)}>
+            <div className="modal sj-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="sj-modal-header">
+                <div className="sj-modal-title-wrap">
+                  <div className="sj-modal-icon" aria-hidden="true">📄</div>
+                  <div className="sj-modal-title-text">
+                    <h3>{isShippingRemainder ? 'Buat Surat Jalan Susulan' : 'Buat Surat Jalan'}</h3>
+                    <div className="sj-order-meta">
+                      <span className="sj-meta-id">{shippingOrder.id}</span>
+                      <span className="sj-meta-school">{shippingOrder.schoolName}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="shipTime">Jam Kirim *</label>
-                  <input
-                    id="shipTime"
-                    type="time"
-                    value={shipTime}
-                    onChange={(e) => setShipTime(e.target.value)}
-                    required
-                  />
-                </div>
+                <button
+                  type="button"
+                  className="sj-modal-close"
+                  aria-label="Tutup modal surat jalan"
+                  onClick={() => setShippingOrder(null)}
+                >
+                  ✕
+                </button>
               </div>
 
-              <div className="form-group">
-                <label htmlFor="courierNotes">Armada Pengiriman / Nama Kurir</label>
-                <input
-                  id="courierNotes"
-                  type="text"
-                  placeholder="Contoh: Mobil Box Koperasi (B 1234 CD) - Sopir Pak Joko"
-                  value={courierNotes}
-                  onChange={(e) => setCourierNotes(e.target.value)}
-                />
-              </div>
+              <form className="modal-form sj-modal-form" onSubmit={handleConfirmShip}>
+                <div className="sj-modal-body">
+                  {shipError && <div className="modal-error">{shipError}</div>}
 
-              <div className="form-group" style={{ marginTop: '14px' }}>
-                <label>Rincian Qty Pengiriman per Barang</label>
-                <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '4px' }}>
-                  {shippingOrder.items.map((it, idx) => (
-                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', marginBottom: '12px', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{it.name}{it.size ? ` [Uk: ${it.size}]` : ''} (Pesan: {it.quantity} pcs)</span>
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Dari Kopkar:</span>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            value={shippedKopkarQuantities[idx]}
-                            onChange={(e) => {
-                              const newQties = [...shippedKopkarQuantities];
-                              newQties[idx] = parseInt(e.target.value) || 0;
-                              setShippedKopkarQuantities(newQties);
-                            }}
-                            style={{ width: '65px', padding: '4px', fontSize: '0.85rem' }}
-                          />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Dari Penjahit:</span>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            value={shippedVendorQuantities[idx]}
-                            onChange={(e) => {
-                              const newQties = [...shippedVendorQuantities];
-                              newQties[idx] = parseInt(e.target.value) || 0;
-                              setShippedVendorQuantities(newQties);
-                            }}
-                            style={{ width: '65px', padding: '4px', fontSize: '0.85rem' }}
-                          />
-                        </div>
+                  <div className="sj-schedule-grid">
+                    <div className="form-group">
+                      <label htmlFor="shipDate">Tanggal Kirim *</label>
+                      <input
+                        id="shipDate"
+                        type="date"
+                        value={shipDate}
+                        onChange={(e) => setShipDate(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="shipTime">Jam Kirim *</label>
+                      <input
+                        id="shipTime"
+                        type="time"
+                        value={shipTime}
+                        onChange={(e) => setShipTime(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="courierNotes">Armada Pengiriman / Nama Kurir</label>
+                    <input
+                      id="courierNotes"
+                      type="text"
+                      placeholder="Contoh: Mobil Box Koperasi (B 1234 CD) - Sopir Pak Joko"
+                      value={courierNotes}
+                      onChange={(e) => setCourierNotes(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="sj-items-section">
+                    <div className="sj-items-header">
+                      <span className="sj-items-label">Rincian Qty Pengiriman per Barang</span>
+                      <div className="sj-quick-actions">
+                        <button
+                          type="button"
+                          className="sj-quick-btn"
+                          onClick={() => allocateAllToSource('kopkar')}
+                        >
+                          Semua dari Kopkar
+                        </button>
+                        <button
+                          type="button"
+                          className="sj-quick-btn"
+                          onClick={() => allocateAllToSource('vendor')}
+                        >
+                          Semua dari Penjahit
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
 
-              <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShippingOrder(null)}>
-                  Batal
-                </button>
-                <button type="submit" className="btn-ship" style={{ backgroundColor: '#2563eb' }}>
-                  📄 Simpan & Cetak Surat Jalan
-                </button>
-              </div>
-            </form>
+                    <div className="sj-items-list">
+                      {shippingOrder.items.map((it, idx) => {
+                        const unit = resolveItemUnit(it, it.quantity);
+                        const kopkarQty = shippedKopkarQuantities[idx] ?? 0;
+                        const vendorQty = shippedVendorQuantities[idx] ?? 0;
+                        const lineTotal = kopkarQty + vendorQty;
+                        const statusClass =
+                          lineTotal === 0
+                            ? 'is-zero'
+                            : lineTotal >= it.quantity
+                              ? 'is-exact'
+                              : 'is-partial';
+
+                        return (
+                          <div key={idx} className="sj-item-card">
+                            <div className="sj-item-top">
+                              <div className="sj-item-name">
+                                {it.name}
+                                {it.size && <span className="sj-size-badge">Uk: {it.size}</span>}
+                              </div>
+                              <span className="sj-order-qty-badge">
+                                Pesan: {it.quantity} {unit}
+                              </span>
+                            </div>
+
+                            <div className="sj-item-inputs">
+                              <label className="sj-qty-field">
+                                <span>Dari Kopkar</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="sj-qty-input"
+                                  value={kopkarQty}
+                                  onChange={(e) => {
+                                    const newQties = [...shippedKopkarQuantities];
+                                    newQties[idx] = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                    setShippedKopkarQuantities(newQties);
+                                  }}
+                                />
+                              </label>
+
+                              <label className="sj-qty-field">
+                                <span>Dari Penjahit</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="sj-qty-input"
+                                  value={vendorQty}
+                                  onChange={(e) => {
+                                    const newQties = [...shippedVendorQuantities];
+                                    newQties[idx] = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                    setShippedVendorQuantities(newQties);
+                                  }}
+                                />
+                              </label>
+
+                              <div className={`sj-item-subtotal ${statusClass}`}>
+                                Kirim: {lineTotal} {unit}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sj-modal-footer">
+                  <div className="sj-total-summary">
+                    Total kirim sekarang: <strong>{totalShippedNow}</strong> / {totalOrdered} item
+                  </div>
+                  <div className="sj-footer-buttons">
+                    <button type="button" className="btn-secondary" onClick={() => setShippingOrder(null)}>
+                      Batal
+                    </button>
+                    <button type="submit" className="sj-btn-submit">
+                      📄 Simpan &amp; Cetak Surat Jalan
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal Batalkan Pesanan Approved */}
       {cancellingApprovedOrder && (
