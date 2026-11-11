@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import './kopkar.css';
 
 type GarmentType = 'kemeja' | 'celana' | 'rok' | 'rompi';
 
@@ -285,19 +286,28 @@ const PRESETS: PresetDef[] = [
   }
 ];
 
-const KopkarKalkulatorKain = () => {
+interface KalkulatorKainProps {
+  readOnly?: boolean;
+}
+
+const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
   const [totalRolls, setTotalRolls] = useState<number>(1);
   const [yardsPerRoll, setYardsPerRoll] = useState<number>(60);
   const [fabricWidth] = useState<number>(150);
   const [defectTolerance, setDefectTolerance] = useState<number>(5); 
   
   const [selectedPresetKey, setSelectedPresetKey] = useState<string>(PRESETS[0].key);
-  const [currentPreset, setCurrentPreset] = useState<PresetDef>(PRESETS[0]);
-  const [sizes, setSizes] = useState<SizeRatio[]>(PRESETS[0].sizes.map(s => ({ ...s, id: Math.random().toString() })));
+  const currentPreset = useMemo(
+    () => PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0],
+    [selectedPresetKey]
+  );
+  const [sizes, setSizes] = useState<SizeRatio[]>(() =>
+    PRESETS[0].sizes.map((s, idx) => ({ ...s, id: `${PRESETS[0].key}-${idx}` }))
+  );
 
   useEffect(() => {
+    let active = true;
     const preset = PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0];
-    setCurrentPreset(preset);
 
     const loadFromSupabase = async () => {
       try {
@@ -311,21 +321,28 @@ const KopkarKalkulatorKain = () => {
           throw error;
         }
 
+        if (!active) return;
         if (data && data.sizes_data) {
-          setSizes(data.sizes_data.map((s: any) => ({ ...s, id: Math.random().toString() })));
+          setSizes(data.sizes_data.map((s: any, idx: number) => ({ ...s, id: `${preset.key}-db-${idx}` })));
         } else {
-          setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
+          setSizes(preset.sizes.map((s, idx) => ({ ...s, id: `${preset.key}-${idx}` })));
         }
       } catch (err) {
         console.error('Error fetching size chart from supabase:', err);
-        setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
+        if (active) {
+          setSizes(preset.sizes.map((s, idx) => ({ ...s, id: `${preset.key}-${idx}` })));
+        }
       }
     };
 
     loadFromSupabase();
+    return () => {
+      active = false;
+    };
   }, [selectedPresetKey]);
 
   const savePresetToSupabase = async () => {
+    if (readOnly) return;
     const presetData = sizes.map(s => ({ name: s.name, ratio: s.ratio, data: s.data }));
     try {
       // Upsert: update if exists, insert if not. Supabase uses the unique preset_key to resolve conflict.
@@ -342,6 +359,7 @@ const KopkarKalkulatorKain = () => {
   };
 
   const resetPresetToDefault = async () => {
+    if (readOnly) return;
     if (!window.confirm('Kembalikan size chart ini ke pengaturan awal? Data di database juga akan dihapus.')) return;
     const preset = PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0];
     setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
@@ -359,10 +377,11 @@ const KopkarKalkulatorKain = () => {
       if (field === 'name') {
         return { ...s, name: String(value) };
       }
+      const cleanNumber = Math.max(0, Number(value) || 0);
       if (field === 'ratio') {
-        return { ...s, ratio: Number(value) };
+        return { ...s, ratio: cleanNumber };
       }
-      return { ...s, data: { ...s.data, [field]: Number(value) } };
+      return { ...s, data: { ...s.data, [field]: cleanNumber } };
     }));
   };
 
@@ -444,160 +463,277 @@ const KopkarKalkulatorKain = () => {
   }, [totalRolls, yardsPerRoll, defectTolerance, currentPreset, sizes]);
 
   return (
-    <div style={{ padding: '0' }}>
+    <div className="kain-calculator">
+      {/* SECTION 1: DATA GULUNGAN KAIN */}
+      <div className="kain-card">
+        <div className="kain-card-header">
+          <h3 className="kain-card-title">
+            <span>📏</span> 1. Data Gulungan Kain
+          </h3>
+          <p className="kain-card-subtitle">
+            Masukkan jumlah roll kain, panjang per gulungan, dan toleransi cacat kain sebelum dipotong vendor.
+          </p>
+        </div>
 
-      <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>📏</span> 1. Data Gulungan Kain
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-          <div className="form-group">
-            <label>Jml Gulungan (Roll)</label>
-            <input type="number" min="1" value={totalRolls} onChange={e => setTotalRolls(Number(e.target.value))} />
+        <div className="kain-roll-grid">
+          <div className="kain-field">
+            <label htmlFor="kain-total-rolls">Jml Gulungan (Roll)</label>
+            <div className={`kain-input-group ${readOnly ? 'is-disabled' : ''}`}>
+              <input
+                id="kain-total-rolls"
+                type="number"
+                min={1}
+                disabled={readOnly}
+                className="kain-field-input"
+                placeholder="1"
+                value={totalRolls === 0 ? '' : totalRolls}
+                onFocus={e => e.target.select()}
+                onChange={e => setTotalRolls(Math.max(0, Number(e.target.value) || 0))}
+              />
+              <span className="kain-input-unit">Roll</span>
+            </div>
           </div>
-          <div className="form-group">
-            <label>Yard per Gulung</label>
-            <input type="number" min="1" value={yardsPerRoll} onChange={e => setYardsPerRoll(Number(e.target.value))} />
+
+          <div className="kain-field">
+            <label htmlFor="kain-yards-roll">Yard per Gulung</label>
+            <div className={`kain-input-group ${readOnly ? 'is-disabled' : ''}`}>
+              <input
+                id="kain-yards-roll"
+                type="number"
+                min={1}
+                disabled={readOnly}
+                className="kain-field-input"
+                placeholder="60"
+                value={yardsPerRoll === 0 ? '' : yardsPerRoll}
+                onFocus={e => e.target.select()}
+                onChange={e => setYardsPerRoll(Math.max(0, Number(e.target.value) || 0))}
+              />
+              <span className="kain-input-unit">Yard</span>
+            </div>
           </div>
-          <div className="form-group">
-            <label>Lebar Kain (cm)</label>
-            <input type="number" value={fabricWidth} disabled style={{ background: '#f1f5f9' }} />
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>*Standar bidang 150cm</span>
+
+          <div className="kain-field">
+            <label htmlFor="kain-fabric-width">Lebar Kain (cm)</label>
+            <div className="kain-input-group is-disabled">
+              <input
+                id="kain-fabric-width"
+                type="number"
+                value={fabricWidth}
+                disabled
+                className="kain-field-input"
+              />
+              <span className="kain-input-unit">cm</span>
+            </div>
+            <span className="kain-field-hint">*Standar bidang 150cm</span>
           </div>
-          <div className="form-group">
-            <label>Toleransi Cacat (%)</label>
-            <input type="number" min="0" max="100" value={defectTolerance} onChange={e => setDefectTolerance(Number(e.target.value))} />
+
+          <div className="kain-field">
+            <label htmlFor="kain-defect-tolerance">Toleransi Cacat (%)</label>
+            <div className={`kain-input-group ${readOnly ? 'is-disabled' : ''}`}>
+              <input
+                id="kain-defect-tolerance"
+                type="number"
+                min={0}
+                max={100}
+                disabled={readOnly}
+                className="kain-field-input"
+                value={defectTolerance}
+                onFocus={e => e.target.select()}
+                onChange={e => setDefectTolerance(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+              />
+              <span className="kain-input-unit">%</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* GABUNGAN BOX DATA MODEL & HASIL VENDOR */}
-      <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', gap: '24px', flexWrap: 'nowrap', overflowX: 'auto' }}>
+      {/* SECTION 2 & 3: DATA MODEL & HASIL VENDOR */}
+      <div className="kain-workspace">
         {/* KOLOM KIRI: DATA MODEL */}
-        <div style={{ flex: '1.5', minWidth: '550px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-              <h3 style={{ margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>👕</span> 2. Data Model & Size Chart
-              </h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={resetPresetToDefault} style={{ padding: '6px 12px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>Reset</button>
-                <button onClick={savePresetToSupabase} style={{ padding: '6px 12px', background: '#3b82f6', border: 'none', borderRadius: '6px', fontSize: '0.8rem', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>💾 Simpan Perubahan</button>
+        <div className="kain-card">
+          <div className="kain-card-header kain-card-header--split">
+            <h3 className="kain-card-title">
+              <span>👕</span> 2. Data Model & Size Chart
+            </h3>
+            {!readOnly && (
+              <div className="kain-card-actions">
+                <button type="button" onClick={resetPresetToDefault} className="kain-btn-reset">
+                  ↺ Reset
+                </button>
+                <button type="button" onClick={savePresetToSupabase} className="kain-btn-save">
+                  💾 Simpan Perubahan
+                </button>
               </div>
-            </div>
-            
-            <div className="form-group" style={{ marginBottom: '20px' }}>
-              <label>Load Size Chart Otomatis (Sesuai Standar PDF Koperasi)</label>
-              <select 
-                value={selectedPresetKey}
-                onChange={(e) => setSelectedPresetKey(e.target.value)}
-                style={{ width: '100%' }}
-              >
-                <optgroup label="Seragam SD">
-                  {PRESETS.filter(p => p.key.includes('_sd')).map(p => (
-                    <option key={p.key} value={p.key}>{p.label}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Seragam SMP & SMA & SPK">
-                  {PRESETS.filter(p => !p.key.includes('_sd')).map(p => (
-                    <option key={p.key} value={p.key}>{p.label}</option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
+            )}
+          </div>
 
-            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', overflowX: 'auto' }}>
-              <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+          <div className="kain-field kain-preset-field">
+            <label htmlFor="kain-preset-select">Load Size Chart Otomatis (Sesuai Standar PDF Koperasi)</label>
+            <select
+              id="kain-preset-select"
+              className="kain-select"
+              value={selectedPresetKey}
+              onChange={(e) => setSelectedPresetKey(e.target.value)}
+            >
+              <optgroup label="Seragam SD">
+                {PRESETS.filter(p => p.key.includes('_sd')).map(p => (
+                  <option key={p.key} value={p.key}>{p.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Seragam SMP & SMA & SPK">
+                {PRESETS.filter(p => !p.key.includes('_sd')).map(p => (
+                  <option key={p.key} value={p.key}>{p.label}</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+
+          <div className="kain-table-box">
+            <div className="kain-table-scroll">
+              <table className="kain-size-table">
                 <thead>
-                  <tr style={{ color: '#475569', borderBottom: '1px solid #cbd5e1' }}>
-                    <th style={{ padding: '8px 4px', width: '70px' }}>Size</th>
+                  <tr>
+                    <th className="kain-th-size">Size</th>
                     {currentPreset.headers.map(h => (
-                      <th key={h.key} style={{ padding: '8px 4px' }}>{h.label}<br/><span style={{ fontSize: '0.7rem', fontWeight: 'normal' }}>(cm)</span></th>
+                      <th key={h.key}>
+                        {h.label}
+                        <span className="kain-th-unit">(cm)</span>
+                      </th>
                     ))}
-                    <th style={{ padding: '8px 4px', width: '60px' }}>Rasio</th>
-                    <th style={{ padding: '8px 4px', width: '40px' }}></th>
+                    <th className="kain-th-ratio">Rasio</th>
+                    {!readOnly && <th className="kain-th-action"></th>}
                   </tr>
                 </thead>
                 <tbody>
                   {sizes.map((s) => (
-                    <tr key={s.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '4px' }}>
-                        <input type="text" value={s.name} placeholder="Size" onChange={e => updateSize(s.id, 'name', e.target.value)} style={{ width: '100%', padding: '6px' }} />
+                    <tr key={s.id}>
+                      <td>
+                        <input
+                          type="text"
+                          disabled={readOnly}
+                          value={s.name}
+                          placeholder="Size"
+                          aria-label="Nama Size"
+                          onChange={e => updateSize(s.id, 'name', e.target.value)}
+                          className="kain-cell-input kain-cell-input--size"
+                        />
                       </td>
                       {currentPreset.headers.map(h => (
-                        <td key={h.key} style={{ padding: '4px' }}>
-                          <input 
-                            type="number" 
-                            value={s.data[h.key] === 0 ? '' : s.data[h.key]} 
-                            placeholder="0" 
-                            onChange={e => updateSize(s.id, h.key, e.target.value)} 
-                            style={{ width: '100%', padding: '6px' }}
+                        <td key={h.key}>
+                          <input
+                            type="number"
+                            min={0}
+                            disabled={readOnly}
+                            value={s.data[h.key] === 0 ? '' : s.data[h.key]}
+                            placeholder="0"
+                            aria-label={`${h.label} (${s.name || 'Size'})`}
+                            onFocus={e => e.target.select()}
+                            onChange={e => updateSize(s.id, h.key, e.target.value)}
+                            className="kain-cell-input"
                           />
                         </td>
                       ))}
-                      <td style={{ padding: '4px' }}>
-                        <input type="number" min="1" value={s.ratio || ''} onChange={e => updateSize(s.id, 'ratio', e.target.value)} style={{ width: '100%', padding: '6px' }} />
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          disabled={readOnly}
+                          value={s.ratio === 0 ? '' : s.ratio}
+                          placeholder="0"
+                          aria-label={`Rasio (${s.name || 'Size'})`}
+                          onFocus={e => e.target.select()}
+                          onChange={e => updateSize(s.id, 'ratio', e.target.value)}
+                          className="kain-cell-input kain-cell-input--ratio"
+                        />
                       </td>
-                      <td style={{ padding: '4px', textAlign: 'center' }}>
-                        <button onClick={() => removeSize(s.id)} style={{ background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', padding: '6px 10px' }}>✕</button>
-                      </td>
+                      {!readOnly && (
+                        <td className="kain-td-action">
+                          <button
+                            type="button"
+                            onClick={() => removeSize(s.id)}
+                            className="kain-btn-remove-row"
+                            title="Hapus baris size"
+                            aria-label={`Hapus size ${s.name || ''}`}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <button onClick={addSize} style={{ width: '100%', padding: '8px', marginTop: '12px', background: '#e2e8f0', border: '1px dashed #94a3b8', borderRadius: '6px', color: '#475569', cursor: 'pointer', fontWeight: 600 }}>
+            </div>
+
+            {!readOnly && (
+              <button type="button" onClick={addSize} className="kain-btn-add-row">
                 + Tambah Baris Size
               </button>
-            </div>
+            )}
+          </div>
         </div>
 
         {/* KOLOM KANAN: PREDIKSI HASIL */}
-        <div style={{ flex: '1', minWidth: '320px' }}>
-          <div style={{ background: '#0f172a', padding: '24px', borderRadius: '12px', color: '#fff', height: '100%' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #334155', paddingBottom: '16px' }}>
-              <span>🎯</span> Prediksi Hasil Vendor
-            </h3>
+        <div className="kain-summary-card">
+          <h3 className="kain-summary-title">
+            <span>🎯</span> Prediksi Hasil Vendor
+          </h3>
 
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '4px' }}>Total Pakaian Jadi (Estimasi)</div>
-              <div style={{ fontSize: '3rem', fontWeight: 800, color: '#10b981', lineHeight: '1.1' }}>
-                {calculation.totalPcs} <span style={{ fontSize: '1.2rem', fontWeight: 500, color: '#94a3b8' }}>pcs</span>
-              </div>
+          <div className="kain-summary-hero">
+            <div className="kain-summary-hero-label">Total Pakaian Jadi (Estimasi)</div>
+            <div className="kain-summary-hero-value">
+              {calculation.totalPcs}
+              <span className="kain-summary-hero-unit">pcs</span>
             </div>
+            <div className="kain-summary-hero-meta">
+              {calculation.maxSets} set produksi &times; {calculation.totalRatioParts} pcs/set
+            </div>
+          </div>
 
-            <div style={{ background: '#1e293b', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-              <div style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '12px', fontWeight: 600, borderBottom: '1px solid #334155', paddingBottom: '8px' }}>
-                Rincian Per Size (Rasio)
-              </div>
-              {calculation.results.map((res, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.95rem' }}>
-                  <span>Size {res.name || '?'} <span style={{ color: '#64748b', fontSize: '0.8rem' }}>(butuh {res.usageCm}cm)</span></span>
-                  <span style={{ fontWeight: 700, color: '#38bdf8' }}>{res.qty} pcs</span>
+          <div className="kain-breakdown-box">
+            <div className="kain-breakdown-header">
+              Rincian Per Size (Rasio)
+            </div>
+            <div className="kain-breakdown-list">
+              {calculation.results.length > 0 ? (
+                calculation.results.map((res, i) => (
+                  <div key={i} className="kain-breakdown-row">
+                    <span className="kain-breakdown-name">
+                      Size {res.name || '?'}
+                      <span className="kain-breakdown-need">(butuh {res.usageCm}cm)</span>
+                    </span>
+                    <span className="kain-breakdown-qty">{res.qty} pcs</span>
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
+                  Isi panjang pola, rasio ukuran, dan jumlah gulungan kain untuk melihat rincian hasil.
                 </div>
-              ))}
+              )}
             </div>
+          </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.8rem' }}>
-              <div style={{ background: '#1e293b', padding: '12px', borderRadius: '6px' }}>
-                <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Kain Kotor (Kirim)</div>
-                <div style={{ fontWeight: 600 }}>{(calculation.grossLengthCm / 100).toFixed(2)} Meter</div>
-              </div>
-              <div style={{ background: '#1e293b', padding: '12px', borderRadius: '6px' }}>
-                <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Kain Bersih (-{defectTolerance}%)</div>
-                <div style={{ fontWeight: 600 }}>{(calculation.netLengthCm / 100).toFixed(2)} Meter</div>
-              </div>
-              <div style={{ background: '#1e293b', padding: '12px', borderRadius: '6px' }}>
-                <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Terpakai Baju</div>
-                <div style={{ fontWeight: 600 }}>{(calculation.usedLengthCm / 100).toFixed(2)} Meter</div>
-              </div>
-              <div style={{ background: '#1e293b', padding: '12px', borderRadius: '6px' }}>
-                <div style={{ color: '#94a3b8', marginBottom: '4px' }}>Sisa / Perca</div>
-                <div style={{ fontWeight: 600, color: '#fbbf24' }}>{(calculation.remainingLengthCm / 100).toFixed(2)} Meter</div>
-              </div>
+          <div className="kain-metrics-grid">
+            <div className="kain-metric-item">
+              <div className="kain-metric-label">Kain Kotor (Kirim)</div>
+              <div className="kain-metric-value">{(calculation.grossLengthCm / 100).toFixed(2)} Meter</div>
             </div>
-            
-            <div style={{ marginTop: '24px', fontSize: '0.75rem', color: '#64748b', lineHeight: '1.4' }}>
-              *Kalkulasi ini menggunakan standar industri (bidang kain 150cm) dimana pola badan muat berdampingan, lalu ditambah margin kampuh/keliman potong 15-20cm per baju. Hitungan kebutuhan kain hanya mengambil data Panjang Baju & Panjang Lengan/Celana. Gunakan ini sbg target/acuan vendor.
+            <div className="kain-metric-item">
+              <div className="kain-metric-label">Kain Bersih (-{defectTolerance}%)</div>
+              <div className="kain-metric-value">{(calculation.netLengthCm / 100).toFixed(2)} Meter</div>
             </div>
+            <div className="kain-metric-item">
+              <div className="kain-metric-label">Terpakai Baju</div>
+              <div className="kain-metric-value">{(calculation.usedLengthCm / 100).toFixed(2)} Meter</div>
+            </div>
+            <div className="kain-metric-item">
+              <div className="kain-metric-label">Sisa / Perca</div>
+              <div className="kain-metric-value is-amber">{(calculation.remainingLengthCm / 100).toFixed(2)} Meter</div>
+            </div>
+          </div>
+
+          <div className="kain-summary-note">
+            *Kalkulasi ini menggunakan standar industri (bidang kain 150cm) dimana pola badan muat berdampingan, lalu ditambah margin kampuh/keliman potong 15-20cm per baju. Hitungan kebutuhan kain hanya mengambil data Panjang Baju &amp; Panjang Lengan/Celana. Gunakan ini sbg target/acuan vendor.
           </div>
         </div>
       </div>

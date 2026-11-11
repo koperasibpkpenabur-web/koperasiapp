@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Order } from '../../types';
 import { resolveItemUnit } from '../../utils/formatUnit';
+import { findMatchingOrderLine } from '../../utils/orderItemMatch';
 
 const formatRupiah = (angka: number) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
@@ -53,7 +54,7 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
 
   if (shippedItems.length > 0) {
     order.items.forEach(it => {
-      const si = shippedItems.find(s => s.name === it.name && s.type === it.type && (s.size || '') === (it.size || ''));
+      const si = findMatchingOrderLine(shippedItems, it);
       if (!si) return;
       if (si.kopkarQty && si.kopkarQty > 0) {
         kopkarItems.push({ ...it, renderQty: si.kopkarQty });

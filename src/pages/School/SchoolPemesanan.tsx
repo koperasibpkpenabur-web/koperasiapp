@@ -11,6 +11,8 @@ import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, OrderItem, SchoolLevel } from '../../types';
 import { resolveItemUnit } from '../../utils/formatUnit';
+import { getWibDateString, getWibDayOfWeek } from '../../utils/dateWib';
+import { findMatchingOrderLine, getOrderLineKey } from '../../utils/orderItemMatch';
 import './school.css';
 
 // Urutan ukuran standar dari terkecil ke terbesar
@@ -311,16 +313,16 @@ const SchoolPemesanan = () => {
   const cartTotalKopkar = cartItems.reduce((acc, it) => acc + (it.priceKopkar * it.quantity), 0);
   const cartTotalFee = cartItems.reduce((acc, it) => acc + (it.feeSchool * it.quantity), 0);
 
-  // Day & Date Restriction Logic for Fase Tambahan
+  // Day & Date Restriction Logic for Fase Tambahan (WIB / Asia/Jakarta)
   const effectiveCartPhase = (cartPhase || orderPhase);
-  const currentDay = new Date().getDay(); // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
+  const currentDay = getWibDayOfWeek(); // 0: Sun, 1: Mon, ..., 6: Sat (WIB)
   const isInputAllowed = () => {
     if (effectiveCartPhase.includes('Tambahan')) {
       if (!tambahanOpen) return false;
       
       let isAllowedByDate = true;
       if (tambahanUseDateRule && tambahanStartDate && tambahanEndDate) {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getWibDateString();
         isAllowedByDate = (todayStr >= tambahanStartDate && todayStr <= tambahanEndDate);
       }
       
@@ -1023,8 +1025,8 @@ const SchoolPemesanan = () => {
     const initialQty: Record<string, number> = {};
     if (order.shippingInfo?.shippedItems) {
       order.shippingInfo.shippedItems.forEach(item => {
-        const key = `${item.name}-${item.type}-${item.size || ''}`;
-        const previousReceived = order.receiveInfo?.receivedItems?.find(r => r.name === item.name && r.type === item.type && (r.size || '') === (item.size || ''))?.receivedQty || 0;
+        const key = getOrderLineKey(item);
+        const previousReceived = findMatchingOrderLine(order.receiveInfo?.receivedItems, item)?.receivedQty || 0;
         initialQty[key] = Math.max(0, item.shippedQty - previousReceived);
       });
     }
@@ -1049,12 +1051,13 @@ const SchoolPemesanan = () => {
     
     if (receivingOrder.shippingInfo?.shippedItems) {
       receivingOrder.shippingInfo.shippedItems.forEach(item => {
-        const key = `${item.name}-${item.type}-${item.size || ''}`;
+        const key = getOrderLineKey(item);
         const inputQty = receiveQuantities[key] || 0;
-        const previousReceived = receivingOrder.receiveInfo?.receivedItems?.find(r => r.name === item.name && r.type === item.type && (r.size || '') === (item.size || ''))?.receivedQty || 0;
+        const previousReceived = findMatchingOrderLine(receivingOrder.receiveInfo?.receivedItems, item)?.receivedQty || 0;
         
         const totalReceived = previousReceived + inputQty;
         receivedItemsData.push({
+          productId: item.productId,
           name: item.name,
           type: item.type,
           size: item.size,
@@ -1068,23 +1071,27 @@ const SchoolPemesanan = () => {
       });
     }
 
-    if (isPartial) {
-      await partialReceiveOrder(receivingOrder.id, {
-        receivedBy: receiverName.trim(),
-        isChecked: true,
-        notes: receiveNotes.trim() || undefined,
-        receivedItems: receivedItemsData
-      });
-    } else {
-      await receiveOrder(receivingOrder.id, {
-        receivedBy: receiverName.trim(),
-        isChecked: true,
-        notes: receiveNotes.trim() || undefined,
-      });
-    }
+    try {
+      if (isPartial) {
+        await partialReceiveOrder(receivingOrder.id, {
+          receivedBy: receiverName.trim(),
+          isChecked: true,
+          notes: receiveNotes.trim() || undefined,
+          receivedItems: receivedItemsData
+        });
+      } else {
+        await receiveOrder(receivingOrder.id, {
+          receivedBy: receiverName.trim(),
+          isChecked: true,
+          notes: receiveNotes.trim() || undefined,
+        });
+      }
 
-    setReceivingOrder(null);
-    refetchData();
+      setReceivingOrder(null);
+      refetchData();
+    } catch (err: any) {
+      setReceiveError(err?.message || 'Gagal menyimpan konfirmasi penerimaan barang');
+    }
   };
 
   // Open cancel modal
@@ -1418,12 +1425,22 @@ const SchoolPemesanan = () => {
                     </div>
 
                     <div className="mobile-card-actions">
-                      {order.status === 'shipped' && (
+                      {order.status === 'shipped' && order.receiveInfo?.isPartial && (
+                        <div style={{ padding: '10px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', color: '#92400e', fontSize: '0.8rem', marginBottom: '6px' }}>
+                          <div style={{ fontWeight: 700, marginBottom: '4px' }}>⏳ Diterima Sebagian — Menunggu Pengiriman Susulan</div>
+                          <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                            {order.receiveInfo.receivedItems?.filter((r: any) => r.missingQty && r.missingQty > 0).map((r: any, idx: number) => (
+                              <li key={idx}>Kurang: {r.missingQty} pcs ({r.name}{r.size ? ` [${r.size}]` : ''})</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {order.status === 'shipped' && !order.receiveInfo?.isPartial && (
                         <button
                           className="btn-receive full-width-touch"
                           onClick={() => handleOpenReceiveModal(order)}
                         >
-                          📦 Konfirmasi Terima Barang
+                          {order.receiveInfo?.isSusulan ? '📦 Konfirmasi Terima Susulan' : '📦 Konfirmasi Terima Barang'}
                         </button>
                       )}
                       {(order.status === 'pending' || order.status === 'approved') && (
@@ -2477,8 +2494,8 @@ const SchoolPemesanan = () => {
                 </div>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                   {receivingOrder.shippingInfo?.shippedItems ? receivingOrder.shippingInfo.shippedItems.map((it, idx) => {
-                    const key = `${it.name}-${it.type}-${it.size || ''}`;
-                    const previousReceived = receivingOrder.receiveInfo?.receivedItems?.find(r => r.name === it.name && r.type === it.type && (r.size || '') === (it.size || ''))?.receivedQty || 0;
+                    const key = getOrderLineKey(it);
+                    const previousReceived = findMatchingOrderLine(receivingOrder.receiveInfo?.receivedItems, it)?.receivedQty || 0;
                     const remainingToReceive = Math.max(0, it.shippedQty - previousReceived);
                     
                     if (remainingToReceive === 0) return null; // Already fully received

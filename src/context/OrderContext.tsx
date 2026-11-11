@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import type { Order, OrderItem, ShippingInfo, ReceiveInfo, CancellationInfo } from '../types';
 import { supabase } from '../lib/supabase';
 import { resolveItemUnit } from '../utils/formatUnit';
+import { getWibCompactDateString } from '../utils/dateWib';
+import { findMatchingOrderLine } from '../utils/orderItemMatch';
 
 interface OrderContextType {
   createOrder: (orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>, initialStatus?: import('../types').OrderStatus) => Promise<{ success: boolean; newOrderId?: string; error?: string }>;
@@ -53,8 +55,74 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       }
 
       const now = new Date().toISOString();
-      // 1. Coba dapatkan nomor order secara atomic melalui RPC Postgres (anti-bentrok / race condition)
+      const finalStatus = initialStatus || 'pending';
       let newOrderId = '';
+
+      const broadcastNewOrder = (orderId: string) => {
+        try {
+          const orderChannel = supabase.channel('order_realtime_broadcast');
+          orderChannel.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              orderChannel.send({
+                type: 'broadcast',
+                event: 'new_order',
+                payload: {
+                  id: orderId,
+                  school_name: orderData.schoolName,
+                  created_at: now,
+                },
+              });
+            }
+          });
+        } catch (broadcastErr) {
+          console.warn('Realtime broadcast error:', broadcastErr);
+        }
+      };
+
+      // Pesanan On The Spot (Guru OTS): validasi stok ketat & potong stok gudang secara atomic di Postgres
+      if (finalStatus === 'received') {
+        const rpcItems = orderData.items.map((it) => ({
+          productId: it.productId,
+          code: it.code,
+          name: it.name,
+          type: it.type,
+          quantity: it.quantity,
+          priceKopkar: it.priceKopkar,
+          feeSchool: it.feeSchool,
+          priceStudent: it.priceStudent || (it.priceKopkar + it.feeSchool),
+          size: it.size,
+          unit: it.unit || resolveItemUnit(it, it.quantity),
+        }));
+
+        const { data: otsRes, error: otsErr } = await supabase.rpc('create_ots_order_atomic', {
+          p_school_user_id: orderData.schoolUserId,
+          p_school_name: orderData.schoolName,
+          p_school_level: orderData.schoolLevel || null,
+          p_order_phase: orderData.orderPhase || 'On The Spot',
+          p_notes: orderData.notes || null,
+          p_items: rpcItems,
+        });
+
+        if (otsErr) {
+          if (otsErr.code === 'PGRST202') {
+            return {
+              success: false,
+              error: 'Fungsi validasi stok OTS atomic belum terpasang di database. Jalankan script supabase_hardening_tahap1_central_data.sql terlebih dahulu.'
+            };
+          }
+          return { success: false, error: otsErr.message };
+        }
+
+        if (!otsRes?.success) {
+          return { success: false, error: otsRes?.error || 'Gagal membuat pesanan On The Spot.' };
+        }
+
+        newOrderId = otsRes.order_id;
+        broadcastNewOrder(newOrderId);
+        return { success: true, newOrderId };
+      }
+
+      // 1. Coba dapatkan nomor order secara atomic melalui RPC Postgres (anti-bentrok / race condition)
       try {
         const { data: rpcOrderId, error: rpcError } = await supabase.rpc('generate_order_id');
         if (!rpcError && rpcOrderId && typeof rpcOrderId === 'string' && rpcOrderId.startsWith('ORD-')) {
@@ -64,21 +132,15 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         console.warn('RPC generate_order_id fallback to client-side:', e);
       }
 
-      // 2. Fallback aman jika RPC belum di-execute di Supabase
+      // 2. Fallback aman WIB jika RPC belum di-execute di Supabase
       if (!newOrderId) {
-        const localDate = new Date();
-        const year = localDate.getFullYear();
-        const month = String(localDate.getMonth() + 1).padStart(2, '0');
-        const day = String(localDate.getDate()).padStart(2, '0');
-        const dateForId = `${year}${month}${day}`;
-        
-        // Ambil seluruh ID pesanan yang berawalan tanggal hari ini untuk menentukan nomor urut tertinggi
+        const dateForId = getWibCompactDateString();
         const prefix = `ORD-${dateForId}-`;
         const { data: todayOrders } = await supabase
           .from('orders')
           .select('id')
           .like('id', `${prefix}%`);
-          
+
         let maxSeq = 0;
         if (todayOrders && todayOrders.length > 0) {
           for (const row of todayOrders) {
@@ -91,12 +153,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
             }
           }
         }
-          
+
         const seq = String(maxSeq + 1).padStart(3, '0');
         newOrderId = `ORD-${dateForId}-${seq}`;
       }
 
-      const finalStatus = initialStatus || 'pending';
       const orderPayload: any = {
         id: newOrderId,
         school_user_id: orderData.schoolUserId,
@@ -113,15 +174,6 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         created_at: now
       };
 
-      if (finalStatus === 'received') {
-        orderPayload.receive_info = {
-          receivedBy: orderData.schoolName || 'Petugas / Guru OTS',
-          isChecked: true,
-          receivedAt: now,
-          notes: 'Barang langsung diambil di Koperasi (On The Spot)'
-        };
-      }
-
       const { error: orderError } = await supabase.from('orders').insert([orderPayload]);
 
       if (orderError) return { success: false, error: orderError.message };
@@ -136,44 +188,16 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         price_kopkar: it.priceKopkar,
         fee_school: it.feeSchool,
         price_student: it.priceStudent,
-        size: (it as any).size // Types mismatch handled as any for now
+        size: it.size,
+        unit: it.unit || resolveItemUnit(it, it.quantity)
       }));
 
       const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
       
       if (itemsError) return { success: false, error: itemsError.message };
 
-      // Jika pesanan langsung berstatus received (On The Spot / Guru OTS), potong stok fisik gudang koperasi
-      if (finalStatus === 'received') {
-        for (const it of orderData.items) {
-          if (!it.productId) continue;
-          const { data: pData } = await supabase.from('products').select('stock').eq('id', it.productId).single();
-          if (pData) {
-            const newStock = Math.max(0, (pData.stock || 0) - it.quantity);
-            await supabase.from('products').update({ stock: newStock }).eq('id', it.productId);
-          }
-        }
-      }
-
       // Kirim sinyal broadcast realtime ke role Kopkar agar langsung muncul notifikasi & refresh
-      try {
-        const orderChannel = supabase.channel('order_realtime_broadcast');
-        orderChannel.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            orderChannel.send({
-              type: 'broadcast',
-              event: 'new_order',
-              payload: {
-                id: newOrderId,
-                school_name: orderData.schoolName,
-                created_at: now,
-              },
-            });
-          }
-        });
-      } catch (broadcastErr) {
-        console.warn('Realtime broadcast error:', broadcastErr);
-      }
+      broadcastNewOrder(newOrderId);
 
       return { success: true, newOrderId };
     },
@@ -213,297 +237,84 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const shipOrder = useCallback(async (orderId: string, shippingData: ShippingInfo) => {
-    // 1. Fetch order and items first to validate stock BEFORE making any updates
-    const { data: orderRow, error: orderFetchErr } = await supabase
-      .from('orders')
-      .select('*, order_items(*)')
-      .eq('id', orderId)
-      .single();
+    const { data: orderItems } = await supabase
+      .from('order_items')
+      .select('product_id, name, type, size')
+      .eq('order_id', orderId);
 
-    if (orderFetchErr || !orderRow) {
-      throw new Error('Pesanan tidak ditemukan.');
-    }
-
-    if (!orderRow.order_items || orderRow.order_items.length === 0) {
-      throw new Error('Tidak ada rincian barang dalam pesanan ini.');
-    }
-
-    // 2. Aggregate required Kopkar stock for each product
-    const kopkarRequiredMap = new Map<string, { qty: number; name: string; size?: string }>();
-    for (const item of orderRow.order_items) {
-      if (!item.product_id) continue;
-      const shippedItem = shippingData.shippedItems?.find(
-        (si: any) => si.name === item.name && si.type === item.type && (si.size || '') === (item.size || '')
-      );
-      let kopkarQty = 0;
-      if (shippedItem) {
-        kopkarQty = shippedItem.kopkarQty || 0;
-      } else if (shippingData.source !== 'vendor') {
-        kopkarQty = item.quantity;
-      }
-
-      if (kopkarQty > 0) {
-        const existing = kopkarRequiredMap.get(item.product_id);
-        if (existing) {
-          existing.qty += kopkarQty;
-        } else {
-          kopkarRequiredMap.set(item.product_id, {
-            qty: kopkarQty,
-            name: item.name,
-            size: item.size,
-          });
-        }
-      }
-    }
-
-    // 3. Check physical warehouse stock in products table
-    if (kopkarRequiredMap.size > 0) {
-      const pIds = Array.from(kopkarRequiredMap.keys());
-      const { data: currentProducts, error: pError } = await supabase
-        .from('products')
-        .select('id, name, level, size, stock')
-        .in('id', pIds);
-
-      if (pError) {
-        throw new Error('Gagal memeriksa stok gudang Koperasi: ' + pError.message);
-      }
-
-      const outOfStockItems: string[] = [];
-      for (const [prodId, req] of kopkarRequiredMap.entries()) {
-        const prod = currentProducts?.find((p: any) => p.id === prodId);
-        const currentStock = prod ? (prod.stock || 0) : 0;
-        if (currentStock < req.qty) {
-          const itemLabel = `${req.name}${req.size ? ` [Ukuran: ${req.size}]` : ''}`;
-          outOfStockItems.push(`• ${itemLabel} (Dibutuhkan: ${req.qty} pcs, Tersedia di Gudang: ${currentStock} pcs)`);
-        }
-      }
-
-      if (outOfStockItems.length > 0) {
-        throw new Error(
-          `Pengiriman tidak dapat dilakukan karena stok fisik di gudang Koperasi tidak mencukupi:\n\n${outOfStockItems.join('\n')}\n\nHarap lakukan restock barang atau sesuaikan kuantitas Surat Jalan terlebih dahulu.`
-        );
-      }
-    }
-
-    // 4. Update order status once stock is confirmed
-    await updateOrderInSupabase(orderId, {
-      status: 'shipped',
-      shipping_info: shippingData,
-    });
-
-    // 5. Deduct stock based on source or split qtys
-    const { data: assignments } = await supabase.from('vendor_school_assignments')
-      .select('vendor_id, clothing_type')
-      .eq('school_user_id', orderRow.school_user_id);
-    const resolveVendorId = (itemName: string) => {
-      if (!assignments || assignments.length === 0) return null;
-      const exactMatch = assignments.find((a: any) => a.clothing_type && a.clothing_type.trim().toLowerCase() === (itemName || '').trim().toLowerCase());
-      return exactMatch ? exactMatch.vendor_id : assignments[0].vendor_id;
+    const enrichedShippingData: ShippingInfo = {
+      ...shippingData,
+      shippedItems: (shippingData.shippedItems || []).map((si) => {
+        if (si.productId) return si;
+        const matched = findMatchingOrderLine(orderItems, si);
+        return matched?.product_id ? { ...si, productId: matched.product_id } : si;
+      }),
     };
 
-    for (const item of orderRow.order_items) {
-      if (!item.product_id) continue;
-      const assignedVendorId = resolveVendorId(item.name);
-      
-      const shippedItem = shippingData.shippedItems?.find(si => si.name === item.name && si.type === item.type && (si.size || '') === (item.size || ''));
-      const kopkarQty = shippedItem?.kopkarQty || 0;
-      const vendorQty = shippedItem?.vendorQty || 0;
+    const { data, error } = await supabase.rpc('ship_order_atomic', {
+      p_order_id: orderId,
+      p_shipping_data: enrichedShippingData,
+    });
 
-      if (vendorQty > 0 && assignedVendorId) {
-        const { data: vStock } = await supabase.from('vendor_stocks')
-          .select('id, quantity')
-          .eq('vendor_id', assignedVendorId)
-          .eq('product_id', item.product_id)
-          .single();
-          
-        if (vStock) {
-          const newQty = Math.max(0, (vStock.quantity || 0) - vendorQty);
-          await supabase.from('vendor_stocks').update({ quantity: newQty }).eq('id', vStock.id);
-        }
+    if (error) {
+      if (error.code === 'PGRST202') {
+        throw new Error('Fungsi pengiriman atomic belum terpasang di database. Jalankan script supabase_hardening_tahap1_central_data.sql terlebih dahulu.');
       }
-      
-      if (kopkarQty > 0) {
-        const { data: pData } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
-        if (pData) {
-          const newStock = Math.max(0, (pData.stock || 0) - kopkarQty);
-          await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
-        }
-      }
+      throw new Error(error.message);
+    }
 
-      // Fallback for older orders without split logic
-      if (kopkarQty === 0 && vendorQty === 0) {
-        const qty = item.quantity;
-        if (shippingData.source === 'vendor' && assignedVendorId) {
-          const { data: vStock } = await supabase.from('vendor_stocks').select('id, quantity').eq('vendor_id', assignedVendorId).eq('product_id', item.product_id).single();
-          if (vStock) {
-            const newQty = Math.max(0, (vStock.quantity || 0) - qty);
-            await supabase.from('vendor_stocks').update({ quantity: newQty }).eq('id', vStock.id);
-          }
-        } else {
-          const { data: pData } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
-          if (pData) {
-            const newStock = Math.max(0, (pData.stock || 0) - qty);
-            await supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
-          }
-        }
-      }
+    if (!data?.success) {
+      throw new Error(data?.error || 'Gagal memproses pengiriman pesanan.');
     }
   }, []);
 
   const shipRemainingOrder = useCallback(async (orderId: string, additionalShippingData: ShippingInfo) => {
-    const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
-    if (!orderRow || !orderRow.shipping_info) return;
+    const { data: orderItems } = await supabase
+      .from('order_items')
+      .select('product_id, name, type, size')
+      .eq('order_id', orderId);
 
-    // Validate Kopkar stock for remainder
-    const kopkarItems = (additionalShippingData.shippedItems || []).filter((it: any) => (it.kopkarQty || 0) > 0);
-    if (kopkarItems.length > 0) {
-      const outOfStockItems: string[] = [];
-      for (const newItem of kopkarItems) {
-        const orderItem = orderRow.order_items?.find((it: any) => it.name === newItem.name && it.type === newItem.type && (it.size || '') === (newItem.size || ''));
-        if (orderItem && orderItem.product_id) {
-          const requiredQty = newItem.kopkarQty || 0;
-          const { data: pData } = await supabase.from('products').select('stock').eq('id', orderItem.product_id).single();
-          const currentStock = pData ? (pData.stock || 0) : 0;
-          if (currentStock < requiredQty) {
-            const itemLabel = `${newItem.name}${newItem.size ? ` [Ukuran: ${newItem.size}]` : ''}`;
-            outOfStockItems.push(`• ${itemLabel} (Dibutuhkan: ${requiredQty} pcs, Tersedia di Gudang: ${currentStock} pcs)`);
-          }
-        }
-      }
-      if (outOfStockItems.length > 0) {
-        throw new Error(
-          `Pengiriman susulan tidak dapat dilakukan karena stok fisik di gudang Koperasi tidak mencukupi:\n\n${outOfStockItems.join('\n')}\n\nHarap lakukan restock barang terlebih dahulu.`
-        );
-      }
-    }
-
-    const oldShippingData = orderRow.shipping_info;
-    const oldShippedItems = oldShippingData.shippedItems || [];
-    
-    // Merge shipped items
-    const mergedShippedItems = [...oldShippedItems];
-    for (const newItem of (additionalShippingData.shippedItems || [])) {
-      const existingIdx = mergedShippedItems.findIndex(si => si.name === newItem.name && si.type === newItem.type && (si.size || '') === (newItem.size || ''));
-      if (existingIdx >= 0) {
-        mergedShippedItems[existingIdx].shippedQty += newItem.shippedQty;
-        if (newItem.kopkarQty) mergedShippedItems[existingIdx].kopkarQty = (mergedShippedItems[existingIdx].kopkarQty || 0) + newItem.kopkarQty;
-        if (newItem.vendorQty) mergedShippedItems[existingIdx].vendorQty = (mergedShippedItems[existingIdx].vendorQty || 0) + newItem.vendorQty;
-      } else {
-        mergedShippedItems.push(newItem);
-      }
-    }
-
-    const newShippingData = {
-      ...additionalShippingData, // Use the new dates and notes
-      shippedItems: mergedShippedItems
+    const enrichedAdditionalData: ShippingInfo = {
+      ...additionalShippingData,
+      shippedItems: (additionalShippingData.shippedItems || []).map((si) => {
+        if (si.productId) return si;
+        const matched = findMatchingOrderLine(orderItems, si);
+        return matched?.product_id ? { ...si, productId: matched.product_id } : si;
+      }),
     };
 
-    // Keep the old receive history inside a new property so school knows it's a susulan
-    const oldReceive = orderRow.receive_info;
-
-    await updateOrderInSupabase(orderId, {
-      shipping_info: newShippingData,
-      receive_info: {
-         ...oldReceive,
-         isPartial: false, // Turn off the partial flag so school gets prompt to receive again
-         isSusulan: true, // Custom flag to indicate this is the remaining delivery
-      }
+    const { data, error } = await supabase.rpc('ship_remaining_order_atomic', {
+      p_order_id: orderId,
+      p_additional_shipping_data: enrichedAdditionalData,
     });
 
-    // Deduct stock for the NEW quantities ONLY
-    const { data: assignments } = await supabase.from('vendor_school_assignments')
-      .select('vendor_id, clothing_type')
-      .eq('school_user_id', orderRow.school_user_id);
-    const resolveVendorId = (itemName: string) => {
-      if (!assignments || assignments.length === 0) return null;
-      const exactMatch = assignments.find((a: any) => a.clothing_type && a.clothing_type.trim().toLowerCase() === (itemName || '').trim().toLowerCase());
-      return exactMatch ? exactMatch.vendor_id : assignments[0].vendor_id;
-    };
-
-    for (const newItem of (additionalShippingData.shippedItems || [])) {
-      const orderItem = orderRow.order_items?.find((it: any) => it.name === newItem.name && it.type === newItem.type && (it.size || '') === (newItem.size || ''));
-      if (!orderItem || !orderItem.product_id) continue;
-      const assignedVendorId = resolveVendorId(newItem.name);
-
-      const kopkarQty = newItem.kopkarQty || 0;
-      const vendorQty = newItem.vendorQty || 0;
-
-      if (vendorQty > 0 && assignedVendorId) {
-        const { data: vStock } = await supabase.from('vendor_stocks').select('id, quantity').eq('vendor_id', assignedVendorId).eq('product_id', orderItem.product_id).single();
-        if (vStock) {
-          const newQty = Math.max(0, (vStock.quantity || 0) - vendorQty);
-          await supabase.from('vendor_stocks').update({ quantity: newQty }).eq('id', vStock.id);
-        }
+    if (error) {
+      if (error.code === 'PGRST202') {
+        throw new Error('Fungsi pengiriman susulan atomic belum terpasang di database. Jalankan script supabase_hardening_tahap1_central_data.sql terlebih dahulu.');
       }
-      if (kopkarQty > 0) {
-        const { data: pData } = await supabase.from('products').select('stock').eq('id', orderItem.product_id).single();
-        if (pData) {
-          const newStock = Math.max(0, (pData.stock || 0) - kopkarQty);
-          await supabase.from('products').update({ stock: newStock }).eq('id', orderItem.product_id);
-        }
-      }
+      throw new Error(error.message);
+    }
+
+    if (!data?.success) {
+      throw new Error(data?.error || 'Gagal memproses pengiriman susulan.');
     }
   }, []);
 
   const cancelShipment = useCallback(async (orderId: string) => {
-    // Fetch the order and shipping info first
-    const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
-    if (orderRow && orderRow.shipping_info) {
-      const shippingData = orderRow.shipping_info;
-      // Ambil vendor yang diplot ke sekolah pemesan agar stok vendor dapat dikembalikan
-      const { data: assignments } = await supabase.from('vendor_school_assignments')
-        .select('vendor_id, clothing_type')
-        .eq('school_user_id', orderRow.school_user_id);
-      const resolveVendorId = (itemName: string) => {
-        if (!assignments || assignments.length === 0) return null;
-        const exactMatch = assignments.find((a: any) => a.clothing_type && a.clothing_type.trim().toLowerCase() === (itemName || '').trim().toLowerCase());
-        return exactMatch ? exactMatch.vendor_id : assignments[0].vendor_id;
-      };
+    const { data, error } = await supabase.rpc('cancel_shipment_atomic', {
+      p_order_id: orderId,
+    });
 
-      for (const item of (orderRow.order_items || [])) {
-        if (!item.product_id) continue;
-        const assignedVendorId = resolveVendorId(item.name);
-
-        const shippedItem = shippingData.shippedItems?.find((si: any) => si.name === item.name && si.type === item.type && (si.size || '') === (item.size || ''));
-        const kopkarQty = shippedItem?.kopkarQty || 0;
-        const vendorQty = shippedItem?.vendorQty || 0;
-
-        if (vendorQty > 0 && assignedVendorId) {
-          const { data: vStock } = await supabase.from('vendor_stocks').select('id, quantity').eq('vendor_id', assignedVendorId).eq('product_id', item.product_id).single();
-          if (vStock) {
-            await supabase.from('vendor_stocks').update({ quantity: (vStock.quantity || 0) + vendorQty }).eq('id', vStock.id);
-          }
-        }
-        
-        if (kopkarQty > 0) {
-          const { data: pData } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
-          if (pData) {
-            await supabase.from('products').update({ stock: (pData.stock || 0) + kopkarQty }).eq('id', item.product_id);
-          }
-        }
-
-        // Fallback for older orders
-        if (kopkarQty === 0 && vendorQty === 0 && shippingData.source) {
-          const qty = item.quantity;
-          if (shippingData.source === 'vendor' && assignedVendorId) {
-            const { data: vStock } = await supabase.from('vendor_stocks').select('id, quantity').eq('vendor_id', assignedVendorId).eq('product_id', item.product_id).single();
-            if (vStock) {
-              await supabase.from('vendor_stocks').update({ quantity: (vStock.quantity || 0) + qty }).eq('id', vStock.id);
-            }
-          } else {
-            const { data: pData } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
-            if (pData) {
-              await supabase.from('products').update({ stock: (pData.stock || 0) + qty }).eq('id', item.product_id);
-            }
-          }
-        }
+    if (error) {
+      if (error.code === 'PGRST202') {
+        throw new Error('Fungsi pembatalan pengiriman atomic belum terpasang di database. Jalankan script supabase_hardening_tahap1_central_data.sql terlebih dahulu.');
       }
+      throw new Error(error.message);
     }
 
-    await updateOrderInSupabase(orderId, {
-      status: 'approved',
-      shipping_info: null,
-    });
+    if (!data?.success) {
+      throw new Error(data?.error || 'Gagal membatalkan pengiriman.');
+    }
   }, []);
 
   const receiveOrder = useCallback(
@@ -514,13 +325,29 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         isChecked: receiveData.isChecked,
         notes: receiveData.notes,
       };
-      
+
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('receive_order_atomic', {
+        p_order_id: orderId,
+        p_receive_info: receiveInfo,
+      });
+
+      if (!rpcErr) {
+        if (!rpcRes?.success) {
+          throw new Error(rpcRes?.error || 'Gagal mengonfirmasi penerimaan barang.');
+        }
+        return;
+      }
+
+      if (rpcErr.code !== 'PGRST202') {
+        throw new Error(rpcErr.message);
+      }
+
       await updateOrderInSupabase(orderId, {
         status: 'received',
         receive_info: receiveInfo,
       });
 
-      // 3-Way Matching: Create Vendor Payables IF shipped from vendor
+      // 3-Way Matching fallback (sebelum RPC SQL dijalankan)
       const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
       if (orderRow && orderRow.shipping_info) {
         const shippingData = orderRow.shipping_info;
@@ -530,13 +357,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         for (const item of (orderRow.order_items || [])) {
           if (!item.product_id) continue;
           
-          const shippedItem = shippingData.shippedItems?.find((si: any) => si.name === item.name && si.type === item.type && (si.size || '') === (item.size || ''));
+          const shippedItem = findMatchingOrderLine<any>(shippingData.shippedItems, item);
           const vendorQty = shippedItem ? (shippedItem.vendorQty || 0) : (shippingData.source === 'vendor' ? item.quantity : 0);
 
           if (vendorQty > 0) {
             totalVendorHpp += item.price_kopkar * vendorQty;
             
-            // Get vendor name from product
             const { data: pData } = await supabase.from('products').select('supplier_name').eq('id', item.product_id).single();
             if (pData && pData.supplier_name) {
               vendorName = pData.supplier_name;

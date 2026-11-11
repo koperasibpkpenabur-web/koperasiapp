@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { ReturnRequest, ReturnItem, SchoolLevel } from '../types';
 import { supabase } from '../lib/supabase';
+import { fetchAllSupabasePaged } from '../utils/supabasePagination';
+import { getWibDateString } from '../utils/dateWib';
 
 interface CreateReturnInput {
   schoolUserId: string;
@@ -41,7 +43,9 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
 
   const fetchReturns = useCallback(async () => {
-    const { data, error } = await supabase.from('returns').select('*').order('created_at', { ascending: false });
+    const { data, error } = await fetchAllSupabasePaged((from, to) =>
+      supabase.from('returns').select('*').order('created_at', { ascending: false }).range(from, to)
+    );
     if (error) {
       console.error('Error fetching returns:', error);
       return;
@@ -97,10 +101,17 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
   }, [fetchReturns]);
 
   const generateReturnId = useCallback(() => {
-    const year = new Date().getFullYear();
-    const count = returns.length + 1;
-    return `RET-${year}-${String(count).padStart(3, '0')}`;
-  }, [returns.length]);
+    const year = getWibDateString().slice(0, 4);
+    const prefix = `RET-${year}-`;
+    let maxSeq = 0;
+    for (const r of returns) {
+      if (r.id && r.id.startsWith(prefix)) {
+        const seqPart = parseInt(r.id.slice(prefix.length), 10);
+        if (!isNaN(seqPart) && seqPart > maxSeq) maxSeq = seqPart;
+      }
+    }
+    return `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
+  }, [returns]);
 
   const createReturn = useCallback(
     async (data: CreateReturnInput): Promise<{ success: boolean; id?: string; error?: string }> => {
@@ -114,7 +125,19 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
         return { success: false, error: 'Alasan retur wajib diisi.' };
       }
 
-      const newId = generateReturnId();
+      let newId = '';
+      try {
+        const { data: rpcId, error: rpcErr } = await supabase.rpc('generate_return_id');
+        if (!rpcErr && rpcId && typeof rpcId === 'string' && rpcId.startsWith('RET-')) {
+          newId = rpcId;
+        }
+      } catch (e) {
+        console.warn('RPC generate_return_id fallback to client-side:', e);
+      }
+
+      if (!newId) {
+        newId = generateReturnId();
+      }
       
       const newReturn = {
         id: newId,
@@ -200,6 +223,27 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
   }, [fetchReturns]);
 
   const receiveReturn = useCallback(async (returnId: string, data: AcceptReturnInput) => {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('receive_return_atomic', {
+      p_return_id: returnId,
+      p_accepted_by_name: data.acceptedByName,
+      p_accepted_notes: data.acceptedNotes,
+      p_is_restocked: Boolean(data.isRestocked),
+    });
+
+    if (!rpcErr) {
+      if (!rpcRes?.success) {
+        return { success: false, error: rpcRes?.error || 'Gagal menerima barang retur.' };
+      }
+      await fetchReturns();
+      return { success: true };
+    }
+
+    if (rpcErr.code !== 'PGRST202') {
+      console.error('Error receiving return atomically:', rpcErr);
+      return { success: false, error: rpcErr.message };
+    }
+
+    // Fallback (sebelum RPC SQL dijalankan)
     const updates = {
       status: 'koperasi_diterima',
       koperasi_diterima_at: new Date().toISOString(),
@@ -235,7 +279,6 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Add credit to school's app_users record
         if (totalTagihanKredit > 0 || totalFeeKredit > 0) {
           const { data: schoolData } = await supabase.from('app_users').select('return_balance_tagihan, return_balance_fee').eq('id', currentReturn.schoolUserId).single();
           if (schoolData) {

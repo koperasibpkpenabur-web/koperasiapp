@@ -10,6 +10,8 @@ import { playOrderNotificationSound } from '../../utils/sound';
 import SuratJalanPrint from './SuratJalanPrint';
 import { generateSuratJalanExcel } from '../../utils/excelGenerator';
 import { resolveItemUnit } from '../../utils/formatUnit';
+import { getWibDateString, getWibTimeString } from '../../utils/dateWib';
+import { findMatchingOrderLine } from '../../utils/orderItemMatch';
 import './kopkar.css';
 
 const KopkarPesanan = () => {
@@ -303,14 +305,10 @@ const KopkarPesanan = () => {
   // Open Shipping Modal
   const handleOpenShipModal = (order: Order) => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-
     setShippingOrder(order);
     setIsShippingRemainder(false);
-    setShipDate(todayStr);
-    setShipTime(`${hours}:${minutes}`);
+    setShipDate(getWibDateString(now));
+    setShipTime(getWibTimeString(now));
     setCourierNotes('Mobil Box Koperasi - Bpk. Supardi');
     setShipError('');
     setShippedKopkarQuantities(order.items.map(it => it.quantity));
@@ -319,20 +317,16 @@ const KopkarPesanan = () => {
 
   const handleOpenShipRemainderModal = (order: Order) => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-
     setShippingOrder(order);
     setIsShippingRemainder(true);
-    setShipDate(todayStr);
-    setShipTime(`${hours}:${minutes}`);
+    setShipDate(getWibDateString(now));
+    setShipTime(getWibTimeString(now));
     setCourierNotes('Susulan - Dikirim Langsung oleh Vendor');
     setShipError('');
     
     // Default to missing qty
     const missingQties = order.items.map(it => {
-      const receivedIt = order.receiveInfo?.receivedItems?.find(r => r.name === it.name && r.type === it.type && (r.size || '') === (it.size || ''));
+      const receivedIt = findMatchingOrderLine(order.receiveInfo?.receivedItems, it);
       return receivedIt?.missingQty || 0;
     });
     setShippedKopkarQuantities(order.items.map(() => 0));
@@ -384,6 +378,7 @@ const KopkarPesanan = () => {
       courierNotes: courierNotes.trim() || undefined,
       shippedBy: stafName,
       shippedItems: shippingOrder.items.map((it, idx) => ({
+        productId: it.productId,
         name: it.name,
         type: it.type,
         shippedQty: (shippedKopkarQuantities[idx] || 0) + (shippedVendorQuantities[idx] || 0),
@@ -397,19 +392,10 @@ const KopkarPesanan = () => {
       if (isShippingRemainder) {
         // Direct ship remainder
         await shipRemainingOrder(shippingOrder.id, shippingData);
-        // We might want to print surat jalan or not. Let's ask.
+        await fetchOrders(true);
         if (window.confirm('Kekurangan barang berhasil dikonfirmasi dan stok terpotong! Apakah Anda ingin mencetak Surat Jalan Susulan?')) {
           setPrintingOrder({ ...shippingOrder, shippingInfo: shippingData });
         }
-        
-        setOrders(prev => prev.map(o => o.id === shippingOrder.id ? { 
-          ...o, 
-          receiveInfo: { ...o.receiveInfo!, isPartial: false, isSusulan: true },
-          shippingInfo: {
-            ...o.shippingInfo!,
-            shippedItems: o.shippingInfo!.shippedItems // Ideally we deep merge this in local state too, but re-fetching is better
-          }
-        } : o));
         
         setShippingOrder(null);
         setIsShippingRemainder(false);
@@ -430,8 +416,12 @@ const KopkarPesanan = () => {
   // Cancel Shipment
   const handleCancelShipment = async (order: Order) => {
     if (window.confirm(`Batalkan pengiriman untuk pesanan ${order.id}? Status akan kembali menjadi Disetujui.`)) {
-      await cancelShipment(order.id);
-      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'approved' } : o));
+      try {
+        await cancelShipment(order.id);
+        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'approved', shippingInfo: undefined, receiveInfo: undefined } : o));
+      } catch (err: any) {
+        alert(err?.message || 'Gagal membatalkan pengiriman.');
+      }
     }
   };
 
@@ -826,7 +816,7 @@ const KopkarPesanan = () => {
                         <td>
                           <ul className="order-items-list" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
                             {(expandedItems[order.id] ? order.items : order.items.slice(0, 1)).map((it, idx) => {
-                              const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type && (si.size || '') === (it.size || ''));
+                              const shippedIt = findMatchingOrderLine(order.shippingInfo?.shippedItems, it);
                               const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
                               const unsentQty = Math.max(0, it.quantity - shippedQty);
                               return (
@@ -918,7 +908,7 @@ const KopkarPesanan = () => {
                               <div style={{ fontSize: '0.8rem', color: '#2563eb' }}>
                                 Barang sedang diantar ke sekolah.
                                 {order.shippingInfo?.shippedItems && order.items.some((it) => {
-                                  const shippedIt = order.shippingInfo!.shippedItems!.find(si => si.name === it.name && si.type === it.type && (si.size || '') === (it.size || ''));
+                                  const shippedIt = findMatchingOrderLine(order.shippingInfo!.shippedItems, it);
                                   return shippedIt && shippedIt.shippedQty < it.quantity;
                                 }) && (
                                   <div style={{ marginTop: '4px', color: '#dc2626', fontWeight: 600 }}>
@@ -980,7 +970,7 @@ const KopkarPesanan = () => {
                       <div className="mobile-label">Item:</div>
                       <ul className="order-items-list">
                         {(expandedItems[order.id] ? order.items : order.items.slice(0, 1)).map((it, idx) => {
-                          const shippedIt = order.shippingInfo?.shippedItems?.find(si => si.name === it.name && si.type === it.type && (si.size || '') === (it.size || ''));
+                          const shippedIt = findMatchingOrderLine(order.shippingInfo?.shippedItems, it);
                           const shippedQty = shippedIt ? shippedIt.shippedQty : (order.status === 'received' || order.status === 'shipped' ? it.quantity : 0);
                           const unsentQty = Math.max(0, it.quantity - shippedQty);
                           return (
@@ -1058,6 +1048,32 @@ const KopkarPesanan = () => {
                       )}
                       {order.status === 'shipped' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                          {order.shippingInfo?.shippedItems && order.items.some((it) => {
+                            const shippedIt = findMatchingOrderLine(order.shippingInfo!.shippedItems, it);
+                            return shippedIt && shippedIt.shippedQty < it.quantity;
+                          }) && (
+                            <div style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 600 }}>
+                              ⚠️ Terdapat barang yang belum dikirim!
+                            </div>
+                          )}
+
+                          {order.receiveInfo?.isPartial && (
+                            <div style={{ padding: '10px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', color: '#b91c1c', fontSize: '0.8rem' }}>
+                              <div style={{ fontWeight: 700, marginBottom: '4px' }}>⚠️ DITERIMA SEBAGIAN OLEH SEKOLAH</div>
+                              <ul style={{ margin: '4px 0 6px 16px', padding: 0 }}>
+                                {order.receiveInfo.receivedItems?.filter((r: any) => r.missingQty && r.missingQty > 0).map((r: any, idx: number) => (
+                                  <li key={idx}>Kurang: {r.missingQty} pcs ({r.name}{r.size ? ` [${r.size}]` : ''})</li>
+                                ))}
+                              </ul>
+                              <button
+                                className="btn-ship full-width-touch"
+                                onClick={() => handleOpenShipRemainderModal(order)}
+                              >
+                                📦 Kirim Kekurangan
+                              </button>
+                            </div>
+                          )}
+
                           <button className="btn-secondary full-width-touch" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => handleCancelShipment(order)}>
                             Batal Kirim (Revert)
                           </button>

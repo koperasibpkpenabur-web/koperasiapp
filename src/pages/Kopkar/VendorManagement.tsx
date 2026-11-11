@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 import { useProducts } from '../../context/ProductContext';
+import { fetchAllSupabasePaged } from '../../utils/supabasePagination';
+import { getWibDateString } from '../../utils/dateWib';
 import KopkarKalkulatorKain from './KopkarKalkulatorKain';
 import KopkarPrediksiProduksi from './KopkarPrediksiProduksi';
 import './kopkar.css';
@@ -227,6 +230,8 @@ const ActionMenu = ({
 };
 
 const VendorManagement = () => {
+  const { user } = useAuth();
+  const isReadOnly = user?.role === 'pengurus';
   const { products } = useProducts();
   const [activeTab, setActiveTab] = useState<'vendors' | 'plotting' | 'stock' | 'forecast' | 'calculator'>('vendors');
   const [loading, setLoading] = useState(false);
@@ -325,7 +330,9 @@ const VendorManagement = () => {
 
   const fetchVendors = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('vendors').select('*').order('name', { ascending: true });
+    const { data, error } = await fetchAllSupabasePaged<Vendor>((from, to) =>
+      supabase.from('vendors').select('*').order('name', { ascending: true }).range(from, to)
+    );
     if (!error && data) {
       data.sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' }));
       setVendors(data);
@@ -335,10 +342,14 @@ const VendorManagement = () => {
 
   const fetchSchools = async () => {
     try {
-      // 1. Ambil data sekolah dari whitelist dan app_users secara paralel
+      // 1. Ambil data sekolah dari whitelist dan app_users secara paralel (.range paginated)
       const [wlRes, appUsersRes] = await Promise.all([
-        supabase.from('school_whitelist').select('*').order('nama_sekolah', { ascending: true }),
-        supabase.from('app_users').select('id, username, name, school_name, school_level, role').eq('role', 'sekolah'),
+        fetchAllSupabasePaged((from, to) =>
+          supabase.from('school_whitelist').select('*').order('nama_sekolah', { ascending: true }).range(from, to)
+        ),
+        fetchAllSupabasePaged((from, to) =>
+          supabase.from('app_users').select('id, username, name, school_name, school_level, role').eq('role', 'sekolah').range(from, to)
+        ),
       ]);
 
       const whitelistData = wlRes.data || [];
@@ -368,8 +379,8 @@ const VendorManagement = () => {
         const cleanJenjang = typeof rawJenjang === 'string' ? rawJenjang.trim() : rawJenjang;
         const schoolName = (w.nama_sekolah || w.Nama_Sekolah || appUser?.school_name || emailClean).trim();
 
-        // Jika belum ada di app_users, otomatis sinkronkan ke app_users
-        if (!appUser) {
+        // Jika belum ada di app_users, sinkronkan ke app_users hanya untuk admin/kopkar (pengurus read-only)
+        if (!appUser && !isReadOnly) {
           const { data: newUser } = await supabase
             .from('app_users')
             .insert([{
@@ -467,12 +478,18 @@ const VendorManagement = () => {
   const fetchPlottings = async () => {
     setLoading(true);
     const [assignmentsRes, schoolsRes] = await Promise.all([
-      supabase
-        .from('vendor_school_assignments')
-        .select('*, vendors(name, contact_person, phone), app_users(school_name, username, school_level)'),
-      supabase
-        .from('school_whitelist')
-        .select('*'),
+      fetchAllSupabasePaged<Plotting>((from, to) =>
+        supabase
+          .from('vendor_school_assignments')
+          .select('*, vendors(name, contact_person, phone), app_users(school_name, username, school_level)')
+          .range(from, to)
+      ),
+      fetchAllSupabasePaged((from, to) =>
+        supabase
+          .from('school_whitelist')
+          .select('*')
+          .range(from, to)
+      ),
     ]);
 
     const data = assignmentsRes.data;
@@ -508,10 +525,13 @@ const VendorManagement = () => {
 
   const fetchStocks = async () => {
     setLoading(true);
-    // Join dengan products (name, level, category, size)
-    const { data, error } = await supabase
-      .from('vendor_stocks')
-      .select('*, vendors(name), products(name, level, category, size)');
+    // Join dengan products (name, level, category, size) (.range paginated)
+    const { data, error } = await fetchAllSupabasePaged<VendorStock>((from, to) =>
+      supabase
+        .from('vendor_stocks')
+        .select('*, vendors(name), products(name, level, category, size)')
+        .range(from, to)
+    );
 
     if (!error && data) setStocks(data);
     setLoading(false);
@@ -1331,7 +1351,7 @@ const VendorManagement = () => {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Plotting_Rekap_Sekolah');
-    XLSX.writeFile(workbook, `Plotting_Rekap_Sekolah_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(workbook, `Plotting_Rekap_Sekolah_${getWibDateString()}.xlsx`);
   };
 
   return (
@@ -1340,6 +1360,23 @@ const VendorManagement = () => {
         <h2 className="kopkar-title">🏭 Manajemen Vendor</h2>
         <p className="kopkar-subtitle">Pusat kendali plotting penjahit ke sekolah, penerimaan stok barang jadi, dan kalkulasi kebutuhan kain.</p>
       </div>
+
+      {isReadOnly && (
+        <div
+          style={{
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            color: '#1e40af',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            fontSize: '0.88rem',
+            fontWeight: 600,
+          }}
+        >
+          👁️ Mode Lihat Saja (Pengurus Read-Only): Seluruh data vendor, plotting sekolah, stok barang jadi, prediksi produksi, dan kalkulator kain hanya dapat dilihat atau diekspor.
+        </div>
+      )}
 
       {/* Tabs */}
       <div
@@ -1458,9 +1495,11 @@ const VendorManagement = () => {
                 minWidth: '260px',
               }}
             />
-            <button className="btn-primary" onClick={() => setShowAddVendor(true)}>
-              + Tambah Vendor Baru
-            </button>
+            {!isReadOnly && (
+              <button className="btn-primary" onClick={() => setShowAddVendor(true)}>
+                + Tambah Vendor Baru
+              </button>
+            )}
           </div>
 
           <table className="kopkar-table">
@@ -1483,7 +1522,7 @@ const VendorManagement = () => {
               ) : filteredVendors.length === 0 ? (
                 <tr>
                   <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
-                    {vendors.length === 0 ? 'Belum ada vendor terdaftar. Klik "+ Tambah Vendor Baru" untuk memulai.' : 'Tidak ada vendor yang cocok dengan pencarian.'}
+                    {vendors.length === 0 ? 'Belum ada vendor terdaftar.' : 'Tidak ada vendor yang cocok dengan pencarian.'}
                   </td>
                 </tr>
               ) : (
@@ -1498,9 +1537,9 @@ const VendorManagement = () => {
                     <td style={{ textAlign: 'center' }}>
                       <ActionMenu
                         onDetail={() => setDetailVendor(v)}
-                        onEdit={() => setEditingVendor(v)}
-                        onAddStock={() => openAddStockModal(v.id)}
-                        onDelete={() => handleDeleteVendor(v.id, v.name)}
+                        onEdit={!isReadOnly ? () => setEditingVendor(v) : undefined}
+                        onAddStock={!isReadOnly ? () => openAddStockModal(v.id) : undefined}
+                        onDelete={!isReadOnly ? () => handleDeleteVendor(v.id, v.name) : undefined}
                       />
                     </td>
                   </tr>
@@ -1690,23 +1729,25 @@ const VendorManagement = () => {
                   <span>📥</span> Export Excel
                 </button>
 
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => openAddPlottingModal()}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 16px',
-                    fontSize: '0.88rem',
-                    fontWeight: 600,
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ➕ Plot Sekolah
-                </button>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => openAddPlottingModal()}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 16px',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ➕ Plot Sekolah
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1717,21 +1758,21 @@ const VendorManagement = () => {
                 <th style={{ width: '260px' }}>Nama Vendor (Penjahit)</th>
                 <th>Sekolah yang Dilayani</th>
                 <th style={{ width: '140px', textAlign: 'center' }}>Total Sekolah</th>
-                <th style={{ width: '110px', textAlign: 'center' }}>Aksi</th>
+                {!isReadOnly && <th style={{ width: '110px', textAlign: 'center' }}>Aksi</th>}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '28px' }}>
+                  <td colSpan={isReadOnly ? 4 : 5} style={{ textAlign: 'center', padding: '28px' }}>
                     Memuat data plotting...
                   </td>
                 </tr>
               ) : groupedPlottings.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '28px', color: '#64748b' }}>
+                  <td colSpan={isReadOnly ? 4 : 5} style={{ textAlign: 'center', padding: '28px', color: '#64748b' }}>
                     {plottings.length === 0
-                      ? 'Belum ada plotting sekolah ke vendor. Klik "+ Plot Sekolah" untuk memulai.'
+                      ? 'Belum ada plotting sekolah ke vendor.'
                       : 'Tidak ada plotting yang cocok dengan filter pencarian.'}
                   </td>
                 </tr>
@@ -1858,37 +1899,39 @@ const VendorManagement = () => {
                         {g.items.length} Sekolah
                       </span>
                     </td>
-                    <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                      <button
-                        type="button"
-                        onClick={() => openAddPlottingModal(g.vendorId)}
-                        title="Tambah plotting sekolah untuk vendor ini"
-                        style={{
-                          padding: '6px 14px',
-                          borderRadius: '6px',
-                          border: '1px solid #16a34a',
-                          background: '#f0fdf4',
-                          color: '#16a34a',
-                          fontWeight: 600,
-                          fontSize: '0.82rem',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          transition: 'all 0.15s ease',
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.background = '#16a34a';
-                          e.currentTarget.style.color = '#ffffff';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.background = '#f0fdf4';
-                          e.currentTarget.style.color = '#16a34a';
-                        }}
-                      >
-                        + Plot
-                      </button>
-                    </td>
+                    {!isReadOnly && (
+                      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                        <button
+                          type="button"
+                          onClick={() => openAddPlottingModal(g.vendorId)}
+                          title="Tambah plotting sekolah untuk vendor ini"
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            border: '1px solid #16a34a',
+                            background: '#f0fdf4',
+                            color: '#16a34a',
+                            fontWeight: 600,
+                            fontSize: '0.82rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = '#16a34a';
+                            e.currentTarget.style.color = '#ffffff';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = '#f0fdf4';
+                            e.currentTarget.style.color = '#16a34a';
+                          }}
+                        >
+                          + Plot
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -1929,9 +1972,11 @@ const VendorManagement = () => {
                 }}
               />
             </div>
-            <button className="btn-primary" onClick={() => openAddStockModal()}>
-              + Terima Barang Jadi
-            </button>
+            {!isReadOnly && (
+              <button className="btn-primary" onClick={() => openAddStockModal()}>
+                + Terima Barang Jadi
+              </button>
+            )}
           </div>
 
           <table className="kopkar-table">
@@ -1941,19 +1986,19 @@ const VendorManagement = () => {
                 <th>Nama Barang (Kategori & Ukuran)</th>
                 <th style={{ textAlign: 'center' }}>Kuantitas Tersedia</th>
                 <th>Update Terakhir</th>
-                <th style={{ textAlign: 'center' }}>Aksi</th>
+                {!isReadOnly && <th style={{ textAlign: 'center' }}>Aksi</th>}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '24px' }}>
+                  <td colSpan={isReadOnly ? 4 : 5} style={{ textAlign: 'center', padding: '24px' }}>
                     Memuat data stok vendor...
                   </td>
                 </tr>
               ) : filteredStocks.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                  <td colSpan={isReadOnly ? 4 : 5} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
                     {stocks.length === 0 ? 'Belum ada stok barang jadi yang tercatat dari vendor.' : 'Tidak ada stok yang cocok dengan pencarian.'}
                   </td>
                 </tr>
@@ -1988,12 +2033,14 @@ const VendorManagement = () => {
                     <td style={{ fontSize: '0.85rem', color: '#64748b' }}>
                       {s.last_updated ? new Date(s.last_updated).toLocaleString('id-ID') : '-'}
                     </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <ActionMenu
-                        onEdit={() => setEditingStock(s)}
-                        onDelete={() => handleDeleteStock(s.id)}
-                      />
-                    </td>
+                    {!isReadOnly && (
+                      <td style={{ textAlign: 'center' }}>
+                        <ActionMenu
+                          onEdit={() => setEditingStock(s)}
+                          onDelete={() => handleDeleteStock(s.id)}
+                        />
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -2010,6 +2057,7 @@ const VendorManagement = () => {
             plottings={effectivePlottings}
             schools={schools}
             products={products}
+            readOnly={isReadOnly}
           />
         </div>
       )}
@@ -2017,7 +2065,7 @@ const VendorManagement = () => {
       {/* CALCULATOR TAB */}
       {activeTab === 'calculator' && (
         <div style={{ marginTop: '-24px' }}>
-          <KopkarKalkulatorKain />
+          <KopkarKalkulatorKain readOnly={isReadOnly} />
         </div>
       )}
 
@@ -2379,13 +2427,13 @@ const VendorManagement = () => {
                     <th style={{ width: '220px', padding: '10px 12px', textAlign: 'left', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>Sekolah yang Dilayani</th>
                     <th style={{ width: '80px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>Jenjang</th>
                     <th style={{ padding: '10px 12px', textAlign: 'left', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>Jenis Baju yang Diproduksi</th>
-                    <th style={{ width: '130px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>Aksi</th>
+                    {!isReadOnly && <th style={{ width: '130px', padding: '10px 12px', textAlign: 'center', color: '#475569', fontSize: '0.8rem', background: '#f8fafc' }}>Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {activeDetailPlotGroup.items.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
+                      <td colSpan={isReadOnly ? 4 : 5} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
                         Belum ada sekolah yang di-plot ke vendor ini.
                       </td>
                     </tr>
@@ -2458,44 +2506,46 @@ const VendorManagement = () => {
                               )}
                             </div>
                           </td>
-                          <td style={{ padding: '12px 10px', textAlign: 'center', verticalAlign: 'top' }}>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditPlotting(item)}
-                                title="Edit penugasan ini"
-                                style={{
-                                  padding: '4px 8px',
-                                  background: '#f1f5f9',
-                                  border: '1px solid #cbd5e1',
-                                  borderRadius: '5px',
-                                  cursor: 'pointer',
-                                  fontSize: '0.78rem',
-                                  color: '#334155',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                ✏️ Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeletePlotting(item.id)}
-                                title="Hapus penugasan ini"
-                                style={{
-                                  padding: '4px 8px',
-                                  background: '#fef2f2',
-                                  border: '1px solid #fecaca',
-                                  borderRadius: '5px',
-                                  cursor: 'pointer',
-                                  color: '#b91c1c',
-                                  fontSize: '0.78rem',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                🗑️ Hapus
-                              </button>
-                            </div>
-                          </td>
+                          {!isReadOnly && (
+                            <td style={{ padding: '12px 10px', textAlign: 'center', verticalAlign: 'top' }}>
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditPlotting(item)}
+                                  title="Edit penugasan ini"
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: '#f1f5f9',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '5px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.78rem',
+                                    color: '#334155',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  ✏️ Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePlotting(item.id)}
+                                  title="Hapus penugasan ini"
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: '#fef2f2',
+                                    border: '1px solid #fecaca',
+                                    borderRadius: '5px',
+                                    cursor: 'pointer',
+                                    color: '#b91c1c',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  🗑️ Hapus
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })
@@ -2509,7 +2559,7 @@ const VendorManagement = () => {
               style={{
                 flexShrink: 0,
                 display: 'flex',
-                justifyContent: 'space-between',
+                justifyContent: isReadOnly ? 'flex-end' : 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
                 gap: '10px',
@@ -2517,23 +2567,25 @@ const VendorManagement = () => {
                 borderTop: '1px solid #e2e8f0',
               }}
             >
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => {
-                  const vId = activeDetailPlotGroup.vendorId;
-                  openAddPlottingModal(vId);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 16px',
-                  fontSize: '0.85rem',
-                }}
-              >
-                ➕ Tambah Sekolah untuk Vendor Ini
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => {
+                    const vId = activeDetailPlotGroup.vendorId;
+                    openAddPlottingModal(vId);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  ➕ Tambah Sekolah untuk Vendor Ini
+                </button>
+              )}
               <button
                 type="button"
                 className="btn-secondary"

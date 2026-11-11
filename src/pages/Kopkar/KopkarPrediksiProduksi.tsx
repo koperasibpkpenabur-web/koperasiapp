@@ -56,6 +56,7 @@ interface Props {
   }>;
   schools: Array<{ id: string; school_name: string; level: string; email?: string }>;
   products: Array<{ id: string; name: string; level: string; category?: string; size?: string }>;
+  readOnly?: boolean;
 }
 
 // Standar urutan ukuran umum untuk penyusunan kolom
@@ -125,6 +126,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   plottings,
   schools,
   products,
+  readOnly = false,
 }) => {
   const [targetYear, setTargetYear] = useState('2027/2028');
   const [forecastItems, setForecastItems] = useState<ForecastItem[]>([]);
@@ -217,6 +219,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
   // Simpan data forecast ke Supabase & localStorage
   const handleSaveForecast = async (itemsToSave = forecastItems) => {
+    if (readOnly) return;
     try {
       const storageKey = `production_forecast_${targetYear.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const valueStr = JSON.stringify(itemsToSave);
@@ -4162,39 +4165,43 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             <span>📥</span> Unduh Template Excel
           </button>
 
-          {/* Tombol Upload File Excel (Pengganti Kotak Dropzone) */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: isDragging ? '2px dashed #059669' : '1px solid #10b981',
-              background: isDragging ? '#ecfdf5' : '#f0fdf4',
-              color: '#059669',
-              fontSize: '0.86rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = '#10b981';
-              e.currentTarget.style.color = '#ffffff';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = isDragging ? '#ecfdf5' : '#f0fdf4';
-              e.currentTarget.style.color = '#059669';
-            }}
-            title="Pilih atau seret (drag & drop) file Excel rencana produksi (.xlsx / .xls) untuk diperbarui"
-          >
-            <span>📤</span> Upload File Excel
-          </button>
+          {!readOnly && (
+            <>
+              {/* Tombol Upload File Excel (Pengganti Kotak Dropzone) */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: isDragging ? '2px dashed #059669' : '1px solid #10b981',
+                  background: isDragging ? '#ecfdf5' : '#f0fdf4',
+                  color: '#059669',
+                  fontSize: '0.86rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = '#10b981';
+                  e.currentTarget.style.color = '#ffffff';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = isDragging ? '#ecfdf5' : '#f0fdf4';
+                  e.currentTarget.style.color = '#059669';
+                }}
+                title="Pilih atau seret (drag & drop) file Excel rencana produksi (.xlsx / .xls) untuk diperbarui"
+              >
+                <span>📤</span> Upload File Excel
+              </button>
+            </>
+          )}
 
           {/* Tombol Ekspor Rencana Global */}
           <button
@@ -4227,13 +4234,15 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             <span>📊</span> Ekspor Rencana Global (.xlsx)
           </button>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={handleFileInputChange}
-            style={{ display: 'none' }}
-          />
+          {!readOnly && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileInputChange}
+              style={{ display: 'none' }}
+            />
+          )}
         </div>
       </div>
 
@@ -4484,7 +4493,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                   <span>📊</span> Ekspor Rencana Global (.xlsx)
                 </button>
 
-                {forecastItems.length > 0 && (
+                {!readOnly && forecastItems.length > 0 && (
                   <button
                     type="button"
                     onClick={() => {

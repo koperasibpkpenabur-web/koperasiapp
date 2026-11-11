@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import type { ProductItem, SchoolLevel } from '../types';
 import { supabase } from '../lib/supabase';
 import { resolveItemUnit } from '../utils/formatUnit';
+import { fetchAllSupabasePaged } from '../utils/supabasePagination';
+import { getWibDateString } from '../utils/dateWib';
 import * as XLSX from 'xlsx';
 
 interface ProductContextType {
@@ -50,33 +52,17 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const PAGE_SIZE = 1000;
-      let allData: any[] = [];
-      let from = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
+      const { data: allData, error } = await fetchAllSupabasePaged((from, to) =>
+        supabase
           .from('products')
           .select('*')
           .order('code', { ascending: true })
-          .range(from, from + PAGE_SIZE - 1);
+          .range(from, to)
+      );
 
-        if (error) {
-          console.error('Error fetching products:', error);
-          break;
-        }
-
-        if (data && data.length > 0) {
-          allData = allData.concat(data);
-          if (data.length < PAGE_SIZE) {
-            hasMore = false;
-          } else {
-            from += PAGE_SIZE;
-          }
-        } else {
-          hasMore = false;
-        }
+      if (error) {
+        console.error('Error fetching products:', error);
+        return;
       }
 
       const mapped = allData.map(d => ({
@@ -96,7 +82,11 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         unit: d.unit || resolveItemUnit({ name: d.name, category: d.category }),
         storageLocation: d.storage_location,
         supplierName: d.supplier_name,
-        schoolName: d.school_name
+        schoolName: d.school_name,
+        imageUrl: d.image_url,
+        description: d.description,
+        variantGroup: d.variant_group,
+        isKanvasActive: Boolean(d.is_kanvas_active)
       }));
       mapped.sort((a, b) => (a.code || '').localeCompare(b.code || '', 'id', { numeric: true, sensitivity: 'base' }));
       setProducts(mapped);
@@ -143,7 +133,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 
   const addProduct = useCallback(async (productData: Omit<ProductItem, 'id'>) => {
     const newId = `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
-    const newProduct = {
+    const newProduct: Record<string, any> = {
       id: newId,
       code: productData.code,
       name: productData.name,
@@ -161,6 +151,10 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       supplier_name: productData.supplierName,
       school_name: productData.schoolName
     };
+    if (productData.imageUrl !== undefined) newProduct.image_url = productData.imageUrl;
+    if (productData.description !== undefined) newProduct.description = productData.description;
+    if (productData.variantGroup !== undefined) newProduct.variant_group = productData.variantGroup;
+    if (productData.isKanvasActive !== undefined) newProduct.is_kanvas_active = productData.isKanvasActive;
 
     const { error } = await supabase.from('products').insert([newProduct]);
     if (error) {
@@ -197,6 +191,10 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     if (updated.storageLocation !== undefined) updates.storage_location = updated.storageLocation;
     if (updated.supplierName !== undefined) updates.supplier_name = updated.supplierName;
     if (updated.schoolName !== undefined) updates.school_name = updated.schoolName;
+    if (updated.imageUrl !== undefined) updates.image_url = updated.imageUrl;
+    if (updated.description !== undefined) updates.description = updated.description;
+    if (updated.variantGroup !== undefined) updates.variant_group = updated.variantGroup;
+    if (updated.isKanvasActive !== undefined) updates.is_kanvas_active = updated.isKanvasActive;
 
     const { error } = await supabase.from('products').update(updates).eq('id', id);
     if (error) {
@@ -242,11 +240,31 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   }, [fetchProducts]);
 
   const adjustStock = useCallback(async (id: string, delta: number) => {
-    const p = products.find(prod => prod.id === id);
-    if (!p) return;
-    const newStock = Math.max(0, (p.stock || 0) + delta);
-    const { error } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
-    if (!error) await fetchProducts();
+    const { data, error } = await supabase.rpc('adjust_product_stock_atomic', {
+      p_product_id: id,
+      p_delta: delta,
+      p_ref_type: 'manual_adjust',
+      p_notes: delta >= 0 ? 'Penambahan stok manual' : 'Pengurangan stok manual'
+    });
+
+    if (error) {
+      if (error.code === 'PGRST202') {
+        const p = products.find(prod => prod.id === id);
+        if (!p) return;
+        const newStock = Math.max(0, (p.stock || 0) + delta);
+        const { error: upErr } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
+        if (!upErr) await fetchProducts();
+        return;
+      }
+      console.error('Error adjusting stock atomically:', error);
+      return;
+    }
+
+    if (data?.success) {
+      await fetchProducts();
+    } else if (data?.error) {
+      console.error('Error adjusting stock:', data.error);
+    }
   }, [products, fetchProducts]);
 
   const setProductStock = useCallback(async (id: string, newStock: number, newStockVendor?: number) => {
@@ -259,11 +277,34 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   }, [fetchProducts]);
 
   const restockProduct = useCallback(async (id: string, quantity: number) => {
-    const p = products.find(prod => prod.id === id);
-    if (!p) return;
-    const newStock = (p.stock || 0) + Math.max(0, quantity);
-    const { error } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
-    if (!error) await fetchProducts();
+    const safeQty = Math.max(0, quantity);
+    if (safeQty === 0) return;
+
+    const { data, error } = await supabase.rpc('adjust_product_stock_atomic', {
+      p_product_id: id,
+      p_delta: safeQty,
+      p_ref_type: 'restock',
+      p_notes: 'Restock barang masuk gudang'
+    });
+
+    if (error) {
+      if (error.code === 'PGRST202') {
+        const p = products.find(prod => prod.id === id);
+        if (!p) return;
+        const newStock = (p.stock || 0) + safeQty;
+        const { error: upErr } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
+        if (!upErr) await fetchProducts();
+        return;
+      }
+      console.error('Error restocking product atomically:', error);
+      return;
+    }
+
+    if (data?.success) {
+      await fetchProducts();
+    } else if (data?.error) {
+      console.error('Error restocking product:', data.error);
+    }
   }, [products, fetchProducts]);
 
   const importProductsFromExcel = useCallback(async (buffer: ArrayBuffer) => {
@@ -323,10 +364,13 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         return parseInt(clean, 10) || 0;
       };
 
-      const itemsToUpsert = [];
+      const upsertMap = new Map<string, any>();
+      const workingCatalog: ProductItem[] = [...products];
       let autoCodeCount = 0;
       let newItemsAdded = 0;
       let itemsUpdated = 0;
+
+      const norm = (val?: string) => (val || '').trim().toLowerCase();
 
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
@@ -355,26 +399,32 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         const schoolName = schoolIdx !== -1 && row[schoolIdx] ? String(row[schoolIdx]).trim() : undefined;
 
         if (!inputCode) {
-          inputCode = generateProductCode(category, level, products, autoCodeCount);
+          inputCode = generateProductCode(category, level, workingCatalog, autoCodeCount);
           autoCodeCount++;
         }
 
-        // Prioritaskan pencocokan berdasarkan Nama Barang + Jenjang + Ukuran terlebih dahulu
-        // agar ketika user mengubah/menukar Kode Barang di Excel lalu Import ulang,
-        // Kode Barang berhasil diperbarui tanpa tertukar dengan barang lain.
+        // Pencocokan SKU unik komposit: Nama Barang + Jenjang + Ukuran + Sekolah (aman untuk model dengan code yang sama lintas ukuran).
+        // Fallback ke Kode Barang hanya jika Jenjang + Ukuran + Sekolah juga sama agar varian S/M/L tidak saling menimpa.
         const existing =
-          products.find(
+          workingCatalog.find(
             (p) =>
-              p.name.trim().toLowerCase() === name.toLowerCase() &&
+              norm(p.name) === norm(name) &&
               p.level === level &&
-              (p.size || '').trim().toLowerCase() === (size || '').trim().toLowerCase()
+              norm(p.size) === norm(size) &&
+              norm(p.schoolName) === norm(schoolName)
           ) ||
-          products.find(
-            (p) => inputCode && p.code.trim().toLowerCase() === inputCode.toLowerCase()
+          workingCatalog.find(
+            (p) =>
+              inputCode &&
+              norm(p.code) === norm(inputCode) &&
+              p.level === level &&
+              norm(p.size) === norm(size) &&
+              norm(p.schoolName) === norm(schoolName)
           );
 
         if (existing) {
-          itemsToUpsert.push({
+          const alreadyInBatch = upsertMap.has(existing.id);
+          upsertMap.set(existing.id, {
             id: existing.id,
             code: inputCode || existing.code,
             name,
@@ -389,12 +439,19 @@ export function ProductProvider({ children }: { children: ReactNode }) {
             supplier_name: supplierName,
             school_name: schoolName,
             stock: stockIdx !== -1 && row[stockIdx] !== undefined && row[stockIdx] !== '' ? stock : existing.stock,
-            min_stock: existing.minStock
+            stock_vendor: existing.stockVendor || 0,
+            stock_rusak: existing.stockRusak || 0,
+            min_stock: existing.minStock,
+            image_url: existing.imageUrl ?? null,
+            description: existing.description ?? null,
+            variant_group: existing.variantGroup ?? null,
+            is_kanvas_active: existing.isKanvasActive ?? false
           });
-          itemsUpdated++;
+          if (!alreadyInBatch) itemsUpdated++;
         } else {
-          itemsToUpsert.push({
-            id: `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          const newId = `PRD-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
+          const newRow = {
+            id: newId,
             code: inputCode,
             name,
             category,
@@ -409,11 +466,30 @@ export function ProductProvider({ children }: { children: ReactNode }) {
             storage_location: storageLocation,
             supplier_name: supplierName,
             school_name: schoolName,
+          };
+          upsertMap.set(newId, newRow);
+          workingCatalog.push({
+            id: newId,
+            code: inputCode,
+            name,
+            category,
+            level,
+            priceKopkar,
+            feeSchool,
+            priceStudent,
+            stock,
+            minStock: 20,
+            size,
+            unit: unit || resolveItemUnit({ name, category }),
+            storageLocation,
+            supplierName,
+            schoolName
           });
           newItemsAdded++;
         }
       }
 
+      const itemsToUpsert = Array.from(upsertMap.values());
       if (itemsToUpsert.length > 0) {
         const { error } = await supabase.from('products').upsert(itemsToUpsert);
         if (error) {
@@ -550,7 +626,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Katalog');
-    XLSX.writeFile(workbook, `Katalog_Master_Barang_Koperasi_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(workbook, `Katalog_Master_Barang_Koperasi_${getWibDateString()}.xlsx`);
   }, [products]);
 
   return (

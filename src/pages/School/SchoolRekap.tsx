@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { resolveItemUnit } from '../../utils/formatUnit';
+import { getWibDateString } from '../../utils/dateWib';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -357,7 +358,7 @@ const SchoolRekap = () => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap_Pesanan');
       const schoolNameSlug = (user?.schoolName || user?.name || 'Sekolah').replace(/[^a-zA-Z0-9]/g, '_');
-      XLSX.writeFile(workbook, `Rekap_Pesanan_${schoolNameSlug}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      XLSX.writeFile(workbook, `Rekap_Pesanan_${schoolNameSlug}_${getWibDateString()}.xlsx`);
     } catch (err) {
       console.error('Error exporting Excel:', err);
       alert('Gagal mengekspor data ke Excel.');
@@ -457,7 +458,7 @@ const SchoolRekap = () => {
       });
 
       const schoolNameSlug = (user?.schoolName || user?.name || 'Sekolah').replace(/[^a-zA-Z0-9]/g, '_');
-      doc.save(`Rekap_Pesanan_${schoolNameSlug}_${new Date().toISOString().split('T')[0]}.pdf`);
+      doc.save(`Rekap_Pesanan_${schoolNameSlug}_${getWibDateString()}.pdf`);
     } catch (err) {
       console.error('Error exporting PDF:', err);
       alert('Gagal mengekspor data ke PDF.');

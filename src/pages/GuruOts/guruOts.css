@@ -1,7 +1,7 @@
-/* Styling Khusus Guru on the Spot (POS / Direct Order) */
+/* Styling Khusus Guru on the Spot (Model Simpel Fase Tambahan + 2 Tab) */
 .ots-container {
   padding: 24px;
-  max-width: 1400px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 
@@ -9,14 +9,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
 }
 
 .ots-title-area h2 {
   margin: 0 0 6px 0;
-  font-size: 1.5rem;
+  font-size: 1.45rem;
   color: #1e293b;
   font-weight: 800;
   display: flex;
@@ -34,291 +34,471 @@
   background: #f3e8ff;
   color: #7e22ce;
   border: 1px solid #d8b4fe;
-  padding: 4px 12px;
+  padding: 6px 14px;
   border-radius: 99px;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-/* Level Tabs */
+/* 2 Tab Navigasi */
+.ots-main-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  gap: 8px;
+  background: #f1f5f9;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 20px;
+}
+
+.ots-main-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.ots-main-tab-btn:hover {
+  color: #0f172a;
+}
+
+.ots-main-tab-btn.active {
+  background: #ffffff;
+  color: #7e22ce;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.ots-tab-count {
+  background: #f3e8ff;
+  color: #7e22ce;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+/* Card Pemesanan Utama */
+.ots-order-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+/* Filter Jenjang tepat di atas Pilih Barang */
+.ots-level-filter-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+
+.ots-level-filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ots-level-filter-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.ots-level-filter-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
 .ots-level-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 20px;
-  overflow-x: auto;
-  padding-bottom: 4px;
 }
 
 .ots-level-btn {
-  padding: 8px 16px;
+  padding: 7px 14px;
   border-radius: 8px;
   border: 1px solid #cbd5e1;
   background: #ffffff;
   color: #475569;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .ots-level-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+  color: #7e22ce;
 }
 
 .ots-level-btn.active {
   background: #7e22ce;
   color: #ffffff;
   border-color: #7e22ce;
-  box-shadow: 0 2px 4px rgba(126, 34, 206, 0.2);
+  box-shadow: 0 2px 4px rgba(126, 34, 206, 0.22);
 }
 
-/* Layout Split POS */
-.ots-grid-layout {
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 24px;
-  align-items: flex-start;
-}
-
-@media (max-width: 1024px) {
-  .ots-grid-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Left: Catalog Box */
-.ots-catalog-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.ots-search-bar {
+/* Alert Error */
+.ots-error-banner {
   display: flex;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 11px 14px;
+  border-radius: 8px;
   margin-bottom: 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.45;
 }
 
-.ots-search-input {
-  flex: 1;
-  padding: 10px 14px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  outline: none;
+/* Wrapper Tabel */
+.ots-table-wrap {
+  overflow-x: auto;
 }
 
-.ots-search-input:focus {
-  border-color: #7e22ce;
-  box-shadow: 0 0 0 3px rgba(126, 34, 206, 0.15);
-}
-
-.ots-category-filter {
-  padding: 10px 14px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  background: #fff;
-  cursor: pointer;
-}
-
-/* Catalog Table / Grid */
-.ots-product-table {
+/* Tabel Pemesanan Simpel */
+.ots-simple-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 8px;
 }
 
-.ots-product-table th {
-  background: #f8fafc;
+.ots-simple-table thead th {
+  background: #f1f5f9;
   padding: 10px 12px;
   text-align: left;
-  font-size: 0.8rem;
-  color: #64748b;
+  font-size: 0.79rem;
+  color: #475569;
   font-weight: 700;
-  border-bottom: 2px solid #e2e8f0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-bottom: 2px solid #cbd5e1;
 }
 
-.ots-product-table td {
-  padding: 12px;
-  border-bottom: 1px solid #f1f5f9;
-  font-size: 0.9rem;
+.ots-simple-table thead th:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.ots-simple-table thead th:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.ots-simple-row td {
+  background: #f8fafc;
+  padding: 10px 12px;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
   vertical-align: middle;
+  font-size: 0.9rem;
 }
 
-.ots-product-table tr:hover {
-  background: #faf5ff;
+.ots-simple-row td:first-child {
+  border-left: 1px solid #e2e8f0;
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
 }
 
-.ots-variant-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.ots-simple-row td:last-child {
+  border-right: 1px solid #e2e8f0;
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
 }
 
-.ots-variant-btn {
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
+.ots-col-no {
+  text-align: center;
+  font-weight: 700;
+  color: #475569;
+}
+
+.ots-select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   background: #ffffff;
-  font-size: 0.8rem;
+  color: #1e293b;
+  font-size: 0.88rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.ots-select:focus {
+  border-color: #7e22ce;
+  box-shadow: 0 0 0 3px rgba(126, 34, 206, 0.12);
+}
+
+.ots-select:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.ots-col-price {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ots-price-val {
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.ots-price-unit {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.ots-muted {
+  color: #94a3b8;
   font-weight: 600;
-  color: #334155;
+}
+
+.ots-col-qty {
+  text-align: center;
+}
+
+.ots-qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ots-qty-btn {
+  width: 30px;
+  height: 34px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.ots-qty-btn:hover:not(:disabled) {
+  background: #f3e8ff;
+  border-color: #c084fc;
+  color: #7e22ce;
+}
+
+.ots-qty-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ots-qty-input {
+  width: 56px;
+  height: 34px;
+  padding: 4px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.ots-qty-input:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.ots-stock-hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+.ots-col-subtotal {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ots-subtotal-val {
+  font-weight: 800;
+  color: #059669;
+  font-size: 0.94rem;
+}
+
+.ots-col-action {
+  text-align: center;
+}
+
+.ots-btn-remove-row {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: #e11d48;
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.ots-btn-remove-row:hover {
+  background: #ffe4e6;
+}
+
+/* Tombol Tambah Item & Reset */
+.ots-row-actions-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ots-btn-add-row {
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1.5px dashed #7e22ce;
+  background: #faf5ff;
+  color: #7e22ce;
+  font-weight: 700;
+  font-size: 0.88rem;
   cursor: pointer;
   transition: all 0.15s;
 }
 
-.ots-variant-btn:hover {
+.ots-btn-add-row:hover {
   background: #f3e8ff;
-  color: #7e22ce;
-  border-color: #c084fc;
 }
 
-.ots-variant-btn.selected {
-  background: #7e22ce;
-  color: #ffffff;
-  border-color: #7e22ce;
-}
-
-/* Right: Cart Card */
-.ots-cart-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 20px;
-}
-
-.ots-cart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 16px;
-}
-
-.ots-cart-header h3 {
-  margin: 0;
-  font-size: 1.15rem;
-  color: #0f172a;
-}
-
-.ots-cart-badge {
-  background: #7e22ce;
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 99px;
-}
-
-.ots-cart-items-list {
-  max-height: 380px;
-  overflow-y: auto;
-  margin-bottom: 16px;
-}
-
-.ots-cart-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #f1f5f9;
-  gap: 8px;
-}
-
-.ots-item-info {
-  flex: 1;
-}
-
-.ots-item-name {
-  font-weight: 600;
-  color: #1e293b;
-  font-size: 0.88rem;
-}
-
-.ots-item-sub {
-  font-size: 0.78rem;
-  color: #64748b;
-  margin-top: 2px;
-}
-
-.ots-qty-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.ots-qty-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+.ots-btn-reset-rows {
+  padding: 8px 14px;
+  border-radius: 8px;
   border: 1px solid #cbd5e1;
-  background: #fff;
-  font-size: 0.9rem;
-  font-weight: 700;
+  background: #ffffff;
+  color: #475569;
+  font-weight: 600;
+  font-size: 0.84rem;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.ots-qty-btn:hover {
+.ots-btn-reset-rows:hover {
   background: #f1f5f9;
 }
 
-.ots-qty-val {
-  min-width: 24px;
-  text-align: center;
+/* Footer Ringkasan & Simpan */
+.ots-checkout-footer {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 20px;
+  align-items: end;
+}
+
+.ots-notes-label {
+  display: block;
+  font-size: 0.84rem;
   font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.ots-item-price {
-  text-align: right;
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: #0f172a;
-  min-width: 80px;
-}
-
-.ots-cart-summary {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 16px;
-}
-
-.ots-summary-row {
-  display: flex;
-  justify-content: space-between;
+  color: #334155;
   margin-bottom: 6px;
-  font-size: 0.88rem;
-  color: #64748b;
 }
 
-.ots-summary-total {
+.ots-notes-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.ots-notes-input:focus {
+  border-color: #7e22ce;
+  box-shadow: 0 0 0 3px rgba(126, 34, 206, 0.12);
+}
+
+.ots-summary-action-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.ots-summary-metrics {
   display: flex;
   justify-content: space-between;
-  border-top: 1px solid #e2e8f0;
-  padding-top: 8px;
-  font-size: 1.1rem;
-  font-weight: 800;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ots-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ots-metric-item span {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.ots-metric-item strong {
+  font-size: 1rem;
   color: #0f172a;
+}
+
+.ots-metric-item.total {
+  text-align: right;
+}
+
+.ots-metric-item.total strong {
+  font-size: 1.25rem;
+  color: #059669;
+  font-weight: 800;
 }
 
 .ots-btn-submit {
   width: 100%;
-  padding: 12px;
+  padding: 12px 16px;
   border-radius: 8px;
   border: none;
   background: #059669;
@@ -330,7 +510,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: background 0.2s;
+  transition: background 0.15s;
 }
 
 .ots-btn-submit:hover:not(:disabled) {
@@ -342,26 +522,105 @@
   cursor: not-allowed;
 }
 
-/* History Section */
+/* TAB 2: Riwayat Pesanan */
 .ots-history-section {
-  margin-top: 36px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
 }
 
 .ots-history-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
 .ots-history-header h3 {
-  margin: 0;
-  font-size: 1.2rem;
+  margin: 0 0 4px 0;
+  font-size: 1.18rem;
   color: #1e293b;
+}
+
+.ots-history-sub {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #64748b;
+}
+
+.ots-history-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ots-history-search {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  min-width: 240px;
+  outline: none;
+}
+
+.ots-history-search:focus {
+  border-color: #7e22ce;
+}
+
+.ots-btn-refresh {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.84rem;
+  color: #334155;
+}
+
+.ots-btn-refresh:hover {
+  background: #e2e8f0;
+}
+
+.ots-history-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ots-history-table th {
+  background: #f8fafc;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 700;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.ots-history-table td {
+  padding: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.88rem;
+  vertical-align: middle;
+}
+
+.ots-history-table tr:hover td {
+  background: #faf5ff;
+}
+
+.ots-status-badge-done {
+  background: #dcfce7;
+  color: #15803d;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .ots-btn-kwitansi {
@@ -369,18 +628,214 @@
   color: #fff;
   border: none;
   border-radius: 6px;
-  padding: 6px 12px;
+  padding: 7px 12px;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  transition: background 0.15s;
+  white-space: nowrap;
 }
 
 .ots-btn-kwitansi:hover {
   background: #0369a1;
+}
+
+.ots-btn-load-more {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.84rem;
+  color: #334155;
+}
+
+/* Modal Sukses Order */
+.ots-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.ots-modal-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12);
+}
+
+.ots-modal-summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  text-align: left;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+.ots-modal-summary-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.ots-modal-summary-row.total {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+  margin-bottom: 0;
+}
+
+.ots-btn-print-now {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ots-btn-close-modal {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+/* Responsif Tablet & Mobile */
+@media (max-width: 960px) {
+  .ots-checkout-footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .ots-container {
+    padding: 14px;
+  }
+
+  .ots-simple-table thead {
+    display: none;
+  }
+
+  .ots-simple-table,
+  .ots-simple-table tbody,
+  .ots-simple-row,
+  .ots-simple-row td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .ots-simple-row {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+
+  .ots-simple-row td {
+    background: transparent;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 6px 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+  }
+
+  .ots-simple-row td::before {
+    content: attr(data-label);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #64748b;
+    flex-shrink: 0;
+  }
+
+  .ots-col-product,
+  .ots-col-size {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 4px !important;
+  }
+
+  .ots-col-qty {
+    flex-wrap: wrap;
+  }
+}
+
+html.force-mobile .ots-checkout-footer {
+  grid-template-columns: 1fr;
+}
+
+html.force-mobile .ots-simple-table thead {
+  display: none;
+}
+
+html.force-mobile .ots-simple-table,
+html.force-mobile .ots-simple-table tbody,
+html.force-mobile .ots-simple-row,
+html.force-mobile .ots-simple-row td {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+html.force-mobile .ots-simple-row {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+html.force-mobile .ots-simple-row td {
+  background: transparent;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 6px 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+html.force-mobile .ots-simple-row td::before {
+  content: attr(data-label);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+html.force-mobile .ots-col-product,
+html.force-mobile .ots-col-size {
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: 4px !important;
 }
 
 /* --- Print Styles Khusus Guru OTS --- */
@@ -396,13 +851,13 @@
     padding: 0 !important;
   }
 
-  /* Sembunyikan seluruh UI web, navigasi, sidebar, catalog, cart, history, modal */
+  /* Sembunyikan seluruh UI web, navigasi, sidebar, form, history, modal */
   .sidebar,
   .topbar,
   .no-print,
   .ots-header,
-  .ots-level-nav,
-  .ots-grid-layout,
+  .ots-main-tabs,
+  .ots-order-card,
   .ots-history-section,
   .ots-container > *:not(.print-only) {
     display: none !important;
@@ -418,4 +873,3 @@
     color: #000000 !important;
   }
 }
-

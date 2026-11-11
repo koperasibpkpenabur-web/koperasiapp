@@ -40,6 +40,10 @@ export interface ProductItem {
   storageLocation?: string; // Lokasi Penyimpanan
   supplierName?: string;   // Nama Supplier (penjahit, penerbit, dll)
   schoolName?: string;     // Nama Sekolah spesifik (jika khusus untuk 1 sekolah)
+  imageUrl?: string;       // URL foto produk untuk storefront Kanvas PENABUR
+  description?: string;    // Deskripsi & catatan bahan untuk orang tua
+  variantGroup?: string;   // Kunci grouping varian ukuran di Kanvas (default fallback ke code/name)
+  isKanvasActive?: boolean; // Apakah produk aktif ditampilkan di Kanvas PENABUR
 }
 
 // --- Order System ---
@@ -70,12 +74,25 @@ export interface OrderItem {
   priceStudent: number;    // Harga Siswa satuan (Kopkar + Fee)
 }
 
+export interface ShippingHistoryEntry {
+  shippedAtDate: string;
+  shippedAtTime: string;
+  courierNotes?: string;
+  shippedBy: string;
+  shippedItems?: { productId?: string; name: string; type: string; shippedQty: number; kopkarQty?: number; vendorQty?: number; size?: string; }[];
+  source?: 'gudang' | 'vendor';
+  sourceKopkarNotes?: string;
+  sourceVendorNotes?: string;
+  isSusulan?: boolean;
+}
+
 export interface ShippingInfo {
   shippedAtDate: string;  // Contoh: '2026-09-17'
   shippedAtTime: string;  // Contoh: '10:30'
   courierNotes?: string;  // Contoh: 'Mobil Box Koperasi Plat B 1234 CD - Sopir Pak Joko'
   shippedBy: string;      // Nama staf Koperasi yang menginput kirim
-  shippedItems?: { name: string; type: string; shippedQty: number; kopkarQty?: number; vendorQty?: number; size?: string; }[]; // Track partial shipments
+  shippedItems?: { productId?: string; name: string; type: string; shippedQty: number; kopkarQty?: number; vendorQty?: number; size?: string; }[]; // Track partial shipments
+  shippingHistory?: ShippingHistoryEntry[]; // Riwayat seluruh tahap pengiriman (tidak tertimpa saat kirim kekurangan)
   source?: 'gudang' | 'vendor'; // Menandakan apakah ini kirim dari gudang atau drop-ship
   sourceKopkarNotes?: string; // Catatan Gudang Koperasi
   sourceVendorNotes?: string; // Catatan Gudang Penjahit
@@ -88,7 +105,7 @@ export interface ReceiveInfo {
   notes?: string;         // Catatan saat penerimaan barang
   isPartial?: boolean;
   isSusulan?: boolean;
-  receivedItems?: { name: string; type: string; size?: string; receivedQty: number; missingQty?: number }[];
+  receivedItems?: { productId?: string; name: string; type: string; size?: string; receivedQty: number; missingQty?: number }[];
 }
 
 export interface CancellationInfo {
@@ -199,4 +216,67 @@ export interface VendorPayable {
   status: 'pending' | 'paid';
   createdAt: string;
   paidAt?: string;
+}
+
+// --- Kanvas PENABUR (Pesanan Orang Tua / Siswa -> Sekolah -> Invoice/Kwitansi) ---
+export type ParentOrderStatus = 'submitted' | 'confirmed' | 'ready_pickup' | 'completed' | 'cancelled';
+export type ParentPaymentStatus = 'unpaid' | 'pending_verification' | 'paid';
+
+export interface ParentOrderItem {
+  id?: string;
+  parentOrderId: string;
+  productId?: string;
+  productCode?: string;
+  productName: string;
+  category: OrderItemType;
+  size?: string;
+  unit: string;
+  quantity: number;
+  priceKopkar: number;
+  feeSchool: number;
+  priceStudent: number;
+  subtotal: number;
+}
+
+export interface ParentOrder {
+  id: string;
+  parentAuthUserId?: string;
+  schoolUserId?: string;
+  schoolName: string;
+  schoolLevel?: SchoolLevel;
+  studentName: string;
+  studentClass?: string;
+  parentName: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  orderPhase?: string;
+  totalKopkar: number;
+  totalFeeSchool: number;
+  totalAmount: number;
+  paymentMethod?: string;
+  paymentStatus: ParentPaymentStatus;
+  paymentReceiptUrl?: string;
+  paidAt?: string;
+  status: ParentOrderStatus;
+  linkedAksaraOrderId?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  items: ParentOrderItem[];
+}
+
+// --- Ledger Mutasi Stok Sentral ---
+export interface StockMutation {
+  id: string;
+  createdAt: string;
+  productId: string;
+  vendorId?: string;
+  mutationSource: 'gudang' | 'vendor' | 'rusak';
+  delta: number;
+  balanceAfter: number;
+  refType: string;
+  refId?: string;
+  actorUserId?: string;
+  actorName?: string;
+  notes?: string;
 }

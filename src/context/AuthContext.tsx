@@ -184,24 +184,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Fallback transisi (jika script SQL belum sempat dijalankan): cek app_users langsung
       if (!userData) {
-        const { data: legacyUser } = await supabase
-          .from('app_users')
-          .select('*')
-          .ilike('username', cleanUsername)
-          .maybeSingle();
-
-        if (legacyUser && (legacyUser as any).password === password) {
-          userData = legacyUser;
-        }
-      }
-
-      if (!userData) {
+        await supabase.auth.signOut();
         return { success: false, error: 'Username atau password salah' };
       }
 
       if (isMaintenanceMode && userData.role !== 'admin') {
+        await supabase.auth.signOut();
         return {
           success: false,
           error:
@@ -287,20 +276,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (existingAppUser) {
           effectiveUserId = existingAppUser.id;
-          await supabase
+          const { error: updErr } = await supabase
             .from('app_users')
             .update({
               name: finalSchoolName,
               school_name: finalSchoolName,
               school_level: finalJenjang,
+              auth_user_id: id,
             })
             .eq('id', existingAppUser.id);
+          if (updErr && updErr.message?.toLowerCase().includes('auth_user_id')) {
+            await supabase
+              .from('app_users')
+              .update({
+                name: finalSchoolName,
+                school_name: finalSchoolName,
+                school_level: finalJenjang,
+              })
+              .eq('id', existingAppUser.id);
+          }
         } else {
           // Buat akun baru di app_users
           const { data: insertedUser, error: insertErr } = await supabase
             .from('app_users')
             .insert([{
               id: id,
+              auth_user_id: id,
               username: email,
               name: finalSchoolName,
               role: 'sekolah',
@@ -453,14 +454,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteUser = useCallback(async (id: string) => {
-    // 1. Coba melalui RPC admin_delete_user
-    const { error: rpcError } = await supabase.rpc('admin_delete_user', {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_user', {
       p_user_id: id,
     });
 
     if (rpcError) {
-      // Fallback
-      await supabase.from('app_users').delete().eq('id', id);
+      throw new Error(rpcError.message);
+    }
+    if (rpcData && !rpcData.success) {
+      throw new Error(rpcData.error || 'Gagal menghapus pengguna');
     }
   }, []);
   return (

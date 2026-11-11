@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
 import { useProducts } from '../../context/ProductContext';
 import { generateReturnPdf } from '../../utils/returnPdf';
+import { getWibDateString, getWibTimeString } from '../../utils/dateWib';
 import type { ReturnRequest, ReturnItem, SchoolLevel } from '../../types';
 import './returns.css';
 
@@ -49,7 +50,7 @@ const SchoolReturn = () => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
 
   const handleOpenPrintModal = (ret: ReturnRequest) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getWibDateString();
     setPrintingReturn(ret);
     setPrintRecipient(ret.confirmedByName ? `${ret.confirmedByName} / Koperasi BPK PENABUR` : 'Pengurus / Bagian Logistik Koperasi');
     setPrintSender(user?.name || ret.schoolName || 'PIC Sekolah');
@@ -81,8 +82,8 @@ const SchoolReturn = () => {
     },
   ]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const currentTimeStr = new Date().toTimeString().slice(0, 5);
+  const todayStr = getWibDateString();
+  const currentTimeStr = getWibTimeString();
 
   const [reasonCategory, setReasonCategory] = useState(REASON_CATEGORIES[0]);
   const [reasonDetail, setReasonDetail] = useState('');
