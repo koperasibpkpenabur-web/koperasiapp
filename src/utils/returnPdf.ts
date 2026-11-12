@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { ReturnRequest, ProductItem } from '../types';
+import { resolveAcademicYear } from './academicYear';
 
 export interface ReturnPdfOptions {
   ret: ReturnRequest;
@@ -75,7 +76,12 @@ export async function generateReturnPdf(options: ReturnPdfOptions): Promise<void
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(80, 80, 80);
-  doc.text(`No. Dokumen: ${ret.id}   •   Tanggal: ${formatDateIndo(documentDate)}`, 105, 66, { align: 'center' });
+  doc.text(
+    `No. Dokumen: ${ret.id}   •   Asal Barang: TA ${resolveAcademicYear(ret.academicYear)}   •   Tanggal: ${formatDateIndo(documentDate)}`,
+    105,
+    66,
+    { align: 'center' }
+  );
   doc.setTextColor(0, 0, 0);
 
   // 5. Rincian Barang

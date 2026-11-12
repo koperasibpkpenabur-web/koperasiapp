@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
 import { useProducts } from '../../context/ProductContext';
+import { useSettings } from '../../context/SettingsContext';
 import { generateReturnPdf } from '../../utils/returnPdf';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import { getWibDateString, getWibTimeString } from '../../utils/dateWib';
 import type { ReturnRequest } from '../../types';
 import '../School/returns.css';
@@ -19,10 +21,34 @@ const KopkarReturn = () => {
   const { user } = useAuth();
   const { returns, confirmReturn, receiveReturn, rejectReturn } = useReturns();
   const { products } = useProducts();
+  const { activeAcademicYear, academicYears } = useSettings();
 
-  // Filter tabs & search
+  // Filter tabs, tahun ajaran & search
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'koperasi_confirmed' | 'sekolah_dikirim' | 'koperasi_diterima' | 'rejected'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
+  const [yearFilter, setYearFilter] = useState<string>(activeAcademicYear);
+  const [hasCustomYear, setHasCustomYear] = useState(false);
+
+  useEffect(() => {
+    if (!hasCustomYear && activeAcademicYear) {
+      setYearFilter(activeAcademicYear);
+    }
+  }, [activeAcademicYear, hasCustomYear]);
+
+  const availableAcademicYears = useMemo(
+    () =>
+      buildAcademicYearOptions(
+        academicYears,
+        returns.map((r) => r.academicYear),
+        activeAcademicYear
+      ),
+    [academicYears, activeAcademicYear, returns]
+  );
+
+  const yearScopedReturns = useMemo(() => {
+    if (yearFilter === 'ALL') return returns;
+    return returns.filter((r) => resolveAcademicYear(r.academicYear) === yearFilter);
+  }, [returns, yearFilter]);
 
   // Modals state
   const [acceptingReturn, setAcceptingReturn] = useState<ReturnRequest | null>(null);
@@ -63,15 +89,15 @@ const KopkarReturn = () => {
   const [actionSuccess, setActionSuccess] = useState('');
 
   // Stats calculation
-  const totalCount = returns.length;
-  const pendingCount = returns.filter((r) => r.status === 'pending').length;
-  const confirmedCount = returns.filter((r) => r.status === 'koperasi_confirmed').length;
-  const sentCount = returns.filter((r) => r.status === 'sekolah_dikirim').length;
-  const receivedCount = returns.filter((r) => r.status === 'koperasi_diterima').length;
-  const rejectedCount = returns.filter((r) => r.status === 'rejected').length;
+  const totalCount = yearScopedReturns.length;
+  const pendingCount = yearScopedReturns.filter((r) => r.status === 'pending').length;
+  const confirmedCount = yearScopedReturns.filter((r) => r.status === 'koperasi_confirmed').length;
+  const sentCount = yearScopedReturns.filter((r) => r.status === 'sekolah_dikirim').length;
+  const receivedCount = yearScopedReturns.filter((r) => r.status === 'koperasi_diterima').length;
+  const rejectedCount = yearScopedReturns.filter((r) => r.status === 'rejected').length;
 
   // Filter returns
-  const filteredReturns = returns.filter((r) => {
+  const filteredReturns = yearScopedReturns.filter((r) => {
     let matchTab = true;
     if (activeTab === 'pending') matchTab = r.status === 'pending';
     else if (activeTab === 'koperasi_confirmed') matchTab = r.status === 'koperasi_confirmed';
@@ -287,14 +313,41 @@ const KopkarReturn = () => {
           </button>
         </div>
 
-        <div className="returns-search-box">
-          <span>🔍</span>
-          <input
-            type="text"
-            placeholder="Cari sekolah, ID retur, atau nama barang..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <select
+            aria-label="Filter Tahun Ajaran Asal Barang"
+            value={yearFilter}
+            onChange={(e) => {
+              setHasCustomYear(true);
+              setYearFilter(e.target.value);
+            }}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: '#0f172a',
+              fontSize: '0.86rem',
+              fontWeight: 600,
+            }}
+          >
+            <option value="ALL">Semua Tahun Ajaran</option>
+            {availableAcademicYears.map((yr) => (
+              <option key={yr} value={yr}>
+                Asal Barang: TA {yr}
+              </option>
+            ))}
+          </select>
+
+          <div className="returns-search-box">
+            <span>🔍</span>
+            <input
+              type="text"
+              placeholder="Cari sekolah, ID retur, atau nama barang..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -324,6 +377,19 @@ const KopkarReturn = () => {
                 <div className="return-card-header">
                   <div className="return-card-meta">
                     <span className="return-id-badge">{ret.id}</span>
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '999px',
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        border: '1px solid #bfdbfe',
+                      }}
+                    >
+                      Asal Barang: TA {resolveAcademicYear(ret.academicYear)}
+                    </span>
                     <span className="return-school-title">🏫 {ret.schoolName}</span>
                     <span className="return-created-date">
                       Diajukan: {formatDateId(ret.createdAt)}
@@ -796,6 +862,10 @@ const KopkarReturn = () => {
 
               {/* Logistics */}
               <div className="return-logistics-panel">
+                <div className="logistics-row">
+                  <span className="logistics-label">Tahun Ajaran Asal Barang</span>
+                  <span><strong>TA {resolveAcademicYear(viewingReturn.academicYear)}</strong></span>
+                </div>
                 <div className="logistics-row">
                   <span className="logistics-label">Kategori Alasan</span>
                   <span>{viewingReturn.reasonCategory}</span>

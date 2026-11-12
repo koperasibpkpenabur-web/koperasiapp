@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useProducts } from '../../context/ProductContext';
+import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, OrderItem, ProductItem, SchoolLevel } from '../../types';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import { resolveItemUnit } from '../../utils/formatUnit';
 import KwitansiPrint from '../Kopkar/KwitansiPrint';
 import './guruOts.css';
@@ -118,15 +120,22 @@ const mapOtsOrderRow = (row: any): Order => ({
   status: row.status,
   paymentStatus: row.payment_status,
   feeStatus: row.fee_status,
+  academicYear: resolveAcademicYear(row.academic_year),
   notes: row.notes || '',
   createdAt: row.created_at,
 });
 
-async function queryOtsHistory(userId: string, limit: number) {
-  const { data, count, error } = await supabase
+async function queryOtsHistory(userId: string, limit: number, academicYearFilter?: string) {
+  let query = supabase
     .from('orders')
     .select('*, order_items(*)', { count: 'exact' })
-    .eq('school_user_id', userId)
+    .eq('school_user_id', userId);
+
+  if (academicYearFilter && academicYearFilter !== 'ALL') {
+    query = query.eq('academic_year', academicYearFilter);
+  }
+
+  const { data, count, error } = await query
     .order('created_at', { ascending: false })
     .range(0, limit - 1);
 
@@ -141,6 +150,7 @@ const GuruOtsPemesanan = () => {
   const { user } = useAuth();
   const { createOrder } = useOrders();
   const { products } = useProducts();
+  const { activeAcademicYear, academicYears } = useSettings();
 
   // 2 Tabs: 'order' (Buat Pesanan) | 'history' (Riwayat Pesanan)
   const [activeTab, setActiveTab] = useState<'order' | 'history'>('order');
@@ -164,6 +174,24 @@ const GuruOtsPemesanan = () => {
   const [historyLimit, setHistoryLimit] = useState(30);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historySearch, setHistorySearch] = useState('');
+  const [historyYearFilter, setHistoryYearFilter] = useState<string>(activeAcademicYear);
+  const [hasCustomHistoryYear, setHasCustomHistoryYear] = useState(false);
+
+  useEffect(() => {
+    if (!hasCustomHistoryYear && activeAcademicYear) {
+      setHistoryYearFilter(activeAcademicYear);
+    }
+  }, [activeAcademicYear, hasCustomHistoryYear]);
+
+  const availableAcademicYears = useMemo(
+    () =>
+      buildAcademicYearOptions(
+        academicYears,
+        historyOrders.map((o) => o.academicYear),
+        activeAcademicYear
+      ),
+    [academicYears, activeAcademicYear, historyOrders]
+  );
 
   useEffect(() => {
     if (printingOrder) {
@@ -175,11 +203,12 @@ const GuruOtsPemesanan = () => {
     }
   }, [printingOrder]);
 
-  const fetchHistory = async (limitOverride?: number) => {
+  const fetchHistory = async (limitOverride?: number, yearOverride?: string) => {
     if (!user?.id) return;
     const effectiveLimit = limitOverride ?? historyLimit;
+    const effectiveYear = yearOverride ?? historyYearFilter;
     setLoadingHistory(true);
-    const res = await queryOtsHistory(user.id, effectiveLimit);
+    const res = await queryOtsHistory(user.id, effectiveLimit, effectiveYear);
     if (res) {
       setHistoryTotal(res.total);
       setHistoryOrders(res.orders);
@@ -190,7 +219,7 @@ const GuruOtsPemesanan = () => {
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
-    queryOtsHistory(user.id, 30).then((res) => {
+    queryOtsHistory(user.id, 30, historyYearFilter).then((res) => {
       if (!active || !res) return;
       setHistoryTotal(res.total);
       setHistoryOrders(res.orders);
@@ -198,7 +227,7 @@ const GuruOtsPemesanan = () => {
     return () => {
       active = false;
     };
-  }, [user?.id]);
+  }, [user?.id, historyYearFilter]);
 
   // Lookup map produk by ID (agar harga & stok selalu live dari Master Data Barang)
   const productById = useMemo(() => {
@@ -529,6 +558,7 @@ const GuruOtsPemesanan = () => {
           schoolName: user.schoolName || user.name || 'Guru on the Spot',
           schoolLevel: derivedSchoolLevel,
           orderPhase: 'On The Spot',
+          academicYear: activeAcademicYear,
           items: itemsToSubmit,
           notes: notes.trim(),
         },
@@ -542,6 +572,7 @@ const GuruOtsPemesanan = () => {
           schoolName: user.schoolName || user.name || 'Guru on the Spot',
           schoolLevel: derivedSchoolLevel,
           orderPhase: 'On The Spot',
+          academicYear: activeAcademicYear,
           items: itemsToSubmit,
           status: 'received',
           notes: notes.trim(),
@@ -577,9 +608,15 @@ const GuruOtsPemesanan = () => {
   };
 
   const filteredHistoryOrders = useMemo(() => {
+    const yearFiltered =
+      historyYearFilter === 'ALL'
+        ? historyOrders
+        : historyOrders.filter(
+            (ord) => resolveAcademicYear(ord.academicYear) === historyYearFilter
+          );
     const q = historySearch.trim().toLowerCase();
-    if (!q) return historyOrders;
-    return historyOrders.filter(
+    if (!q) return yearFiltered;
+    return yearFiltered.filter(
       (ord) =>
         ord.id.toLowerCase().includes(q) ||
         (ord.notes && ord.notes.toLowerCase().includes(q)) ||
@@ -589,7 +626,7 @@ const GuruOtsPemesanan = () => {
             (it.size && it.size.toLowerCase().includes(q))
         )
     );
-  }, [historyOrders, historySearch]);
+  }, [historyOrders, historySearch, historyYearFilter]);
 
   return (
     <div className="ots-container">
@@ -603,7 +640,13 @@ const GuruOtsPemesanan = () => {
             Pilih jenjang, pilih barang &amp; ukuran dari Master Data Barang, lalu simpan pesanan untuk cetak kwitansi.
           </p>
         </div>
-        <div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span
+            className="ots-badge-role"
+            style={{ background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }}
+          >
+            📅 TA {activeAcademicYear}
+          </span>
           <span className="ots-badge-role">
             📍 Guru on the Spot • {user?.name || 'Kasir Koperasi'}
           </span>
@@ -897,6 +940,31 @@ const GuruOtsPemesanan = () => {
               </p>
             </div>
             <div className="ots-history-controls">
+              <select
+                aria-label="Filter Tahun Ajaran"
+                value={historyYearFilter}
+                onChange={(e) => {
+                  setHasCustomHistoryYear(true);
+                  setHistoryLimit(30);
+                  setHistoryYearFilter(e.target.value);
+                }}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                }}
+              >
+                <option value="ALL">Semua Tahun Ajaran</option>
+                {availableAcademicYears.map((yr) => (
+                  <option key={yr} value={yr}>
+                    TA {yr}
+                  </option>
+                ))}
+              </select>
               <input
                 type="text"
                 placeholder="🔍 Cari nomor pesanan / barang / catatan..."
@@ -942,7 +1010,10 @@ const GuruOtsPemesanan = () => {
                       <td>
                         <div style={{ fontWeight: 800, color: '#1e293b' }}>{ord.id}</div>
                         <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
-                          {formatDate(ord.createdAt)} WIB
+                          {formatDate(ord.createdAt)} WIB •{' '}
+                          <span style={{ fontWeight: 700, color: '#1d4ed8' }}>
+                            TA {resolveAcademicYear(ord.academicYear)}
+                          </span>
                         </div>
                         {ord.notes && (
                           <div style={{ fontSize: '0.76rem', color: '#475569', marginTop: '4px' }}>
@@ -1022,6 +1093,10 @@ const GuruOtsPemesanan = () => {
               <div className="ots-modal-summary-row">
                 <span style={{ color: '#64748b' }}>No. Pesanan:</span>
                 <strong>{successOrder.id}</strong>
+              </div>
+              <div className="ots-modal-summary-row">
+                <span style={{ color: '#64748b' }}>Tahun Ajaran:</span>
+                <strong>TA {resolveAcademicYear(successOrder.academicYear)}</strong>
               </div>
               <div className="ots-modal-summary-row">
                 <span style={{ color: '#64748b' }}>Jumlah Item:</span>

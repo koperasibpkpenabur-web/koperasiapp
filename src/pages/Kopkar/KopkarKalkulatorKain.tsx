@@ -1,11 +1,20 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import './kopkar.css';
 
 type GarmentType = 'kemeja' | 'celana' | 'rok' | 'rompi';
+type JenjangLevel = 'TK' | 'SD' | 'SMP' | 'SMA' | 'SPK-SD' | 'SPK-SMP' | 'SPK-SMA';
+type JenjangFilter = 'SEMUA' | JenjangLevel;
+type SizeTemplateType = 'letter' | 'number' | 'single';
 
 interface SizeRatio {
   id: string;
+  name: string;
+  data: Record<string, number>;
+  ratio: number;
+}
+
+interface SizeChartEntry {
   name: string;
   data: Record<string, number>;
   ratio: number;
@@ -15,8 +24,206 @@ interface PresetDef {
   key: string;
   label: string;
   type: GarmentType;
+  levels: JenjangLevel[];
+  groupLabel: string;
+  isCustom?: boolean;
   headers: { key: string; label: string }[];
-  sizes: { name: string; data: Record<string, number>; ratio: number }[];
+  sizes: SizeChartEntry[];
+}
+
+interface CustomPresetMeta {
+  __meta: true;
+  label: string;
+  level: JenjangLevel;
+  type: GarmentType;
+  headers: { key: string; label: string }[];
+}
+
+const JENJANG_OPTIONS: JenjangLevel[] = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
+
+const JENJANG_FILTER_LIST: { value: JenjangFilter; label: string }[] = [
+  { value: 'SEMUA', label: 'Semua' },
+  { value: 'TK', label: 'TK' },
+  { value: 'SD', label: 'SD' },
+  { value: 'SMP', label: 'SMP' },
+  { value: 'SMA', label: 'SMA' },
+  { value: 'SPK-SD', label: 'SPK-SD' },
+  { value: 'SPK-SMP', label: 'SPK-SMP' },
+  { value: 'SPK-SMA', label: 'SPK-SMA' },
+];
+
+const GROUP_ORDER = [
+  'TK',
+  'SD',
+  'SPK-SD',
+  'SMP',
+  'SPK-SMP',
+  'SMA & SPK-SMA',
+  'SMA',
+  'SPK-SMA',
+  'SMP / SMA / SPK',
+];
+
+const GARMENT_TYPE_META: Record<
+  GarmentType,
+  { label: string; formulaDesc: string; headers: { key: string; label: string }[] }
+> = {
+  kemeja: {
+    label: 'Kemeja / Baju Atasan Lengan',
+    formulaDesc: 'Kebutuhan kain = Panjang Baju + Panjang Lengan + 15 cm kampuh',
+    headers: [
+      { key: 'panjangLengan', label: 'Panjang Lengan' },
+      { key: 'lebarBahu', label: 'Lebar Bahu' },
+      { key: 'panjangBaju', label: 'Panjang Baju' },
+      { key: 'lebarDada', label: 'Lebar Dada' },
+    ],
+  },
+  rompi: {
+    label: 'Rompi / Atasan Tanpa Lengan',
+    formulaDesc: 'Kebutuhan kain = Panjang Baju + 15 cm kampuh',
+    headers: [
+      { key: 'lebarBahu', label: 'Lebar Bahu' },
+      { key: 'lebarDada', label: 'Lebar Dada' },
+      { key: 'panjangBaju', label: 'Panjang Baju' },
+    ],
+  },
+  celana: {
+    label: 'Celana Pendek / Panjang',
+    formulaDesc: 'Kebutuhan kain = Panjang Celana + 20 cm kampuh',
+    headers: [
+      { key: 'lebarPinggang', label: 'Lebar Pinggang' },
+      { key: 'panjangCelana', label: 'Panjang Celana' },
+      { key: 'lebarPaha', label: 'Lebar Paha' },
+      { key: 'lebarKaki', label: 'Lebar Kaki' },
+    ],
+  },
+  rok: {
+    label: 'Rok / Kulot',
+    formulaDesc: 'Kebutuhan kain = Panjang Rok + 15 cm kampuh',
+    headers: [
+      { key: 'lebarPinggang', label: 'Lebar Pinggang' },
+      { key: 'panjangRok', label: 'Panjang Rok' },
+      { key: 'lebarPinggul', label: 'Lebar Pinggul' },
+    ],
+  },
+};
+
+function buildStarterSizes(
+  headers: { key: string; label: string }[],
+  template: SizeTemplateType
+): SizeChartEntry[] {
+  const emptyData: Record<string, number> = {};
+  headers.forEach(h => {
+    emptyData[h.key] = 0;
+  });
+
+  if (template === 'number') {
+    const nums = ['25', '26', '27', '28', '29', '30', '31', '32', '33', '34'];
+    return nums.map(name => ({
+      name,
+      ratio: ['28', '29', '30', '31', '32'].includes(name) ? 2 : 1,
+      data: { ...emptyData },
+    }));
+  }
+
+  if (template === 'single') {
+    return [{ name: 'S', ratio: 1, data: { ...emptyData } }];
+  }
+
+  const letters = ['SS', 'S', 'M', 'L', 'XL', '3L', '4L'];
+  return letters.map(name => ({
+    name,
+    ratio: ['M', 'L', 'XL'].includes(name) ? 2 : 1,
+    data: { ...emptyData },
+  }));
+}
+
+function toSizeRows(presetKey: string, entries: SizeChartEntry[], suffix = 'row'): SizeRatio[] {
+  return entries.map((s, idx) => ({
+    id: `${presetKey}-${suffix}-${idx}`,
+    name: String(s.name ?? ''),
+    ratio: Math.max(0, Number(s.ratio) || 0),
+    data: s.data && typeof s.data === 'object' ? { ...s.data } : {},
+  }));
+}
+
+function createCustomPresetKey(level: JenjangLevel, label: string): string {
+  const levelSlug = level.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const nameSlug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32);
+  return `custom_${levelSlug}_${nameSlug || 'item'}_${Date.now()}`;
+}
+
+function parseSavedChartRow(
+  presetKey: string,
+  raw: unknown
+): { meta: CustomPresetMeta | null; sizes: SizeChartEntry[] } {
+  const normalizeEntry = (item: any): SizeChartEntry => {
+    const cleanData: Record<string, number> = {};
+    if (item?.data && typeof item.data === 'object') {
+      Object.entries(item.data).forEach(([k, v]) => {
+        cleanData[k] = Math.max(0, Number(v) || 0);
+      });
+    }
+    return {
+      name: String(item?.name ?? ''),
+      ratio: Math.max(0, Number(item?.ratio) || 0),
+      data: cleanData,
+    };
+  };
+
+  if (Array.isArray(raw)) {
+    const metaRaw = raw.find((entry: any) => entry && entry.__meta === true);
+    const sizeEntries = raw
+      .filter((entry: any) => entry && entry.__meta !== true)
+      .map(normalizeEntry);
+    const meta =
+      metaRaw && metaRaw.label && metaRaw.type
+        ? ({
+            __meta: true,
+            label: String(metaRaw.label),
+            level: (JENJANG_OPTIONS.includes(metaRaw.level) ? metaRaw.level : 'SD') as JenjangLevel,
+            type: (['kemeja', 'celana', 'rok', 'rompi'].includes(metaRaw.type)
+              ? metaRaw.type
+              : 'kemeja') as GarmentType,
+            headers:
+              Array.isArray(metaRaw.headers) && metaRaw.headers.length > 0
+                ? metaRaw.headers
+                : GARMENT_TYPE_META.kemeja.headers,
+          } satisfies CustomPresetMeta)
+        : null;
+    return { meta, sizes: sizeEntries };
+  }
+
+  if (raw && typeof raw === 'object') {
+    const obj = raw as any;
+    const rawSizes = Array.isArray(obj.sizes) ? obj.sizes : [];
+    const sizeEntries = rawSizes.map(normalizeEntry);
+    const meta =
+      obj.__meta === true && obj.label && obj.type
+        ? ({
+            __meta: true,
+            label: String(obj.label),
+            level: (JENJANG_OPTIONS.includes(obj.level) ? obj.level : 'SD') as JenjangLevel,
+            type: (['kemeja', 'celana', 'rok', 'rompi'].includes(obj.type)
+              ? obj.type
+              : 'kemeja') as GarmentType,
+            headers:
+              Array.isArray(obj.headers) && obj.headers.length > 0
+                ? obj.headers
+                : GARMENT_TYPE_META.kemeja.headers,
+          } satisfies CustomPresetMeta)
+        : null;
+    if (meta || sizeEntries.length > 0) {
+      return { meta, sizes: sizeEntries };
+    }
+  }
+
+  console.warn(`Format size chart tidak dikenali untuk preset ${presetKey}`);
+  return { meta: null, sizes: [] };
 }
 
 const PRESETS: PresetDef[] = [
@@ -25,6 +232,8 @@ const PRESETS: PresetDef[] = [
     key: 'baju_sd',
     label: 'Baju Putra/Putri SD',
     type: 'kemeja',
+    levels: ['SD'],
+    groupLabel: 'SD',
     headers: [
       { key: 'panjangLengan', label: 'Panjang Lengan' },
       { key: 'lebarBahu', label: 'Lebar Bahu' },
@@ -45,6 +254,8 @@ const PRESETS: PresetDef[] = [
     key: 'rompi_sd',
     label: 'Rompi Kotak Putra/Putri SD',
     type: 'rompi',
+    levels: ['SD'],
+    groupLabel: 'SD',
     headers: [
       { key: 'lebarBahu', label: 'Lebar Bahu' },
       { key: 'lebarDada', label: 'Lebar Dada' },
@@ -64,6 +275,8 @@ const PRESETS: PresetDef[] = [
     key: 'celana_sd',
     label: 'Celana Merah/Kotak/Pramuka SD',
     type: 'celana',
+    levels: ['SD'],
+    groupLabel: 'SD',
     headers: [
       { key: 'lebarPinggang', label: 'Lebar Pinggang' },
       { key: 'panjangCelana', label: 'Panjang Celana' },
@@ -84,6 +297,8 @@ const PRESETS: PresetDef[] = [
     key: 'rok_sd',
     label: 'Rok Remple/Kulot SD',
     type: 'rok',
+    levels: ['SD'],
+    groupLabel: 'SD',
     headers: [
       { key: 'lebarPinggang', label: 'Lebar Pinggang' },
       { key: 'panjangRok', label: 'Panjang Rok' },
@@ -103,6 +318,8 @@ const PRESETS: PresetDef[] = [
     key: 'baju_pramuka_siaga_sd',
     label: 'Baju Pramuka Siaga SD',
     type: 'kemeja',
+    levels: ['SD'],
+    groupLabel: 'SD',
     headers: [
       { key: 'panjangLengan', label: 'Panjang Lengan' },
       { key: 'lebarBahu', label: 'Lebar Bahu' },
@@ -120,11 +337,13 @@ const PRESETS: PresetDef[] = [
     ]
   },
   
-  // =================== SMP & SMA ===================
+  // =================== SMP & SMA & SPK ===================
   {
     key: 'baju_smp_sma',
     label: 'Baju Putra/Putri SMP / SMA / SPK',
     type: 'kemeja',
+    levels: ['SMP', 'SMA', 'SPK-SMP', 'SPK-SMA'],
+    groupLabel: 'SMP / SMA / SPK',
     headers: [
       { key: 'panjangLengan', label: 'Panjang Lengan' },
       { key: 'lebarBahu', label: 'Lebar Bahu' },
@@ -145,6 +364,8 @@ const PRESETS: PresetDef[] = [
     key: 'rompi_smp_sma',
     label: 'Rompi Kotak SMP / SMA / SPK',
     type: 'rompi',
+    levels: ['SMP', 'SMA', 'SPK-SMP', 'SPK-SMA'],
+    groupLabel: 'SMP / SMA / SPK',
     headers: [
       { key: 'lebarBahu', label: 'Lebar Bahu' },
       { key: 'lebarDada', label: 'Lebar Dada' },
@@ -164,6 +385,8 @@ const PRESETS: PresetDef[] = [
     key: 'celana_smp',
     label: 'Celana Pendek Biru/Pramuka SMP',
     type: 'celana',
+    levels: ['SMP'],
+    groupLabel: 'SMP',
     headers: [
       { key: 'lebarPinggang', label: 'Lebar Pinggang' },
       { key: 'panjangCelana', label: 'Panjang Celana' },
@@ -187,6 +410,8 @@ const PRESETS: PresetDef[] = [
     key: 'celana_sma',
     label: 'Celana Panjang Abu/Pramuka SMA & SPK',
     type: 'celana',
+    levels: ['SMA', 'SPK-SMA'],
+    groupLabel: 'SMA & SPK-SMA',
     headers: [
       { key: 'lebarPinggang', label: 'Lebar Pinggang' },
       { key: 'lebarPaha', label: 'Lebar Paha' },
@@ -210,6 +435,8 @@ const PRESETS: PresetDef[] = [
     key: 'rok_kulot_smp_sma',
     label: 'Rok Kulot Putri SMP / SMA / SPK',
     type: 'rok',
+    levels: ['SMP', 'SMA', 'SPK-SMP', 'SPK-SMA'],
+    groupLabel: 'SMP / SMA / SPK',
     headers: [
       { key: 'lebarPinggang', label: 'Lebar Pinggang' },
       { key: 'panjangRok', label: 'Panjang Rok' },
@@ -229,6 +456,8 @@ const PRESETS: PresetDef[] = [
     key: 'baju_pramuka_putra_smp_sma',
     label: 'Baju Pramuka Putra SMP / SMA / SPK',
     type: 'kemeja',
+    levels: ['SMP', 'SMA', 'SPK-SMP', 'SPK-SMA'],
+    groupLabel: 'SMP / SMA / SPK',
     headers: [
       { key: 'panjangLengan', label: 'Panjang Lengan' },
       { key: 'lebarBahu', label: 'Lebar Bahu' },
@@ -249,6 +478,8 @@ const PRESETS: PresetDef[] = [
     key: 'baju_pramuka_putri_sma',
     label: 'Baju Pramuka Putri SMA / SPK Upper Sec',
     type: 'kemeja',
+    levels: ['SMA', 'SPK-SMA'],
+    groupLabel: 'SMA & SPK-SMA',
     headers: [
       { key: 'panjangLengan', label: 'Panjang Lengan' },
       { key: 'lebarBahu', label: 'Lebar Bahu' },
@@ -270,6 +501,8 @@ const PRESETS: PresetDef[] = [
     key: 'rok_kulot_pramuka_smp_sma',
     label: 'Rok Kulot Pramuka SMP / SMA / SPK',
     type: 'rok',
+    levels: ['SMP', 'SMA', 'SPK-SMP', 'SPK-SMA'],
+    groupLabel: 'SMP / SMA / SPK',
     headers: [
       { key: 'lebarPinggang', label: 'Lebar Pinggang' },
       { key: 'panjangRok', label: 'Panjang Rok' }
@@ -294,117 +527,470 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
   const [totalRolls, setTotalRolls] = useState<number>(1);
   const [yardsPerRoll, setYardsPerRoll] = useState<number>(60);
   const [fabricWidth] = useState<number>(150);
-  const [defectTolerance, setDefectTolerance] = useState<number>(5); 
-  
+  const [defectTolerance, setDefectTolerance] = useState<number>(5);
+
+  const [selectedLevel, setSelectedLevel] = useState<JenjangFilter>('SEMUA');
+  const [customPresets, setCustomPresets] = useState<PresetDef[]>([]);
+  const [savedOverrides, setSavedOverrides] = useState<Record<string, SizeChartEntry[]>>({});
   const [selectedPresetKey, setSelectedPresetKey] = useState<string>(PRESETS[0].key);
-  const currentPreset = useMemo(
-    () => PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0],
-    [selectedPresetKey]
+  const [sizes, setSizes] = useState<SizeRatio[]>(() => toSizeRows(PRESETS[0].key, PRESETS[0].sizes, 'init'));
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Modal Tambah Item Model Baru
+  const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [newItemLevel, setNewItemLevel] = useState<JenjangLevel>('SD');
+  const [newItemLabel, setNewItemLabel] = useState<string>('');
+  const [newItemType, setNewItemType] = useState<GarmentType>('kemeja');
+  const [newItemTemplate, setNewItemTemplate] = useState<SizeTemplateType>('letter');
+  const [modalError, setModalError] = useState<string>('');
+
+  const selectedKeyRef = useRef<string>(selectedPresetKey);
+  const rowSeqRef = useRef<number>(1);
+
+  useEffect(() => {
+    selectedKeyRef.current = selectedPresetKey;
+  }, [selectedPresetKey]);
+
+  const allPresets = useMemo<PresetDef[]>(
+    () => [...PRESETS, ...customPresets],
+    [customPresets]
   );
-  const [sizes, setSizes] = useState<SizeRatio[]>(() =>
-    PRESETS[0].sizes.map((s, idx) => ({ ...s, id: `${PRESETS[0].key}-${idx}` }))
+
+  const levelCounts = useMemo(() => {
+    const counts: Record<JenjangFilter, number> = {
+      SEMUA: allPresets.length,
+      TK: 0,
+      SD: 0,
+      SMP: 0,
+      SMA: 0,
+      'SPK-SD': 0,
+      'SPK-SMP': 0,
+      'SPK-SMA': 0,
+    };
+    allPresets.forEach(p => {
+      p.levels.forEach(lvl => {
+        counts[lvl] = (counts[lvl] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [allPresets]);
+
+  const filteredPresets = useMemo(
+    () =>
+      selectedLevel === 'SEMUA'
+        ? allPresets
+        : allPresets.filter(p => p.levels.includes(selectedLevel)),
+    [allPresets, selectedLevel]
+  );
+
+  const groupedOptions = useMemo(() => {
+    if (selectedLevel !== 'SEMUA') {
+      const builtIn = filteredPresets.filter(p => !p.isCustom);
+      const custom = filteredPresets.filter(p => p.isCustom);
+      const groups: { label: string; items: PresetDef[] }[] = [];
+      if (builtIn.length > 0) {
+        groups.push({ label: `Standar Koperasi (${selectedLevel})`, items: builtIn });
+      }
+      if (custom.length > 0) {
+        groups.push({ label: `Item Tambahan (${selectedLevel})`, items: custom });
+      }
+      return groups;
+    }
+
+    const buckets = new Map<string, PresetDef[]>();
+    filteredPresets.forEach(p => {
+      const key = p.groupLabel || p.levels[0] || 'Lainnya';
+      const arr = buckets.get(key) || [];
+      arr.push(p);
+      buckets.set(key, arr);
+    });
+
+    const orderedLabels = [
+      ...GROUP_ORDER.filter(g => buckets.has(g)),
+      ...Array.from(buckets.keys()).filter(g => !GROUP_ORDER.includes(g)),
+    ];
+    return orderedLabels.map(label => ({
+      label,
+      items: buckets.get(label) || [],
+    }));
+  }, [filteredPresets, selectedLevel]);
+
+  const currentPreset = useMemo<PresetDef | null>(
+    () => filteredPresets.find(p => p.key === selectedPresetKey) || filteredPresets[0] || null,
+    [filteredPresets, selectedPresetKey]
   );
 
   useEffect(() => {
     let active = true;
-    const preset = PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0];
 
-    const loadFromSupabase = async () => {
+    const loadAllFromSupabase = async () => {
       try {
         const { data, error } = await supabase
           .from('kalkulator_size_charts')
-          .select('sizes_data')
-          .eq('preset_key', preset.key)
-          .single();
+          .select('preset_key, sizes_data');
 
-        if (error && error.code !== 'PGRST116') {
+        if (error) {
           throw error;
         }
+        if (!active || !data) return;
 
-        if (!active) return;
-        if (data && data.sizes_data) {
-          setSizes(data.sizes_data.map((s: any, idx: number) => ({ ...s, id: `${preset.key}-db-${idx}` })));
-        } else {
-          setSizes(preset.sizes.map((s, idx) => ({ ...s, id: `${preset.key}-${idx}` })));
+        const overrides: Record<string, SizeChartEntry[]> = {};
+        const loadedCustom: PresetDef[] = [];
+
+        data.forEach((row: { preset_key: string; sizes_data: unknown }) => {
+          const parsed = parseSavedChartRow(row.preset_key, row.sizes_data);
+          const isBuiltIn = PRESETS.some(p => p.key === row.preset_key);
+
+          if (!isBuiltIn && parsed.meta) {
+            const customPreset: PresetDef = {
+              key: row.preset_key,
+              label: parsed.meta.label,
+              type: parsed.meta.type,
+              levels: [parsed.meta.level],
+              groupLabel: parsed.meta.level,
+              isCustom: true,
+              headers: parsed.meta.headers,
+              sizes: parsed.sizes,
+            };
+            loadedCustom.push(customPreset);
+            overrides[row.preset_key] = parsed.sizes;
+          } else if (parsed.sizes.length > 0) {
+            overrides[row.preset_key] = parsed.sizes;
+          }
+        });
+
+        loadedCustom.sort((a, b) => a.label.localeCompare(b.label, 'id'));
+        setSavedOverrides(overrides);
+        setCustomPresets(loadedCustom);
+
+        const activeKey = selectedKeyRef.current;
+        if (overrides[activeKey]) {
+          setSizes(toSizeRows(activeKey, overrides[activeKey], 'db'));
+          setIsDirty(false);
         }
       } catch (err) {
-        console.error('Error fetching size chart from supabase:', err);
-        if (active) {
-          setSizes(preset.sizes.map((s, idx) => ({ ...s, id: `${preset.key}-${idx}` })));
-        }
+        console.error('Error fetching size charts from supabase:', err);
       }
     };
 
-    loadFromSupabase();
+    loadAllFromSupabase();
     return () => {
       active = false;
     };
-  }, [selectedPresetKey]);
+  }, []);
 
-  const savePresetToSupabase = async () => {
-    if (readOnly) return;
-    const presetData = sizes.map(s => ({ name: s.name, ratio: s.ratio, data: s.data }));
+  const selectAndLoadPreset = (
+    preset: PresetDef | null,
+    overridesMap: Record<string, SizeChartEntry[]> = savedOverrides
+  ) => {
+    if (!preset) {
+      setSelectedPresetKey('');
+      setSizes([]);
+      setIsDirty(false);
+      return;
+    }
+    setSelectedPresetKey(preset.key);
+    const sourceSizes = overridesMap[preset.key] || preset.sizes;
+    setSizes(toSizeRows(preset.key, sourceSizes, `sw-${rowSeqRef.current++}`));
+    setIsDirty(false);
+  };
+
+  const handleLevelChange = (level: JenjangFilter) => {
+    setSelectedLevel(level);
+    setFeedback(null);
+    const nextList =
+      level === 'SEMUA' ? allPresets : allPresets.filter(p => p.levels.includes(level));
+    const currentStillExists = nextList.find(p => p.key === selectedPresetKey);
+    if (currentStillExists) {
+      return;
+    }
+    selectAndLoadPreset(nextList[0] || null);
+  };
+
+  const handlePresetChange = (key: string) => {
+    setFeedback(null);
+    const found = allPresets.find(p => p.key === key) || null;
+    selectAndLoadPreset(found);
+  };
+
+  const openAddItemModal = (preferredLevel?: JenjangLevel) => {
+    const defaultLvl: JenjangLevel =
+      preferredLevel || (selectedLevel !== 'SEMUA' ? selectedLevel : 'SD');
+    setNewItemLevel(defaultLvl);
+    setNewItemLabel('');
+    setNewItemType('kemeja');
+    setNewItemTemplate('letter');
+    setModalError('');
+    setShowAddModal(true);
+  };
+
+  const handleCreateCustomItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (readOnly || isSaving) return;
+
+    const cleanLabel = newItemLabel.trim();
+    if (!cleanLabel) {
+      setModalError('Nama item / model seragam wajib diisi.');
+      return;
+    }
+
+    const duplicate = allPresets.some(
+      p =>
+        p.label.trim().toLowerCase() === cleanLabel.toLowerCase() &&
+        p.levels.includes(newItemLevel)
+    );
+    if (duplicate) {
+      setModalError(`Model "${cleanLabel}" pada jenjang ${newItemLevel} sudah ada.`);
+      return;
+    }
+
+    const typeMeta = GARMENT_TYPE_META[newItemType];
+    const starterSizes = buildStarterSizes(typeMeta.headers, newItemTemplate);
+    const newKey = createCustomPresetKey(newItemLevel, cleanLabel);
+
+    const metaEntry: CustomPresetMeta = {
+      __meta: true,
+      label: cleanLabel,
+      level: newItemLevel,
+      type: newItemType,
+      headers: typeMeta.headers,
+    };
+    const dbPayload = [metaEntry, ...starterSizes];
+
+    setIsSaving(true);
+    setModalError('');
     try {
-      // Upsert: update if exists, insert if not. Supabase uses the unique preset_key to resolve conflict.
       const { error } = await supabase
         .from('kalkulator_size_charts')
-        .upsert({ preset_key: selectedPresetKey, sizes_data: presetData }, { onConflict: 'preset_key' });
-      
+        .upsert({ preset_key: newKey, sizes_data: dbPayload }, { onConflict: 'preset_key' });
+
       if (error) throw error;
-      alert('Size Chart berhasil disimpan ke database (Supabase)!');
+
+      const createdPreset: PresetDef = {
+        key: newKey,
+        label: cleanLabel,
+        type: newItemType,
+        levels: [newItemLevel],
+        groupLabel: newItemLevel,
+        isCustom: true,
+        headers: typeMeta.headers,
+        sizes: starterSizes,
+      };
+
+      const nextOverrides = { ...savedOverrides, [newKey]: starterSizes };
+      setCustomPresets(prev =>
+        [...prev, createdPreset].sort((a, b) => a.label.localeCompare(b.label, 'id'))
+      );
+      setSavedOverrides(nextOverrides);
+
+      if (selectedLevel !== 'SEMUA' && selectedLevel !== newItemLevel) {
+        setSelectedLevel(newItemLevel);
+      }
+      selectAndLoadPreset(createdPreset, nextOverrides);
+      setShowAddModal(false);
+      setFeedback({
+        type: 'success',
+        text: `Item "${cleanLabel}" (${newItemLevel}) berhasil ditambahkan! Isi ukuran (cm) & rasio lalu klik Simpan Perubahan.`,
+      });
     } catch (err: any) {
-      alert('Gagal menyimpan: ' + err.message);
+      setModalError('Gagal menambahkan item ke database: ' + (err?.message || 'Unknown error'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const savePresetToSupabase = async () => {
+    if (readOnly || !currentPreset || isSaving) return;
+    const cleanEntries: SizeChartEntry[] = sizes.map(s => ({
+      name: s.name,
+      ratio: s.ratio,
+      data: s.data,
+    }));
+
+    const dbPayload = currentPreset.isCustom
+      ? [
+          {
+            __meta: true as const,
+            label: currentPreset.label,
+            level: currentPreset.levels[0] || 'SD',
+            type: currentPreset.type,
+            headers: currentPreset.headers,
+          },
+          ...cleanEntries,
+        ]
+      : cleanEntries;
+
+    setIsSaving(true);
+    setFeedback(null);
+    try {
+      const { error } = await supabase
+        .from('kalkulator_size_charts')
+        .upsert({ preset_key: currentPreset.key, sizes_data: dbPayload }, { onConflict: 'preset_key' });
+
+      if (error) throw error;
+
+      setSavedOverrides(prev => ({ ...prev, [currentPreset.key]: cleanEntries }));
+      if (currentPreset.isCustom) {
+        setCustomPresets(prev =>
+          prev.map(p => (p.key === currentPreset.key ? { ...p, sizes: cleanEntries } : p))
+        );
+      }
+      setIsDirty(false);
+      setFeedback({
+        type: 'success',
+        text: `Size Chart "${currentPreset.label}" berhasil disimpan ke database.`,
+      });
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        text: 'Gagal menyimpan size chart: ' + (err?.message || 'Unknown error'),
+      });
       console.error(err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const resetPresetToDefault = async () => {
-    if (readOnly) return;
-    if (!window.confirm('Kembalikan size chart ini ke pengaturan awal? Data di database juga akan dihapus.')) return;
-    const preset = PRESETS.find(p => p.key === selectedPresetKey) || PRESETS[0];
-    setSizes(preset.sizes.map(s => ({ ...s, id: Math.random().toString() })));
-    
+    if (readOnly || !currentPreset || currentPreset.isCustom || isSaving) return;
+    if (!window.confirm('Kembalikan size chart ini ke pengaturan awal? Data kustom di database juga akan dihapus.')) return;
+
+    const builtIn = PRESETS.find(p => p.key === currentPreset.key) || PRESETS[0];
+    setIsSaving(true);
+    setFeedback(null);
     try {
-      await supabase.from('kalkulator_size_charts').delete().eq('preset_key', selectedPresetKey);
-    } catch (err) {
+      const { error } = await supabase
+        .from('kalkulator_size_charts')
+        .delete()
+        .eq('preset_key', builtIn.key);
+      if (error) throw error;
+
+      setSavedOverrides(prev => {
+        const next = { ...prev };
+        delete next[builtIn.key];
+        return next;
+      });
+      setSizes(toSizeRows(builtIn.key, builtIn.sizes, `rst-${rowSeqRef.current++}`));
+      setIsDirty(false);
+      setFeedback({
+        type: 'success',
+        text: `Size Chart "${builtIn.label}" dikembalikan ke standar awal.`,
+      });
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        text: 'Gagal mereset size chart: ' + (err?.message || 'Unknown error'),
+      });
       console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteCustomItem = async () => {
+    if (readOnly || !currentPreset || !currentPreset.isCustom || isSaving) return;
+    if (!window.confirm(`Hapus item "${currentPreset.label}" secara permanen dari daftar kalkulator kain?`)) {
+      return;
+    }
+
+    const deletedKey = currentPreset.key;
+    const deletedLabel = currentPreset.label;
+    setIsSaving(true);
+    setFeedback(null);
+    try {
+      const { error } = await supabase
+        .from('kalkulator_size_charts')
+        .delete()
+        .eq('preset_key', deletedKey);
+      if (error) throw error;
+
+      const nextCustom = customPresets.filter(p => p.key !== deletedKey);
+      const nextOverrides = { ...savedOverrides };
+      delete nextOverrides[deletedKey];
+
+      setCustomPresets(nextCustom);
+      setSavedOverrides(nextOverrides);
+
+      const remainingPool = [...PRESETS, ...nextCustom].filter(
+        p => selectedLevel === 'SEMUA' || p.levels.includes(selectedLevel)
+      );
+      selectAndLoadPreset(remainingPool[0] || null, nextOverrides);
+      setFeedback({
+        type: 'success',
+        text: `Item "${deletedLabel}" berhasil dihapus.`,
+      });
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        text: 'Gagal menghapus item: ' + (err?.message || 'Unknown error'),
+      });
+      console.error(err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const updateSize = (id: string, field: string, value: string | number) => {
-    setSizes(sizes.map(s => {
-      if (s.id !== id) return s;
-      if (field === 'name') {
-        return { ...s, name: String(value) };
-      }
-      const cleanNumber = Math.max(0, Number(value) || 0);
-      if (field === 'ratio') {
-        return { ...s, ratio: cleanNumber };
-      }
-      return { ...s, data: { ...s.data, [field]: cleanNumber } };
-    }));
+    setIsDirty(true);
+    setSizes(prev =>
+      prev.map(s => {
+        if (s.id !== id) return s;
+        if (field === 'name') {
+          return { ...s, name: String(value) };
+        }
+        const cleanNumber = Math.max(0, Number(value) || 0);
+        if (field === 'ratio') {
+          return { ...s, ratio: cleanNumber };
+        }
+        return { ...s, data: { ...s.data, [field]: cleanNumber } };
+      })
+    );
   };
 
   const removeSize = (id: string) => {
-    setSizes(sizes.filter(s => s.id !== id));
+    setIsDirty(true);
+    setSizes(prev => prev.filter(s => s.id !== id));
   };
 
   const addSize = () => {
+    if (!currentPreset) return;
     const emptyData: Record<string, number> = {};
-    currentPreset.headers.forEach(h => { emptyData[h.key] = 0; });
-    setSizes([...sizes, { id: Math.random().toString(), name: '', ratio: 1, data: emptyData }]);
+    currentPreset.headers.forEach(h => {
+      emptyData[h.key] = 0;
+    });
+    setIsDirty(true);
+    setSizes(prev => [
+      ...prev,
+      { id: `${currentPreset.key}-new-${rowSeqRef.current++}`, name: '', ratio: 1, data: emptyData },
+    ]);
   };
 
   // Logic Perhitungan
   const calculation = useMemo(() => {
     const totalYards = totalRolls * yardsPerRoll;
     const grossLengthCm = totalYards * 91.44;
-    const netLengthCm = grossLengthCm * (1 - (defectTolerance / 100));
+    const netLengthCm = grossLengthCm * (1 - defectTolerance / 100);
+
+    if (!currentPreset) {
+      return {
+        grossLengthCm,
+        netLengthCm,
+        lengthPerSet: 0,
+        totalRatioParts: 0,
+        maxSets: 0,
+        results: [] as { name: string; qty: number; usageCm: number; totalUsageCm: number }[],
+        usedLengthCm: 0,
+        remainingLengthCm: netLengthCm,
+        totalPcs: 0,
+      };
+    }
 
     const sizesWithUsage = sizes.map(size => {
       let usageCm = 0;
-      const seamAllowance = 15; 
-      
+      const seamAllowance = 15;
+
       const { data } = size;
       const type = currentPreset.type;
 
@@ -426,22 +1012,22 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
       return { ...size, usageCm };
     });
 
-    const lengthPerSet = sizesWithUsage.reduce((acc, curr) => acc + (curr.usageCm * curr.ratio), 0);
+    const lengthPerSet = sizesWithUsage.reduce((acc, curr) => acc + curr.usageCm * curr.ratio, 0);
     const totalRatioParts = sizesWithUsage.reduce((acc, curr) => acc + curr.ratio, 0);
 
     let maxSets = 0;
     let results: { name: string; qty: number; usageCm: number; totalUsageCm: number }[] = [];
-    
+
     if (lengthPerSet > 0) {
       maxSets = Math.floor(netLengthCm / lengthPerSet);
-      
+
       results = sizesWithUsage.map(s => {
         const qty = maxSets * s.ratio;
         return {
           name: s.name,
-          qty: qty,
+          qty,
           usageCm: s.usageCm,
-          totalUsageCm: qty * s.usageCm
+          totalUsageCm: qty * s.usageCm,
         };
       });
     }
@@ -458,7 +1044,7 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
       results,
       usedLengthCm,
       remainingLengthCm,
-      totalPcs: maxSets * totalRatioParts
+      totalPcs: maxSets * totalRatioParts,
     };
   }, [totalRolls, yardsPerRoll, defectTolerance, currentPreset, sizes]);
 
@@ -553,124 +1139,230 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
         <div className="kain-card">
           <div className="kain-card-header kain-card-header--split">
             <h3 className="kain-card-title">
-              <span>👕</span> 2. Data Model & Size Chart
+              <span>👕</span> 2. Data Model &amp; Size Chart
             </h3>
-            {!readOnly && (
+            {!readOnly && currentPreset && (
               <div className="kain-card-actions">
-                <button type="button" onClick={resetPresetToDefault} className="kain-btn-reset">
-                  ↺ Reset
-                </button>
-                <button type="button" onClick={savePresetToSupabase} className="kain-btn-save">
-                  💾 Simpan Perubahan
+                {currentPreset.isCustom ? (
+                  <button
+                    type="button"
+                    onClick={handleDeleteCustomItem}
+                    disabled={isSaving}
+                    className="kain-btn-delete-item"
+                  >
+                    🗑️ Hapus Item
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={resetPresetToDefault}
+                    disabled={isSaving}
+                    className="kain-btn-reset"
+                  >
+                    ↺ Reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={savePresetToSupabase}
+                  disabled={isSaving}
+                  className="kain-btn-save"
+                >
+                  {isSaving ? 'Menyimpan...' : '💾 Simpan Perubahan'}
                 </button>
               </div>
             )}
           </div>
 
-          <div className="kain-field kain-preset-field">
-            <label htmlFor="kain-preset-select">Load Size Chart Otomatis (Sesuai Standar PDF Koperasi)</label>
-            <select
-              id="kain-preset-select"
-              className="kain-select"
-              value={selectedPresetKey}
-              onChange={(e) => setSelectedPresetKey(e.target.value)}
-            >
-              <optgroup label="Seragam SD">
-                {PRESETS.filter(p => p.key.includes('_sd')).map(p => (
-                  <option key={p.key} value={p.key}>{p.label}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Seragam SMP & SMA & SPK">
-                {PRESETS.filter(p => !p.key.includes('_sd')).map(p => (
-                  <option key={p.key} value={p.key}>{p.label}</option>
-                ))}
-              </optgroup>
-            </select>
+          {feedback && (
+            <div className={`kain-feedback-banner ${feedback.type === 'success' ? 'is-success' : 'is-error'}`}>
+              <span>{feedback.text}</span>
+              <button
+                type="button"
+                className="kain-feedback-close"
+                aria-label="Tutup notifikasi"
+                onClick={() => setFeedback(null)}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Klasifikasi Jenjang */}
+          <div className="kain-level-filter">
+            <span className="kain-level-filter-label">Klasifikasi Jenjang</span>
+            <div className="kain-level-pills">
+              {JENJANG_FILTER_LIST.map(lvl => (
+                <button
+                  key={lvl.value}
+                  type="button"
+                  onClick={() => handleLevelChange(lvl.value)}
+                  className={`kain-level-pill ${selectedLevel === lvl.value ? 'is-active' : ''}`}
+                >
+                  <span>{lvl.label}</span>
+                  <span className="kain-level-count">{levelCounts[lvl.value]}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="kain-table-box">
-            <div className="kain-table-scroll">
-              <table className="kain-size-table">
-                <thead>
-                  <tr>
-                    <th className="kain-th-size">Size</th>
-                    {currentPreset.headers.map(h => (
-                      <th key={h.key}>
-                        {h.label}
-                        <span className="kain-th-unit">(cm)</span>
-                      </th>
-                    ))}
-                    <th className="kain-th-ratio">Rasio</th>
-                    {!readOnly && <th className="kain-th-action"></th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sizes.map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        <input
-                          type="text"
-                          disabled={readOnly}
-                          value={s.name}
-                          placeholder="Size"
-                          aria-label="Nama Size"
-                          onChange={e => updateSize(s.id, 'name', e.target.value)}
-                          className="kain-cell-input kain-cell-input--size"
-                        />
-                      </td>
+          <div className="kain-field kain-preset-field">
+            <label htmlFor="kain-preset-select">
+              Pilih Data Model &amp; Size Chart ({filteredPresets.length} model tersedia)
+            </label>
+            <div className="kain-model-selector-row">
+              <select
+                id="kain-preset-select"
+                className="kain-select"
+                value={currentPreset?.key || ''}
+                disabled={filteredPresets.length === 0}
+                onChange={(e) => handlePresetChange(e.target.value)}
+              >
+                {filteredPresets.length === 0 ? (
+                  <option value="">Belum ada item untuk jenjang {selectedLevel}</option>
+                ) : (
+                  groupedOptions.map(group => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.items.map(p => (
+                        <option key={p.key} value={p.key}>
+                          {p.label}{p.isCustom ? ' ★' : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))
+                )}
+              </select>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => openAddItemModal()}
+                  className="kain-btn-add-item"
+                >
+                  + Tambah Item
+                </button>
+              )}
+            </div>
+
+            {currentPreset && (
+              <div className="kain-model-badges">
+                {currentPreset.levels.map(lvl => (
+                  <span key={lvl} className="kain-badge kain-badge--level">
+                    {lvl}
+                  </span>
+                ))}
+                <span className="kain-badge kain-badge--type">
+                  Potongan: {GARMENT_TYPE_META[currentPreset.type].label}
+                </span>
+                {currentPreset.isCustom && (
+                  <span className="kain-badge kain-badge--custom">Item Tambahan</span>
+                )}
+                {isDirty && !readOnly && (
+                  <span className="kain-badge kain-badge--dirty">● Belum disimpan</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {!currentPreset ? (
+            <div className="kain-empty-level">
+              <p>
+                Belum ada daftar model seragam untuk jenjang <strong>{selectedLevel}</strong>.
+              </p>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => openAddItemModal(selectedLevel === 'SEMUA' ? 'SD' : selectedLevel)}
+                  className="kain-btn-save"
+                >
+                  + Tambah Item Jenjang {selectedLevel}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="kain-table-box">
+              <div className="kain-table-scroll">
+                <table className="kain-size-table">
+                  <thead>
+                    <tr>
+                      <th className="kain-th-size">Size</th>
                       {currentPreset.headers.map(h => (
-                        <td key={h.key}>
+                        <th key={h.key}>
+                          {h.label}
+                          <span className="kain-th-unit">(cm)</span>
+                        </th>
+                      ))}
+                      <th className="kain-th-ratio">Rasio</th>
+                      {!readOnly && <th className="kain-th-action"></th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sizes.map((s) => (
+                      <tr key={s.id}>
+                        <td>
+                          <input
+                            type="text"
+                            disabled={readOnly}
+                            value={s.name}
+                            placeholder="Size"
+                            aria-label="Nama Size"
+                            onChange={e => updateSize(s.id, 'name', e.target.value)}
+                            className="kain-cell-input kain-cell-input--size"
+                          />
+                        </td>
+                        {currentPreset.headers.map(h => (
+                          <td key={h.key}>
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={readOnly}
+                              value={s.data[h.key] === 0 || s.data[h.key] === undefined ? '' : s.data[h.key]}
+                              placeholder="0"
+                              aria-label={`${h.label} (${s.name || 'Size'})`}
+                              onFocus={e => e.target.select()}
+                              onChange={e => updateSize(s.id, h.key, e.target.value)}
+                              className="kain-cell-input"
+                            />
+                          </td>
+                        ))}
+                        <td>
                           <input
                             type="number"
                             min={0}
                             disabled={readOnly}
-                            value={s.data[h.key] === 0 ? '' : s.data[h.key]}
+                            value={s.ratio === 0 ? '' : s.ratio}
                             placeholder="0"
-                            aria-label={`${h.label} (${s.name || 'Size'})`}
+                            aria-label={`Rasio (${s.name || 'Size'})`}
                             onFocus={e => e.target.select()}
-                            onChange={e => updateSize(s.id, h.key, e.target.value)}
-                            className="kain-cell-input"
+                            onChange={e => updateSize(s.id, 'ratio', e.target.value)}
+                            className="kain-cell-input kain-cell-input--ratio"
                           />
                         </td>
-                      ))}
-                      <td>
-                        <input
-                          type="number"
-                          min={0}
-                          disabled={readOnly}
-                          value={s.ratio === 0 ? '' : s.ratio}
-                          placeholder="0"
-                          aria-label={`Rasio (${s.name || 'Size'})`}
-                          onFocus={e => e.target.select()}
-                          onChange={e => updateSize(s.id, 'ratio', e.target.value)}
-                          className="kain-cell-input kain-cell-input--ratio"
-                        />
-                      </td>
-                      {!readOnly && (
-                        <td className="kain-td-action">
-                          <button
-                            type="button"
-                            onClick={() => removeSize(s.id)}
-                            className="kain-btn-remove-row"
-                            title="Hapus baris size"
-                            aria-label={`Hapus size ${s.name || ''}`}
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        {!readOnly && (
+                          <td className="kain-td-action">
+                            <button
+                              type="button"
+                              onClick={() => removeSize(s.id)}
+                              className="kain-btn-remove-row"
+                              title="Hapus baris size"
+                              aria-label={`Hapus size ${s.name || ''}`}
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-            {!readOnly && (
-              <button type="button" onClick={addSize} className="kain-btn-add-row">
-                + Tambah Baris Size
-              </button>
-            )}
-          </div>
+              {!readOnly && (
+                <button type="button" onClick={addSize} className="kain-btn-add-row">
+                  + Tambah Baris Size
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* KOLOM KANAN: PREDIKSI HASIL */}
@@ -737,6 +1429,109 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
           </div>
         </div>
       </div>
+
+      {/* MODAL TAMBAH ITEM MODEL SERAGAM */}
+      {showAddModal && !readOnly && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!isSaving) setShowAddModal(false);
+          }}
+        >
+          <div className="modal kain-modal" onClick={e => e.stopPropagation()}>
+            <h3>+ Tambah Item Model Seragam</h3>
+            <p className="kain-modal-desc">
+              Tambahkan model pakaian baru untuk jenjang tertentu beserta kolom ukuran standarnya ke Kalkulator Kain.
+            </p>
+
+            <form onSubmit={handleCreateCustomItem} className="modal-form">
+              {modalError && <div className="modal-error">{modalError}</div>}
+
+              <div className="kain-modal-row">
+                <div className="form-group">
+                  <label htmlFor="kain-new-level">Jenjang</label>
+                  <select
+                    id="kain-new-level"
+                    value={newItemLevel}
+                    onChange={e => setNewItemLevel(e.target.value as JenjangLevel)}
+                    disabled={isSaving}
+                  >
+                    {JENJANG_OPTIONS.map(lvl => (
+                      <option key={lvl} value={lvl}>{lvl}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="kain-new-label">Nama Item / Model Seragam</label>
+                  <input
+                    id="kain-new-label"
+                    type="text"
+                    required
+                    disabled={isSaving}
+                    placeholder="Contoh: Baju Olahraga / Batik TK"
+                    value={newItemLabel}
+                    onChange={e => setNewItemLabel(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="kain-new-type">Jenis Potongan (Rumus Hitung Kain)</label>
+                <select
+                  id="kain-new-type"
+                  value={newItemType}
+                  onChange={e => setNewItemType(e.target.value as GarmentType)}
+                  disabled={isSaving}
+                >
+                  {(Object.keys(GARMENT_TYPE_META) as GarmentType[]).map(typeKey => (
+                    <option key={typeKey} value={typeKey}>
+                      {GARMENT_TYPE_META[typeKey].label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="kain-formula-preview">
+                <strong>Kolom &amp; Rumus Otomatis:</strong> {GARMENT_TYPE_META[newItemType].formulaDesc}
+                <br />
+                <span>
+                  Kolom ukuran: {GARMENT_TYPE_META[newItemType].headers.map(h => h.label).join(', ')}
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="kain-new-template">Template Baris Ukuran Awal</label>
+                <select
+                  id="kain-new-template"
+                  value={newItemTemplate}
+                  onChange={e => setNewItemTemplate(e.target.value as SizeTemplateType)}
+                  disabled={isSaving}
+                >
+                  <option value="letter">Ukuran Huruf Standar (SS, S, M, L, XL, 3L, 4L)</option>
+                  <option value="number">Ukuran Angka Celana (25 s/d 34)</option>
+                  <option value="single">1 Baris Awal (Size S)</option>
+                </select>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="kain-btn-reset"
+                  onClick={() => setShowAddModal(false)}
+                  disabled={isSaving}
+                >
+                  Batal
+                </button>
+                <button type="submit" className="kain-btn-save" disabled={isSaving}>
+                  {isSaving ? 'Menyimpan...' : '✓ Tambah & Simpan Item'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

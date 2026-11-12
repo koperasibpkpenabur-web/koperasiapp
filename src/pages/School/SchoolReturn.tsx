@@ -1,9 +1,11 @@
-import { useState, useMemo, type FormEvent } from 'react';
+import { useState, useMemo, useEffect, type FormEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
 import { useProducts } from '../../context/ProductContext';
+import { useSettings } from '../../context/SettingsContext';
 import { generateReturnPdf } from '../../utils/returnPdf';
 import { getWibDateString, getWibTimeString } from '../../utils/dateWib';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import type { ReturnRequest, ReturnItem, SchoolLevel } from '../../types';
 import './returns.css';
 
@@ -26,9 +28,21 @@ const SchoolReturn = () => {
   const { user } = useAuth();
   const { getReturnsBySchoolId, createReturn, shipReturn } = useReturns();
   const { products, getProductsByLevel } = useProducts();
+  const { activeAcademicYear, academicYears } = useSettings();
 
   // All returns for this school
-  const schoolReturns = user ? getReturnsBySchoolId(user.id) : [];
+  const schoolReturns = useMemo(() => (user ? getReturnsBySchoolId(user.id) : []), [user, getReturnsBySchoolId]);
+
+  // Filter Tahun Ajaran riwayat retur (default TA aktif), plus opsi 'ALL'
+  const [academicYearFilter, setAcademicYearFilter] = useState<string>(activeAcademicYear);
+  useEffect(() => {
+    setAcademicYearFilter(activeAcademicYear);
+  }, [activeAcademicYear]);
+
+  const yearOptions = useMemo(
+    () => buildAcademicYearOptions(academicYears, schoolReturns.map((r) => r.academicYear), activeAcademicYear),
+    [academicYears, schoolReturns, activeAcademicYear]
+  );
 
   // Filter tabs & search
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'koperasi_confirmed' | 'sekolah_dikirim' | 'koperasi_diterima' | 'rejected'>('all');
@@ -85,6 +99,7 @@ const SchoolReturn = () => {
   const todayStr = getWibDateString();
   const currentTimeStr = getWibTimeString();
 
+  const [originAcademicYear, setOriginAcademicYear] = useState<string>('');
   const [reasonCategory, setReasonCategory] = useState(REASON_CATEGORIES[0]);
   const [reasonDetail, setReasonDetail] = useState('');
   const [departureDate, setDepartureDate] = useState(todayStr);
@@ -93,17 +108,22 @@ const SchoolReturn = () => {
   const [formError, setFormError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState('');
 
+  const yearFilteredReturns = useMemo(() => {
+    if (academicYearFilter === 'ALL') return schoolReturns;
+    return schoolReturns.filter((r) => resolveAcademicYear(r.academicYear) === academicYearFilter);
+  }, [schoolReturns, academicYearFilter]);
+
   // Stats calculation
-  const totalCount = schoolReturns.length;
-  const pendingCount = schoolReturns.filter((r) => r.status === 'pending').length;
-  const confirmedCount = schoolReturns.filter((r) => r.status === 'koperasi_confirmed').length;
-  const sentCount = schoolReturns.filter((r) => r.status === 'sekolah_dikirim').length;
-  const receivedCount = schoolReturns.filter((r) => r.status === 'koperasi_diterima').length;
-  const rejectedCount = schoolReturns.filter((r) => r.status === 'rejected').length;
+  const totalCount = yearFilteredReturns.length;
+  const pendingCount = yearFilteredReturns.filter((r) => r.status === 'pending').length;
+  const confirmedCount = yearFilteredReturns.filter((r) => r.status === 'koperasi_confirmed').length;
+  const sentCount = yearFilteredReturns.filter((r) => r.status === 'sekolah_dikirim').length;
+  const receivedCount = yearFilteredReturns.filter((r) => r.status === 'koperasi_diterima').length;
+  const rejectedCount = yearFilteredReturns.filter((r) => r.status === 'rejected').length;
 
   // Filtered returns
   const filteredReturns = useMemo(() => {
-    return schoolReturns.filter((r) => {
+    return yearFilteredReturns.filter((r) => {
       let matchTab = true;
       if (activeTab === 'pending') matchTab = r.status === 'pending';
       else if (activeTab === 'koperasi_confirmed') matchTab = r.status === 'koperasi_confirmed';
@@ -118,7 +138,7 @@ const SchoolReturn = () => {
 
       return matchTab && matchSearch;
     });
-  }, [schoolReturns, activeTab, searchQuery]);
+  }, [yearFilteredReturns, activeTab, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredReturns.length / itemsPerPage));
   const paginatedReturns = useMemo(() => {
@@ -241,6 +261,7 @@ const SchoolReturn = () => {
         itemReason: '',
       },
     ]);
+    setOriginAcademicYear('');
     setReasonCategory(REASON_CATEGORIES[0]);
     setReasonDetail('');
     setDepartureDate(todayStr);
@@ -254,6 +275,11 @@ const SchoolReturn = () => {
     setFormError('');
 
     if (!user) return;
+
+    if (!originAcademicYear.trim()) {
+      setFormError('Tahun Ajaran Asal Barang wajib dipilih.');
+      return;
+    }
 
     if (returnItems.length === 0) {
       setFormError('Silakan tambah minimal 1 barang untuk diretur.');
@@ -269,6 +295,7 @@ const SchoolReturn = () => {
       schoolUserId: user.id,
       schoolName: user.schoolName || user.name,
       schoolLevel: user.schoolLevel,
+      academicYear: originAcademicYear.trim(),
       items: returnItems,
       reasonCategory,
       reason: reasonDetail,
@@ -412,17 +439,36 @@ const SchoolReturn = () => {
           </button>
         </div>
 
-        <div className="returns-search-box">
-          <span>🔍</span>
-          <input
-            type="text"
-            placeholder="Cari ID retur, alasan, atau nama barang..."
-            value={searchQuery}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <select
+            value={academicYearFilter}
             onChange={(e) => {
-              setSearchQuery(e.target.value);
+              setAcademicYearFilter(e.target.value);
               setCurrentPage(1);
             }}
-          />
+            style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.84rem', fontWeight: 600 }}
+            title="Filter Tahun Ajaran Asal Barang"
+          >
+            {yearOptions.map((yr) => (
+              <option key={yr} value={yr}>
+                TA {yr} {yr === activeAcademicYear ? '(Aktif)' : ''}
+              </option>
+            ))}
+            <option value="ALL">Semua Tahun Ajaran</option>
+          </select>
+
+          <div className="returns-search-box">
+            <span>🔍</span>
+            <input
+              type="text"
+              placeholder="Cari ID retur, alasan, atau nama barang..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -453,6 +499,9 @@ const SchoolReturn = () => {
                   <div className="return-card-meta">
                     <span className="return-id-badge">{ret.id}</span>
                     <span className="return-school-title">{ret.schoolName}</span>
+                    <span style={{ padding: '2px 8px', borderRadius: '99px', background: '#dbeafe', color: '#1e40af', fontSize: '0.74rem', fontWeight: 700 }}>
+                      Asal Barang: TA {resolveAcademicYear(ret.academicYear)}
+                    </span>
                     <span className="return-created-date">
                       Diajukan: {formatDateId(ret.createdAt)}
                     </span>
@@ -703,6 +752,27 @@ const SchoolReturn = () => {
                 {/* Section 1: Sekolah Info */}
                 <div className="return-info-callout">
                   <strong>Pemohon Retur:</strong> {user?.schoolName || user?.name} ({user?.schoolLevel || 'Semua Jenjang'})
+                </div>
+
+                {/* Tahun Ajaran Asal Barang (Wajib pilih manual, tanpa default) */}
+                <div className="form-group">
+                  <label htmlFor="returnOriginAcademicYear">
+                    Tahun Ajaran Asal Barang <span className="required">*</span>
+                  </label>
+                  <select
+                    id="returnOriginAcademicYear"
+                    className="form-select"
+                    value={originAcademicYear}
+                    onChange={(e) => setOriginAcademicYear(e.target.value)}
+                    required
+                  >
+                    <option value="">-- Pilih Tahun Ajaran Asal Barang --</option>
+                    {yearOptions.map((yr) => (
+                      <option key={yr} value={yr}>
+                        TA {yr} {yr === activeAcademicYear ? '(Tahun Ajaran Aktif)' : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Section 2: Items to return */}
@@ -987,6 +1057,10 @@ const SchoolReturn = () => {
 
               {/* Reason & Shipment Info */}
               <div className="return-logistics-panel">
+                <div className="logistics-row">
+                  <span className="logistics-label">Tahun Ajaran Asal Barang</span>
+                  <span className="logistics-val">TA {resolveAcademicYear(viewingReturn.academicYear)}</span>
+                </div>
                 <div className="logistics-row">
                   <span className="logistics-label">Kategori Alasan</span>
                   <span className="logistics-val">{viewingReturn.reasonCategory}</span>

@@ -3,14 +3,23 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useOrders } from '../../context/OrderContext';
 import { useSettings } from '../../context/SettingsContext';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import './school.css';
 
 const SchoolPayment = () => {
   const { user } = useAuth();
   const { uploadPaymentReceipt } = useOrders();
-  const { gdriveWebAppUrl, gdrivePaymentFolderUrl, gdriveFolderUrl } = useSettings();
+  const {
+    gdriveWebAppUrl,
+    gdrivePaymentFolderUrl,
+    gdriveFolderUrl,
+    activeAcademicYear,
+    academicYears,
+  } = useSettings();
 
   const [unpaidOrders, setUnpaidOrders] = useState<any[]>([]);
+  const [academicYearFilter, setAcademicYearFilter] = useState<string>('ALL');
+  const [detectedYears, setDetectedYears] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Checkbox selection
@@ -128,12 +137,26 @@ const SchoolPayment = () => {
     if (!user?.id) return;
     setLoading(true);
 
+    const { data: yearsData } = await supabase
+      .from('orders')
+      .select('academic_year')
+      .eq('school_user_id', user.id)
+      .eq('payment_status', 'unpaid')
+      .eq('status', 'received');
+    if (yearsData) {
+      setDetectedYears(yearsData.map((r: any) => resolveAcademicYear(r.academic_year)));
+    }
+
     let query = supabase
       .from('orders')
       .select('*, order_items(*)', { count: 'exact' })
       .eq('school_user_id', user.id)
       .eq('payment_status', 'unpaid')
       .eq('status', 'received');
+
+    if (academicYearFilter !== 'ALL') {
+      query = query.eq('academic_year', academicYearFilter);
+    }
 
     // Pagination
     const from = (currentPage - 1) * itemsPerPage;
@@ -164,7 +187,7 @@ const SchoolPayment = () => {
       window.removeEventListener('focus', handleAutoRefresh);
       document.removeEventListener('visibilitychange', handleAutoRefresh);
     };
-  }, [user?.id, currentPage]);
+  }, [user?.id, currentPage, academicYearFilter]);
 
   const formatRupiah = (num: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -209,7 +232,7 @@ const SchoolPayment = () => {
         </p>
       </div>
 
-      <div className="order-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="order-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h3>Daftar Tagihan Belum Lunas</h3>
           {selectedOrderIds.length > 0 && (
@@ -218,27 +241,46 @@ const SchoolPayment = () => {
             </div>
           )}
         </div>
-        
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          onChange={handleFileChange} 
-          accept="image/*,application/pdf" 
-          style={{ display: 'none' }} 
-        />
-        <button 
-          className="btn-ship" 
-          onClick={handleUploadClick}
-          disabled={isUploading || unpaidOrders.length === 0}
-          style={{ 
-            background: isUploading ? '#94a3b8' : '#3b82f6', 
-            padding: '10px 20px', 
-            fontSize: '0.95rem',
-            cursor: isUploading ? 'wait' : 'pointer'
-          }}
-        >
-          {isUploading ? 'Mengupload...' : '📤 Upload Bukti Transfer'}
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <select
+            value={academicYearFilter}
+            onChange={(e) => {
+              setAcademicYearFilter(e.target.value);
+              setSelectedOrderIds([]);
+              setCurrentPage(1);
+            }}
+            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.85rem', fontWeight: 600 }}
+          >
+            <option value="ALL">Semua Tahun Ajaran</option>
+            {buildAcademicYearOptions(academicYears, detectedYears, activeAcademicYear).map((yr) => (
+              <option key={yr} value={yr}>
+                TA {yr} {yr === activeAcademicYear ? '(Aktif)' : ''}
+              </option>
+            ))}
+          </select>
+
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            accept="image/*,application/pdf" 
+            style={{ display: 'none' }} 
+          />
+          <button 
+            className="btn-ship" 
+            onClick={handleUploadClick}
+            disabled={isUploading || unpaidOrders.length === 0}
+            style={{ 
+              background: isUploading ? '#94a3b8' : '#3b82f6', 
+              padding: '10px 20px', 
+              fontSize: '0.95rem',
+              cursor: isUploading ? 'wait' : 'pointer'
+            }}
+          >
+            {isUploading ? 'Mengupload...' : '📤 Upload Bukti Transfer'}
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -280,7 +322,12 @@ const SchoolPayment = () => {
                           disabled={isWaitingVerification} // prevent re-upload if already waiting
                         />
                       </td>
-                      <td><strong>{order.id}</strong></td>
+                      <td>
+                        <strong>{order.id}</strong>
+                        <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
+                          TA {resolveAcademicYear(order.academic_year)}
+                        </div>
+                      </td>
                       <td>{formatDate(order.created_at)}</td>
                       <td>
                         <span className={`status-badge ${order.status}`}>

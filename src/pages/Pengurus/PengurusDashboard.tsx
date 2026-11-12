@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useSettings } from '../../context/SettingsContext';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 
 import * as XLSX from 'xlsx';
 import {
@@ -21,8 +23,27 @@ import {
 import './PengurusDashboard.css';
 
 const PengurusDashboard = () => {
+  const { activeAcademicYear, academicYears } = useSettings();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [yearFilter, setYearFilter] = useState<string>(activeAcademicYear);
+  const [hasCustomYear, setHasCustomYear] = useState(false);
+
+  useEffect(() => {
+    if (!hasCustomYear && activeAcademicYear) {
+      setYearFilter(activeAcademicYear);
+    }
+  }, [activeAcademicYear, hasCustomYear]);
+
+  const availableAcademicYears = useMemo(
+    () =>
+      buildAcademicYearOptions(
+        academicYears,
+        orders.map((o) => o.academicYear),
+        activeAcademicYear
+      ),
+    [academicYears, activeAcademicYear, orders]
+  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,7 +56,7 @@ const PengurusDashboard = () => {
       while (hasMore) {
         const { data, error } = await supabase
           .from('orders')
-          .select('status, school_name, school_level, order_phase, total_price_student, total_price_kopkar, total_fee_school, payment_status, fee_status')
+          .select('status, school_name, school_level, order_phase, academic_year, total_price_student, total_price_kopkar, total_fee_school, payment_status, fee_status')
           .range(from, from + PAGE_SIZE - 1);
 
         if (error) {
@@ -60,6 +81,7 @@ const PengurusDashboard = () => {
         schoolName: r.school_name,
         schoolLevel: r.school_level,
         orderPhase: r.order_phase,
+        academicYear: resolveAcademicYear(r.academic_year),
         totalPriceStudent: Number(r.total_price_student) || 0,
         totalPriceKopkar: Number(r.total_price_kopkar) || 0,
         totalFeeSchool: Number(r.total_fee_school) || 0,
@@ -74,9 +96,13 @@ const PengurusDashboard = () => {
   // 1. Data Aggregation
   const validOrders = useMemo(() => {
     return orders.filter(
-      (o: any) => o.status !== 'cancelled' && o.status !== 'rejected' && o.status !== 'cancellation_requested'
+      (o: any) =>
+        o.status !== 'cancelled' &&
+        o.status !== 'rejected' &&
+        o.status !== 'cancellation_requested' &&
+        (yearFilter === 'ALL' || resolveAcademicYear(o.academicYear) === yearFilter)
     );
-  }, [orders]);
+  }, [orders, yearFilter]);
 
   const kpis = useMemo(() => {
     let totalOmzet = 0;
@@ -169,8 +195,10 @@ const PengurusDashboard = () => {
 
   // Export functions
   const handleDownloadExcel = () => {
+    const yearLabel = yearFilter === 'ALL' ? 'Semua TA' : `TA ${yearFilter}`;
     const worksheetData = omzetPerSchool.map((school, i) => ({
       'No': String(i + 1),
+      'Tahun Ajaran': yearLabel,
       'Nama Sekolah': school.name,
       'Jenjang': school.level,
       'Jumlah Pesanan': school.orderCount,
@@ -182,6 +210,7 @@ const PengurusDashboard = () => {
     // Add Total Row
     worksheetData.push({
       'No': '',
+      'Tahun Ajaran': yearLabel,
       'Nama Sekolah': 'TOTAL',
       'Jenjang': '',
       'Jumlah Pesanan': omzetPerSchool.reduce((s, c) => s + c.orderCount, 0),
@@ -193,7 +222,8 @@ const PengurusDashboard = () => {
     const ws = XLSX.utils.json_to_sheet(worksheetData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Rekap_Keuangan");
-    XLSX.writeFile(wb, "Rekap_Keuangan_Pengurus.xlsx");
+    const yearSlug = yearFilter === 'ALL' ? 'Semua_TA' : `TA_${yearFilter.replace('/', '-')}`;
+    XLSX.writeFile(wb, `Rekap_Keuangan_Pengurus_${yearSlug}.xlsx`);
   };
 
 
@@ -212,9 +242,36 @@ const PengurusDashboard = () => {
       <div className="pengurus-header">
         <div>
           <h2 className="pengurus-title">Executive Dashboard</h2>
-          <p className="pengurus-subtitle">Ringkasan Keuangan & Performa Penjualan Koperasi</p>
+          <p className="pengurus-subtitle">
+            Ringkasan Keuangan &amp; Performa Penjualan Koperasi •{' '}
+            <strong>{yearFilter === 'ALL' ? 'Semua Tahun Ajaran' : `Tahun Ajaran ${yearFilter}`}</strong>
+          </p>
         </div>
-        <div className="pengurus-actions">
+        <div className="pengurus-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <select
+            aria-label="Filter Tahun Ajaran"
+            value={yearFilter}
+            onChange={(e) => {
+              setHasCustomYear(true);
+              setYearFilter(e.target.value);
+            }}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: '#ffffff',
+              color: '#0f172a',
+              fontWeight: 600,
+              fontSize: '0.88rem',
+            }}
+          >
+            <option value="ALL">Semua Tahun Ajaran</option>
+            {availableAcademicYears.map((yr) => (
+              <option key={yr} value={yr}>
+                TA {yr}
+              </option>
+            ))}
+          </select>
           <button className="btn-export excel" onClick={handleDownloadExcel}>
             <span className="icon">📊</span> Excel
           </button>

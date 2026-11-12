@@ -1,5 +1,12 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
+import {
+  DEFAULT_ACADEMIC_YEAR,
+  DEFAULT_ACADEMIC_YEARS,
+  parseAcademicYearsSetting,
+  resolveAcademicYear,
+  sortAcademicYears,
+} from '../utils/academicYear';
 
 interface SettingsContextType {
   phase1Open: boolean;
@@ -12,6 +19,8 @@ interface SettingsContextType {
   gdriveWebAppUrl: string;
   gdriveFolderUrl: string;
   gdrivePaymentFolderUrl: string;
+  activeAcademicYear: string;
+  academicYears: string[];
   updatePhaseStatus: (phase: 1 | 2, isOpen: boolean) => Promise<void>;
   updateTambahanSettings: (settings: {
     isOpen?: boolean;
@@ -21,6 +30,8 @@ interface SettingsContextType {
     endDate?: string;
   }) => Promise<void>;
   updateGdriveWebAppUrl: (url: string, folderUrl?: string, paymentFolderUrl?: string) => Promise<void>;
+  updateActiveAcademicYear: (year: string) => Promise<void>;
+  addAcademicYear: (year: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -37,6 +48,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [gdriveWebAppUrl, setGdriveWebAppUrl] = useState('');
   const [gdriveFolderUrl, setGdriveFolderUrl] = useState('');
   const [gdrivePaymentFolderUrl, setGdrivePaymentFolderUrl] = useState('');
+  const [activeAcademicYear, setActiveAcademicYear] = useState<string>(DEFAULT_ACADEMIC_YEAR);
+  const [academicYears, setAcademicYears] = useState<string[]>([...DEFAULT_ACADEMIC_YEARS]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchSettings = useCallback(async () => {
@@ -53,6 +66,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const gdriveUrl = data.find(d => d.key === 'gdrive_webapp_url');
       const gdriveFolder = data.find(d => d.key === 'gdrive_folder_url');
       const gdrivePaymentFolder = data.find(d => d.key === 'gdrive_payment_folder_url');
+      const activeYearRow = data.find(d => d.key === 'active_academic_year');
+      const yearListRow = data.find(d => d.key === 'academic_years_list');
       
       if (p1) setPhase1Open(p1.value === 'true');
       if (p2) setPhase2Open(p2.value === 'true');
@@ -64,6 +79,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (gdriveUrl) setGdriveWebAppUrl(gdriveUrl.value || '');
       if (gdriveFolder) setGdriveFolderUrl(gdriveFolder.value || '');
       if (gdrivePaymentFolder) setGdrivePaymentFolderUrl(gdrivePaymentFolder.value || '');
+
+      const resolvedActiveYear = resolveAcademicYear(activeYearRow?.value, DEFAULT_ACADEMIC_YEAR);
+      setActiveAcademicYear(resolvedActiveYear);
+      setAcademicYears(parseAcademicYearsSetting(yearListRow?.value, resolvedActiveYear));
     }
     setIsLoading(false);
   }, []);
@@ -130,6 +149,27 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     await fetchSettings();
   };
 
+  const updateActiveAcademicYear = async (year: string) => {
+    const normalized = resolveAcademicYear(year);
+    const nextYears = sortAcademicYears([...academicYears, normalized]);
+    await supabase.from('app_settings').upsert([
+      { key: 'active_academic_year', value: normalized },
+      { key: 'academic_years_list', value: JSON.stringify(nextYears) },
+    ]);
+    await fetchSettings();
+  };
+
+  const addAcademicYear = async (year: string) => {
+    const normalized = year.trim();
+    if (!normalized) return;
+    const nextYears = sortAcademicYears([...academicYears, normalized]);
+    await supabase.from('app_settings').upsert({
+      key: 'academic_years_list',
+      value: JSON.stringify(nextYears),
+    });
+    await fetchSettings();
+  };
+
   return (
     <SettingsContext.Provider value={{ 
       phase1Open, 
@@ -142,9 +182,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       gdriveWebAppUrl,
       gdriveFolderUrl,
       gdrivePaymentFolderUrl,
+      activeAcademicYear,
+      academicYears,
       updatePhaseStatus, 
       updateTambahanSettings,
       updateGdriveWebAppUrl,
+      updateActiveAcademicYear,
+      addAcademicYear,
       isLoading 
     }}>
       {children}

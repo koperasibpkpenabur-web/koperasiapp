@@ -1,29 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
+import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 
 import './kopkar.css';
 
 const KopkarDashboard = () => {
   const { user } = useAuth();
-  const { pendingCount: pendingReturnsCount } = useReturns();
-  const [pendingOrders, setPendingOrders] = useState(0);
-  const [cancelRequestsCount, setCancelRequestsCount] = useState(0);
+  const { returns: allReturns } = useReturns();
+  const { activeAcademicYear, academicYears } = useSettings();
+  const [academicYearFilter, setAcademicYearFilter] = useState<string>(activeAcademicYear);
+  const [rawOrders, setRawOrders] = useState<{ status: string; academic_year?: string }[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setAcademicYearFilter(activeAcademicYear);
+  }, [activeAcademicYear]);
 
   useEffect(() => {
     const fetchData = async (silent = false) => {
       if (!silent) setLoading(true);
       const { data, error } = await supabase
         .from('orders')
-        .select('status')
+        .select('status, academic_year')
         .in('status', ['pending', 'cancellation_requested']);
 
       if (!error && data) {
-        setPendingOrders(data.filter((o: any) => o.status === 'pending').length);
-        setCancelRequestsCount(data.filter((o: any) => o.status === 'cancellation_requested').length);
+        setRawOrders(data);
       }
       if (!silent) setLoading(false);
     };
@@ -39,14 +45,66 @@ const KopkarDashboard = () => {
     };
   }, []);
 
+  const yearOptions = useMemo(
+    () =>
+      buildAcademicYearOptions(
+        academicYears,
+        [...rawOrders.map((o) => o.academic_year), ...allReturns.map((r) => r.academicYear)],
+        activeAcademicYear
+      ),
+    [academicYears, rawOrders, allReturns, activeAcademicYear]
+  );
+
+  const filteredOrders = useMemo(
+    () =>
+      academicYearFilter === 'ALL'
+        ? rawOrders
+        : rawOrders.filter((o) => resolveAcademicYear(o.academic_year) === academicYearFilter),
+    [rawOrders, academicYearFilter]
+  );
+
+  const pendingOrders = filteredOrders.filter((o) => o.status === 'pending').length;
+  const cancelRequestsCount = filteredOrders.filter((o) => o.status === 'cancellation_requested').length;
+
+  const pendingReturnsCount = useMemo(
+    () =>
+      allReturns.filter(
+        (r) =>
+          r.status === 'pending' &&
+          (academicYearFilter === 'ALL' || resolveAcademicYear(r.academicYear) === academicYearFilter)
+      ).length,
+    [allReturns, academicYearFilter]
+  );
+
   return (
     <div className="kopkar-dashboard">
-      <div className="kopkar-header-section">
+      <div className="kopkar-header-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h2>Dashboard 🏠</h2>
           <div className="kopkar-welcome">
             Selamat datang, <strong>{user?.name}</strong> (Karyawan Koperasi)
+            <span style={{ marginLeft: '10px', padding: '2px 10px', borderRadius: '99px', background: '#dbeafe', color: '#1e40af', fontSize: '0.78rem', fontWeight: 700 }}>
+              TA Aktif: {activeAcademicYear}
+            </span>
           </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label htmlFor="kopkarDashYearFilter" style={{ fontSize: '0.84rem', fontWeight: 600, color: '#475569' }}>
+            Tahun Ajaran:
+          </label>
+          <select
+            id="kopkarDashYearFilter"
+            value={academicYearFilter}
+            onChange={(e) => setAcademicYearFilter(e.target.value)}
+            style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.86rem', fontWeight: 600 }}
+          >
+            {yearOptions.map((yr) => (
+              <option key={yr} value={yr}>
+                TA {yr} {yr === activeAcademicYear ? '(Aktif)' : ''}
+              </option>
+            ))}
+            <option value="ALL">Semua Tahun Ajaran</option>
+          </select>
         </div>
       </div>
 

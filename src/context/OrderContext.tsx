@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { resolveItemUnit } from '../utils/formatUnit';
 import { getWibCompactDateString } from '../utils/dateWib';
 import { findMatchingOrderLine } from '../utils/orderItemMatch';
+import { DEFAULT_ACADEMIC_YEAR, resolveAcademicYear } from '../utils/academicYear';
 
 interface OrderContextType {
   createOrder: (orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'totalPriceKopkar' | 'totalFeeSchool' | 'totalPriceStudent' | 'paymentStatus' | 'feeStatus'>, initialStatus?: import('../types').OrderStatus) => Promise<{ success: boolean; newOrderId?: string; error?: string }>;
@@ -56,6 +57,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
       const now = new Date().toISOString();
       const finalStatus = initialStatus || 'pending';
+      const resolvedAcademicYear = resolveAcademicYear(orderData.academicYear, DEFAULT_ACADEMIC_YEAR);
       let newOrderId = '';
 
       const broadcastNewOrder = (orderId: string) => {
@@ -101,13 +103,14 @@ export function OrderProvider({ children }: { children: ReactNode }) {
           p_order_phase: orderData.orderPhase || 'On The Spot',
           p_notes: orderData.notes || null,
           p_items: rpcItems,
+          p_academic_year: resolvedAcademicYear,
         });
 
         if (otsErr) {
           if (otsErr.code === 'PGRST202') {
             return {
               success: false,
-              error: 'Fungsi validasi stok OTS atomic belum terpasang di database. Jalankan script supabase_hardening_tahap1_central_data.sql terlebih dahulu.'
+              error: 'Fungsi validasi stok OTS atomic belum terpasang/diperbarui di database. Jalankan script supabase_academic_year_migration.sql terlebih dahulu.'
             };
           }
           return { success: false, error: otsErr.message };
@@ -164,6 +167,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         school_name: orderData.schoolName,
         school_level: orderData.schoolLevel,
         order_phase: orderData.orderPhase,
+        academic_year: resolvedAcademicYear,
         status: finalStatus,
         notes: orderData.notes,
         total_price_kopkar: totalPriceKopkar,
@@ -375,6 +379,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
             vendor_name: vendorName,
             order_id: orderId,
             school_name: orderRow.school_name,
+            academic_year: resolveAcademicYear(orderRow.academic_year),
             total_amount: totalVendorHpp,
             status: 'pending'
           }]);
@@ -496,6 +501,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         schoolName: row.school_name,
         schoolLevel: row.school_level,
         orderPhase: row.order_phase,
+        academicYear: resolveAcademicYear(row.academic_year),
         status: row.status,
         notes: row.notes,
         totalPriceKopkar: Number(row.total_price_kopkar),

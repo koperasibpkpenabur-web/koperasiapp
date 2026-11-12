@@ -3,6 +3,13 @@ import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useProducts } from '../../context/ProductContext';
+import { useSettings } from '../../context/SettingsContext';
+import {
+  buildAcademicYearOptions,
+  formatAcademicYearShort,
+  getPreviousAcademicYear,
+  resolveAcademicYear,
+} from '../../utils/academicYear';
 import { fetchAllSupabasePaged } from '../../utils/supabasePagination';
 import { getWibDateString } from '../../utils/dateWib';
 import KopkarKalkulatorKain from './KopkarKalkulatorKain';
@@ -23,6 +30,7 @@ interface Plotting {
   vendor_id: string;
   school_user_id: string;
   clothing_type?: string;
+  academic_year?: string;
   created_at?: string;
   vendors?: { name: string; contact_person?: string; phone?: string };
   app_users?: { school_name: string; username?: string; school_level?: string };
@@ -233,6 +241,7 @@ const VendorManagement = () => {
   const { user } = useAuth();
   const isReadOnly = user?.role === 'pengurus';
   const { products } = useProducts();
+  const { activeAcademicYear, academicYears } = useSettings();
   const [activeTab, setActiveTab] = useState<'vendors' | 'plotting' | 'stock' | 'forecast' | 'calculator'>('vendors');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -247,8 +256,52 @@ const VendorManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter khusus tab Plotting & Rekap Sekolah
+  const [plotYearFilter, setPlotYearFilter] = useState<string>(activeAcademicYear);
+  const [hasCustomPlotYear, setHasCustomPlotYear] = useState<boolean>(false);
+  const [copyingPlottingYear, setCopyingPlottingYear] = useState<boolean>(false);
   const [plotVendorFilter, setPlotVendorFilter] = useState('ALL');
   const [plotLevelFilterTable, setPlotLevelFilterTable] = useState('ALL');
+
+  useEffect(() => {
+    if (!hasCustomPlotYear && activeAcademicYear) {
+      setPlotYearFilter(activeAcademicYear);
+    }
+  }, [activeAcademicYear, hasCustomPlotYear]);
+
+  const availablePlottingYears = useMemo(
+    () =>
+      buildAcademicYearOptions(
+        academicYears,
+        plottings.map((p) => p.academic_year),
+        activeAcademicYear
+      ),
+    [academicYears, activeAcademicYear, plottings]
+  );
+
+  const previousYearCandidate = useMemo(() => {
+    const directPrev = getPreviousAcademicYear(plotYearFilter);
+    if (directPrev && plottings.some((p) => resolveAcademicYear(p.academic_year) === directPrev)) {
+      return directPrev;
+    }
+    const olderYearsWithData = availablePlottingYears
+      .filter(
+        (yr) =>
+          yr < plotYearFilter &&
+          plottings.some((p) => resolveAcademicYear(p.academic_year) === yr)
+      )
+      .sort();
+    return olderYearsWithData.length > 0
+      ? olderYearsWithData[olderYearsWithData.length - 1]
+      : directPrev;
+  }, [plotYearFilter, plottings, availablePlottingYears]);
+
+  const sourceYearPlottingsCount = useMemo(
+    () =>
+      previousYearCandidate
+        ? plottings.filter((p) => resolveAcademicYear(p.academic_year) === previousYearCandidate).length
+        : 0,
+    [plottings, previousYearCandidate]
+  );
 
   // Modals Vendor
   const [showAddVendor, setShowAddVendor] = useState(false);
@@ -739,18 +792,21 @@ const VendorManagement = () => {
     });
   }, [plottings, schools]);
 
-  // Fungsi pengecekan bentrok penugasan seragam antar-vendor
+  // Fungsi pengecekan bentrok penugasan seragam antar-vendor (per tahun ajaran)
   const findPlottingConflicts = (
     targetVendorId: string,
     targetSchoolId: string,
     targetClothingTypes: string[],
-    excludePlottingId?: string
+    excludePlottingId?: string,
+    targetAcademicYear?: string
   ): Array<{ schoolName: string; conflictingTypes: string[]; assignedVendorName: string }> => {
-    // Cari penugasan yang ada untuk sekolah ini dengan vendor BERBEDA
+    const resolvedTargetYear = resolveAcademicYear(targetAcademicYear || plotYearFilter);
+    // Cari penugasan yang ada untuk sekolah ini pada tahun ajaran yang sama dengan vendor BERBEDA
     const otherVendorPlottings = effectivePlottings.filter(
       (p) =>
         p.school_user_id === targetSchoolId &&
         p.vendor_id !== targetVendorId &&
+        resolveAcademicYear(p.academic_year) === resolvedTargetYear &&
         (!excludePlottingId || p.id !== excludePlottingId)
     );
 
@@ -816,11 +872,13 @@ const VendorManagement = () => {
       return;
     }
 
+    const targetPlotYear = resolveAcademicYear(plotYearFilter || activeAcademicYear);
+
     // Validasi pencegahan bentrok: pastikan tidak ada vendor lain yang memegang jenis baju yang sama di sekolah terpilih
     const allConflicts: Array<{ schoolName: string; conflictingTypes: string[]; assignedVendorName: string }> = [];
 
     for (const schId of plotSchoolIds) {
-      const confs = findPlottingConflicts(plotVendorId, schId, plotClothingTypes);
+      const confs = findPlottingConflicts(plotVendorId, schId, plotClothingTypes, undefined, targetPlotYear);
       allConflicts.push(...confs);
     }
 
@@ -847,9 +905,12 @@ const VendorManagement = () => {
     let anyError: any = null;
 
     for (const schId of plotSchoolIds) {
-      // Cek apakah penugasan vendor untuk sekolah ini sudah ada
+      // Cek apakah penugasan vendor untuk sekolah ini sudah ada pada TA yang sama
       const existing = plottings.find(
-        (p) => p.vendor_id === plotVendorId && p.school_user_id === schId
+        (p) =>
+          p.vendor_id === plotVendorId &&
+          p.school_user_id === schId &&
+          resolveAcademicYear(p.academic_year) === targetPlotYear
       );
 
       if (existing) {
@@ -881,12 +942,14 @@ const VendorManagement = () => {
           vendor_id: plotVendorId,
           school_user_id: schId,
           clothing_type: finalClothingType,
+          academic_year: targetPlotYear,
         });
 
         if (error && error.message.includes('clothing_type')) {
           const res = await supabase.from('vendor_school_assignments').insert({
             vendor_id: plotVendorId,
             school_user_id: schId,
+            academic_year: targetPlotYear,
           });
           error = res.error;
         }
@@ -944,12 +1007,14 @@ const VendorManagement = () => {
       return;
     }
 
-    // Validasi pencegahan bentrok saat update
+    // Validasi pencegahan bentrok saat update pada TA plotting tersebut
+    const editTargetYear = resolveAcademicYear(editingPlotting.academic_year || plotYearFilter);
     const editConflicts = findPlottingConflicts(
       editPlotVendorId,
       editPlotSchoolId,
       editPlotClothingTypes,
-      editingPlotting.id
+      editingPlotting.id,
+      editTargetYear
     );
 
     if (editConflicts.length > 0) {
@@ -1010,6 +1075,60 @@ const VendorManagement = () => {
       fetchPlottings();
     } else {
       alert('Gagal menghapus plotting: ' + error.message);
+    }
+  };
+
+  const handleCopyPlottingFromPreviousYear = async () => {
+    if (!previousYearCandidate) {
+      alert('Belum ada Tahun Ajaran sebelumnya yang dapat disalin.');
+      return;
+    }
+
+    const sourceRows = plottings.filter(
+      (p) => resolveAcademicYear(p.academic_year) === previousYearCandidate
+    );
+    if (sourceRows.length === 0) {
+      alert(`Belum ada data plotting di TA ${previousYearCandidate}.`);
+      return;
+    }
+
+    const existingTargetKeys = new Set(
+      plottings
+        .filter((p) => resolveAcademicYear(p.academic_year) === plotYearFilter)
+        .map((p) => `${p.vendor_id}::${p.school_user_id}`)
+    );
+
+    const rowsToCopy = sourceRows.filter(
+      (p) => !existingTargetKeys.has(`${p.vendor_id}::${p.school_user_id}`)
+    );
+
+    if (rowsToCopy.length === 0) {
+      alert(`Semua plotting dari TA ${previousYearCandidate} sudah ada di TA ${plotYearFilter}.`);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Salin ${rowsToCopy.length} penugasan plotting dari TA ${previousYearCandidate} ke TA ${plotYearFilter}?\n\n` +
+      `Data TA ${previousYearCandidate} tetap tersimpan aman, dan Anda dapat mengedit penyesuaian vendor di TA ${plotYearFilter} setelahnya.`
+    );
+    if (!confirmed) return;
+
+    setCopyingPlottingYear(true);
+    const payload = rowsToCopy.map((p) => ({
+      vendor_id: p.vendor_id,
+      school_user_id: p.school_user_id,
+      clothing_type: p.clothing_type || 'Semua Jenis Baju',
+      academic_year: plotYearFilter,
+    }));
+
+    const { error } = await supabase.from('vendor_school_assignments').insert(payload);
+    setCopyingPlottingYear(false);
+
+    if (!error) {
+      alert(`Berhasil menyalin ${rowsToCopy.length} plotting ke TA ${plotYearFilter}!`);
+      fetchPlottings();
+    } else {
+      alert('Gagal menyalin plotting: ' + error.message);
     }
   };
 
@@ -1112,6 +1231,7 @@ const VendorManagement = () => {
   const filteredPlottings = useMemo(() => {
     return effectivePlottings
       .filter((p) => {
+        const matchesYear = resolveAcademicYear(p.academic_year) === plotYearFilter;
         const matchesVendor = plotVendorFilter === 'ALL' || p.vendor_id === plotVendorFilter;
         const matchesLevel =
           plotLevelFilterTable === 'ALL' ||
@@ -1125,7 +1245,7 @@ const VendorManagement = () => {
           (p.app_users?.username || '').toLowerCase().includes(q) ||
           (p.app_users?.school_level || '').toLowerCase().includes(q);
 
-        return matchesVendor && matchesLevel && matchesSearch;
+        return matchesYear && matchesVendor && matchesLevel && matchesSearch;
       })
       .sort((a, b) =>
         (a.app_users?.school_name || '').localeCompare(
@@ -1134,7 +1254,7 @@ const VendorManagement = () => {
           { numeric: true, sensitivity: 'base' }
         )
       );
-  }, [effectivePlottings, plotVendorFilter, plotLevelFilterTable, searchQuery]);
+  }, [effectivePlottings, plotYearFilter, plotVendorFilter, plotLevelFilterTable, searchQuery]);
 
   const filteredStocks = stocks.filter(
     (s) =>
@@ -1292,19 +1412,26 @@ const VendorManagement = () => {
     }
     const list: Array<{ schoolName: string; conflictingTypes: string[]; assignedVendorName: string }> = [];
     for (const schId of plotSchoolIds) {
-      const confs = findPlottingConflicts(plotVendorId, schId, plotClothingTypes);
+      const confs = findPlottingConflicts(plotVendorId, schId, plotClothingTypes, undefined, plotYearFilter);
       list.push(...confs);
     }
     return list;
-  }, [plotVendorId, plotSchoolIds, plotClothingTypes, plottings, vendors, schools]);
+  }, [plotVendorId, plotSchoolIds, plotClothingTypes, plotYearFilter, plottings, vendors, schools]);
 
   // Deteksi bentrok realtime untuk modal Edit Plotting
   const editPlottingConflicts = useMemo(() => {
     if (!editingPlotting || !editPlotVendorId || !editPlotSchoolId || editPlotClothingTypes.length === 0) {
       return [];
     }
-    return findPlottingConflicts(editPlotVendorId, editPlotSchoolId, editPlotClothingTypes, editingPlotting.id);
-  }, [editingPlotting, editPlotVendorId, editPlotSchoolId, editPlotClothingTypes, plottings, vendors, schools]);
+    const editTargetYear = resolveAcademicYear(editingPlotting.academic_year || plotYearFilter);
+    return findPlottingConflicts(
+      editPlotVendorId,
+      editPlotSchoolId,
+      editPlotClothingTypes,
+      editingPlotting.id,
+      editTargetYear
+    );
+  }, [editingPlotting, editPlotVendorId, editPlotSchoolId, editPlotClothingTypes, plotYearFilter, plottings, vendors, schools]);
 
   // Export Excel untuk Plotting & Rekap Sekolah
   const handleExportExcelVendorSekolah = () => {
@@ -1333,6 +1460,7 @@ const VendorManagement = () => {
       const sLvl = p.app_users?.school_level || sch?.level || '-';
       return {
         'No.': idx + 1,
+        'Tahun Ajaran': resolveAcademicYear(p.academic_year || plotYearFilter),
         'Nama Vendor': p.vendors?.name || v?.name || '-',
         'Sekolah yang Dikerjakan': sName,
         Jenjang: sLvl,
@@ -1343,6 +1471,7 @@ const VendorManagement = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     worksheet['!cols'] = [
       { wch: 6 },
+      { wch: 14 },
       { wch: 30 },
       { wch: 36 },
       { wch: 14 },
@@ -1351,7 +1480,10 @@ const VendorManagement = () => {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Plotting_Rekap_Sekolah');
-    XLSX.writeFile(workbook, `Plotting_Rekap_Sekolah_${getWibDateString()}.xlsx`);
+    XLSX.writeFile(
+      workbook,
+      `Plotting_Rekap_Sekolah_TA_${plotYearFilter.replace('/', '-')}_${getWibDateString()}.xlsx`
+    );
   };
 
   return (
@@ -1420,7 +1552,8 @@ const VendorManagement = () => {
             color: activeTab === 'plotting' ? '#0284c7' : '#64748b',
           }}
         >
-          🔗 Plotting & Rekap Sekolah ({plottings.length})
+          🔗 Plotting & Rekap Sekolah (
+          {plottings.filter((p) => resolveAcademicYear(p.academic_year) === plotYearFilter).length})
         </button>
         <button
           className={`btn-tab ${activeTab === 'stock' ? 'active' : ''}`}
@@ -1452,7 +1585,7 @@ const VendorManagement = () => {
             color: activeTab === 'forecast' ? '#0284c7' : '#64748b',
           }}
         >
-          📊 Prediksi Produksi (27/28)
+          📊 Prediksi Produksi ({formatAcademicYearShort(activeAcademicYear)})
         </button>
         <button
           className={`btn-tab ${activeTab === 'calculator' ? 'active' : ''}`}
@@ -1642,6 +1775,31 @@ const VendorManagement = () => {
               }}
             >
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
+                <select
+                  aria-label="Filter Tahun Ajaran Plotting"
+                  value={plotYearFilter}
+                  onChange={(e) => {
+                    setHasCustomPlotYear(true);
+                    setPlotYearFilter(e.target.value);
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #93c5fd',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    outline: 'none',
+                  }}
+                >
+                  {availablePlottingYears.map((yr) => (
+                    <option key={yr} value={yr}>
+                      TA {yr}
+                    </option>
+                  ))}
+                </select>
+
                 <input
                   type="text"
                   placeholder="🔍 Cari vendor, sekolah, jenis baju..."
@@ -1705,7 +1863,33 @@ const VendorManagement = () => {
                 </select>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {!isReadOnly && sourceYearPlottingsCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleCopyPlottingFromPreviousYear}
+                    disabled={copyingPlottingYear}
+                    style={{
+                      background: '#f8fafc',
+                      color: '#0369a1',
+                      border: '1px solid #bae6fd',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: copyingPlottingYear ? 'wait' : 'pointer',
+                    }}
+                    title={`Salin plotting dari TA ${previousYearCandidate} ke TA ${plotYearFilter}`}
+                  >
+                    {copyingPlottingYear
+                      ? 'Menyalin...'
+                      : `📋 Salin dari TA ${previousYearCandidate}`}
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleExportExcelVendorSekolah}
@@ -1771,8 +1955,8 @@ const VendorManagement = () => {
               ) : groupedPlottings.length === 0 ? (
                 <tr>
                   <td colSpan={isReadOnly ? 4 : 5} style={{ textAlign: 'center', padding: '28px', color: '#64748b' }}>
-                    {plottings.length === 0
-                      ? 'Belum ada plotting sekolah ke vendor.'
+                    {plottings.filter((p) => resolveAcademicYear(p.academic_year) === plotYearFilter).length === 0
+                      ? `Belum ada plotting sekolah ke vendor untuk TA ${plotYearFilter}.`
                       : 'Tidak ada plotting yang cocok dengan filter pencarian.'}
                   </td>
                 </tr>
@@ -2221,14 +2405,15 @@ const VendorManagement = () => {
             </div>
 
             <h5 style={{ margin: '16px 0 8px 0', fontSize: '1rem', color: '#334155' }}>
-              🏫 Sekolah yang Dilayani ({plottings.filter((p) => p.vendor_id === detailVendor.id).length})
+              🏫 Sekolah yang Dilayani TA {plotYearFilter} (
+              {plottings.filter((p) => p.vendor_id === detailVendor.id && resolveAcademicYear(p.academic_year) === plotYearFilter).length})
             </h5>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
-              {plottings.filter((p) => p.vendor_id === detailVendor.id).length === 0 ? (
-                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Belum ada sekolah yang di-plot ke vendor ini.</span>
+              {plottings.filter((p) => p.vendor_id === detailVendor.id && resolveAcademicYear(p.academic_year) === plotYearFilter).length === 0 ? (
+                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Belum ada sekolah yang di-plot ke vendor ini untuk TA {plotYearFilter}.</span>
               ) : (
                 plottings
-                  .filter((p) => p.vendor_id === detailVendor.id)
+                  .filter((p) => p.vendor_id === detailVendor.id && resolveAcademicYear(p.academic_year) === plotYearFilter)
                   .map((p) => (
                     <span
                       key={p.id}
@@ -2603,9 +2788,9 @@ const VendorManagement = () => {
       {showAddPlotting && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3>🔗 Plotting Vendor ke Sekolah</h3>
+            <h3>🔗 Plotting Vendor ke Sekolah (TA {plotYearFilter})</h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
-              Tentukan vendor konveksi dan pilih satu atau beberapa sekolah yang akan dikerjakan secara bersamaan.
+              Tentukan vendor konveksi dan pilih satu atau beberapa sekolah untuk Tahun Ajaran <strong>{plotYearFilter}</strong>.
             </p>
             <form onSubmit={handleAddPlotting} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
@@ -3059,7 +3244,9 @@ const VendorManagement = () => {
       {editingPlotting && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3>✏️ Edit Plotting Vendor ke Sekolah</h3>
+            <h3>
+              ✏️ Edit Plotting Vendor ke Sekolah (TA {resolveAcademicYear(editingPlotting.academic_year || plotYearFilter)})
+            </h3>
             <p style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
               Ubah vendor konveksi, sekolah yang dilayani, atau jenis baju yang diproduksi.
             </p>

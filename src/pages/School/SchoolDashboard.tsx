@@ -2,22 +2,24 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useReturns } from '../../context/ReturnContext';
+import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import './school.css';
 
 const SchoolDashboard = () => {
   const { user } = useAuth();
   const { getReturnsBySchoolId } = useReturns();
+  const { activeAcademicYear, academicYears } = useSettings();
 
-  const [orderCounts, setOrderCounts] = useState({
-    total: 0,
-    pending: 0,
-    approved: 0,
-    shipped: 0,
-    received: 0,
-  });
+  const [academicYearFilter, setAcademicYearFilter] = useState<string>(activeAcademicYear);
+  const [rawOrders, setRawOrders] = useState<{ status: string; academic_year?: string }[]>([]);
   const [schoolReturns, setSchoolReturns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setAcademicYearFilter(activeAcademicYear);
+  }, [activeAcademicYear]);
 
   useEffect(() => {
     if (user?.id) {
@@ -25,17 +27,11 @@ const SchoolDashboard = () => {
         if (!silent) setLoading(true);
         const { data, error } = await supabase
           .from('orders')
-          .select('status')
+          .select('status, academic_year')
           .eq('school_user_id', user.id);
 
         if (!error && data) {
-          setOrderCounts({
-            total: data.length,
-            pending: data.filter((o: any) => o.status === 'pending').length,
-            approved: data.filter((o: any) => o.status === 'approved').length,
-            shipped: data.filter((o: any) => o.status === 'shipped').length,
-            received: data.filter((o: any) => o.status === 'received').length,
-          });
+          setRawOrders(data);
         }
         if (!silent) setLoading(false);
       };
@@ -62,7 +58,32 @@ const SchoolDashboard = () => {
     return <div style={{ padding: '20px' }}>Silakan login sebagai sekolah...</div>;
   }
 
-  const activeReturnsCount = schoolReturns.filter((r: any) => r.status === 'pending' || r.status === 'koperasi_confirmed' || r.status === 'sekolah_dikirim').length;
+  const yearOptions = buildAcademicYearOptions(
+    academicYears,
+    [
+      ...rawOrders.map((o) => o.academic_year),
+      ...schoolReturns.map((r) => r.academicYear),
+    ],
+    activeAcademicYear
+  );
+
+  const filteredOrders = academicYearFilter === 'ALL'
+    ? rawOrders
+    : rawOrders.filter((o) => resolveAcademicYear(o.academic_year) === academicYearFilter);
+
+  const orderCounts = {
+    total: filteredOrders.length,
+    pending: filteredOrders.filter((o) => o.status === 'pending').length,
+    approved: filteredOrders.filter((o) => o.status === 'approved').length,
+    shipped: filteredOrders.filter((o) => o.status === 'shipped').length,
+    received: filteredOrders.filter((o) => o.status === 'received').length,
+  };
+
+  const filteredReturns = academicYearFilter === 'ALL'
+    ? schoolReturns
+    : schoolReturns.filter((r: any) => resolveAcademicYear(r.academicYear) === academicYearFilter);
+
+  const activeReturnsCount = filteredReturns.filter((r: any) => r.status === 'pending' || r.status === 'koperasi_confirmed' || r.status === 'sekolah_dikirim').length;
 
   return (
     <div className="school-dashboard">
@@ -76,6 +97,9 @@ const SchoolDashboard = () => {
                 Jenjang {user.schoolLevel}
               </span>
             )}
+            <span style={{ marginLeft: '8px', padding: '2px 10px', borderRadius: '99px', background: '#dbeafe', color: '#1e40af', fontSize: '0.78rem', fontWeight: 700 }}>
+              TA Aktif: {activeAcademicYear}
+            </span>
           </div>
         </div>
       </div>
@@ -117,7 +141,27 @@ const SchoolDashboard = () => {
         )}
       </div>
 
-      <h3 style={{ fontSize: '1.1rem', color: '#1e293b', marginBottom: '16px' }}>Status Pesanan Terkini</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+        <h3 style={{ fontSize: '1.1rem', color: '#1e293b', margin: 0 }}>Status Pesanan Terkini</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label htmlFor="schoolDashYearFilter" style={{ fontSize: '0.84rem', fontWeight: 600, color: '#475569' }}>
+            Tahun Ajaran:
+          </label>
+          <select
+            id="schoolDashYearFilter"
+            value={academicYearFilter}
+            onChange={(e) => setAcademicYearFilter(e.target.value)}
+            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.86rem', fontWeight: 600 }}
+          >
+            {yearOptions.map((yr) => (
+              <option key={yr} value={yr}>
+                TA {yr} {yr === activeAcademicYear ? '(Aktif)' : ''}
+              </option>
+            ))}
+            <option value="ALL">Semua Tahun Ajaran</option>
+          </select>
+        </div>
+      </div>
       {/* Stats Cards */}
       <div className="order-stats">
         <div className="order-stat-card">

@@ -13,6 +13,7 @@ import type { Order, OrderItem, SchoolLevel } from '../../types';
 import { resolveItemUnit } from '../../utils/formatUnit';
 import { getWibDateString, getWibDayOfWeek } from '../../utils/dateWib';
 import { findMatchingOrderLine, getOrderLineKey } from '../../utils/orderItemMatch';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import './school.css';
 
 // Urutan ukuran standar dari terkecil ke terbesar
@@ -64,7 +65,26 @@ const SchoolPemesanan = () => {
   const { createOrder, receiveOrder, partialReceiveOrder, requestCancelOrder, deleteOrder, cartItems, setCartItems, showCartModal, setShowCartModal } = useOrders();
   const { getProductsByLevel } = useProducts();
   const { getReturnsBySchoolId } = useReturns();
-  const { phase1Open, phase2Open, tambahanOpen, tambahanUseDayRule, tambahanUseDateRule, tambahanStartDate, tambahanEndDate, gdriveWebAppUrl, gdriveFolderUrl } = useSettings();
+  const {
+    phase1Open,
+    phase2Open,
+    tambahanOpen,
+    tambahanUseDayRule,
+    tambahanUseDateRule,
+    tambahanStartDate,
+    tambahanEndDate,
+    gdriveWebAppUrl,
+    gdriveFolderUrl,
+    activeAcademicYear,
+    academicYears,
+  } = useSettings();
+
+  const [academicYearFilter, setAcademicYearFilter] = useState<string>(activeAcademicYear);
+  const [detectedYears, setDetectedYears] = useState<string[]>([]);
+
+  useEffect(() => {
+    setAcademicYearFilter(activeAcademicYear);
+  }, [activeAcademicYear]);
 
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima), 'cancellations' (Riwayat Pembatalan)
   const [activeTab, setActiveTab] = useState<'active' | 'received' | 'cancellations'>('active');
@@ -92,28 +112,41 @@ const SchoolPemesanan = () => {
   // Fetch Aggregate Counts & Phase Records
   const fetchCounts = async () => {
     if (!user?.id) return;
-    const { data, error } = await supabase.from('orders').select('status, order_phase').eq('school_user_id', user.id);
+    const { data, error } = await supabase
+      .from('orders')
+      .select('status, order_phase, academic_year')
+      .eq('school_user_id', user.id);
     if (!error && data) {
-      let p = 0, a = 0, s = 0, r = 0, c = 0;
+      let p = 0, a = 0, s = 0, r = 0, c = 0, totalFiltered = 0;
       let p1 = false, p2 = false;
-      data.forEach((o: any) => {
-        if (o.status === 'pending') p++;
-        else if (o.status === 'approved') a++;
-        else if (o.status === 'shipped') s++;
-        else if (o.status === 'received') r++;
-        else if (o.status === 'cancelled' || o.status === 'cancellation_requested' || o.status === 'rejected') c++;
+      const yrs: string[] = [];
 
-        if (o.status !== 'cancelled' && o.status !== 'rejected') {
+      data.forEach((o: any) => {
+        const ordYr = resolveAcademicYear(o.academic_year);
+        yrs.push(ordYr);
+
+        if (academicYearFilter === 'ALL' || ordYr === academicYearFilter) {
+          totalFiltered++;
+          if (o.status === 'pending') p++;
+          else if (o.status === 'approved') a++;
+          else if (o.status === 'shipped') s++;
+          else if (o.status === 'received') r++;
+          else if (o.status === 'cancelled' || o.status === 'cancellation_requested' || o.status === 'rejected') c++;
+        }
+
+        // Batas 1x Tahap 1 & 1x Tahap 2 berlaku per Tahun Ajaran Aktif
+        if (o.status !== 'cancelled' && o.status !== 'rejected' && ordYr === activeAcademicYear) {
           if (o.order_phase === 'Tahap 1') p1 = true;
           if (o.order_phase === 'Tahap 2') p2 = true;
         }
       });
+      setDetectedYears(yrs);
       setPendingCount(p);
       setApprovedCount(a);
       setShippedCount(s);
       setReceivedCount(r);
       setCancellationsCount(c);
-      setTotalAllCount(data.length);
+      setTotalAllCount(totalFiltered);
       setHasPhase1Order(p1);
       setHasPhase2Order(p2);
     }
@@ -123,6 +156,10 @@ const SchoolPemesanan = () => {
   const fetchPaginated = async () => {
     if (!user?.id) return;
     let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' }).eq('school_user_id', user.id);
+
+    if (academicYearFilter !== 'ALL') {
+      query = query.eq('academic_year', academicYearFilter);
+    }
     
     if (activeTab === 'active') {
       if (statusFilter === 'all') {
@@ -150,6 +187,7 @@ const SchoolPemesanan = () => {
          schoolName: row.school_name,
          schoolLevel: row.school_level,
          orderPhase: row.order_phase,
+         academicYear: resolveAcademicYear(row.academic_year),
          items: (row.order_items || []).map((it: any) => ({
            id: it.id,
            productId: it.product_id,
@@ -192,7 +230,7 @@ const SchoolPemesanan = () => {
       // Will be updated when ReturnContext is refactored
       setSchoolReturns(getReturnsBySchoolId(user.id) as any[]);
     }
-  }, [user?.id, activeTab, statusFilter, currentPage]);
+  }, [user?.id, activeTab, statusFilter, currentPage, academicYearFilter, activeAcademicYear]);
 
   // Realtime update & window focus auto-refresh
   useEffect(() => {
@@ -213,7 +251,7 @@ const SchoolPemesanan = () => {
       window.removeEventListener('focus', handleAutoRefresh);
       document.removeEventListener('visibilitychange', handleAutoRefresh);
     };
-  }, [user?.id, activeTab, statusFilter, currentPage]);
+  }, [user?.id, activeTab, statusFilter, currentPage, academicYearFilter, activeAcademicYear]);
   
   const refetchData = () => {
     fetchCounts();
@@ -492,7 +530,8 @@ const SchoolPemesanan = () => {
     XLSX.utils.book_append_sheet(wb, ws, `Template_${orderLevelFilter}`);
     const safeSchool = (user?.schoolName || user?.name || orderLevelFilter).replace(/[^a-zA-Z0-9_-]/g, '_');
     const safePhase = orderPhase.replace(/\s+/g, '_');
-    XLSX.writeFile(wb, `Template_Pemesanan_${safePhase}_${safeSchool}.xlsx`);
+    const safeTa = activeAcademicYear.replace(/[^a-zA-Z0-9_-]/g, '-');
+    XLSX.writeFile(wb, `Template_Pemesanan_TA_${safeTa}_${safePhase}_${safeSchool}.xlsx`);
   };
 
   // 2. Upload File Excel Pemesanan dengan Validasi Strict 100% terhadap Manajemen Barang
@@ -716,6 +755,7 @@ const SchoolPemesanan = () => {
       doc.setFontSize(9.5);
       const metaRows = [
         ['Timestamp', ':', timestampStr],
+        ['TAHUN AJARAN', ':', activeAcademicYear],
         ['NAMA', ':', docNama.trim()],
         ['Email Address', ':', docEmail.trim()],
         ['NO HANDPHONE', ':', docPhone.trim()],
@@ -993,6 +1033,7 @@ const SchoolPemesanan = () => {
       schoolName: user.schoolName || user.name,
       schoolLevel: user.schoolLevel || orderLevelFilter, // default to user's level
       orderPhase: (cartPhase as any) || orderPhase,
+      academicYear: activeAcademicYear,
       items: cartItems,
       notes: notes.trim(),
     });
@@ -1142,6 +1183,9 @@ const SchoolPemesanan = () => {
           <h2>Pemesanan Barang</h2>
           <div className="school-welcome">
             Buat pesanan seragam dan buku baru ke Kopkar.
+            <span style={{ marginLeft: '10px', padding: '2px 10px', borderRadius: '99px', background: '#dbeafe', color: '#1e40af', fontSize: '0.78rem', fontWeight: 700 }}>
+              TA Aktif: {activeAcademicYear}
+            </span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -1227,6 +1271,29 @@ const SchoolPemesanan = () => {
         </div>
       </div>
 
+      {/* Filter Tahun Ajaran */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        <label htmlFor="schoolOrderYearFilter" style={{ fontSize: '0.84rem', fontWeight: 600, color: '#475569' }}>
+          Filter Tahun Ajaran:
+        </label>
+        <select
+          id="schoolOrderYearFilter"
+          value={academicYearFilter}
+          onChange={(e) => {
+            setAcademicYearFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+          style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.86rem', fontWeight: 600 }}
+        >
+          {buildAcademicYearOptions(academicYears, detectedYears, activeAcademicYear).map((yr) => (
+            <option key={yr} value={yr}>
+              TA {yr} {yr === activeAcademicYear ? '(Aktif)' : ''}
+            </option>
+          ))}
+          <option value="ALL">Semua Tahun Ajaran</option>
+        </select>
+      </div>
+
       {/* 3 Tabs Navigation */}
       <div className="dashboard-tabs">
         <button
@@ -1277,6 +1344,9 @@ const SchoolPemesanan = () => {
                       <tr key={order.id}>
                         <td>
                           <strong>{order.id}</strong>
+                          <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
+                            TA {resolveAcademicYear(order.academicYear)}
+                          </div>
                           <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
                             {formatDate(order.createdAt)}
                           </div>
@@ -1379,6 +1449,7 @@ const SchoolPemesanan = () => {
                     <div className="mobile-card-header">
                       <div>
                         <span className="mobile-order-id">{order.id}</span>
+                        <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>TA {resolveAcademicYear(order.academicYear)}</div>
                         <div className="mobile-card-date">{formatDate(order.createdAt)}</div>
                       </div>
                       <span className={`status-badge ${order.status}`}>
@@ -1514,6 +1585,9 @@ const SchoolPemesanan = () => {
                       <tr key={order.id}>
                         <td>
                           <strong>{order.id}</strong>
+                          <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
+                            TA {resolveAcademicYear(order.academicYear)}
+                          </div>
                           <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
                             {formatDate(order.createdAt)}
                           </div>
@@ -1574,6 +1648,7 @@ const SchoolPemesanan = () => {
                     <div className="mobile-card-header">
                       <div>
                         <span className="mobile-order-id">{order.id}</span>
+                        <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>TA {resolveAcademicYear(order.academicYear)}</div>
                         <div className="mobile-card-date">{formatDate(order.createdAt)}</div>
                       </div>
                       <span className="status-badge received">✅ Selesai Diterima</span>
@@ -1679,6 +1754,9 @@ const SchoolPemesanan = () => {
                       <tr key={order.id}>
                         <td>
                           <strong>{order.id}</strong>
+                          <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
+                            TA {resolveAcademicYear(order.academicYear)}
+                          </div>
                           <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
                             {formatDate(order.createdAt)}
                           </div>
@@ -1758,7 +1836,10 @@ const SchoolPemesanan = () => {
                 {paginatedOrders.map((order: Order) => (
                   <div key={order.id} className="mobile-order-card cancelled-card">
                     <div className="mobile-card-header">
-                      <span className="mobile-order-id">{order.id}</span>
+                      <div>
+                        <span className="mobile-order-id">{order.id}</span>
+                        <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>TA {resolveAcademicYear(order.academicYear)}</div>
+                      </div>
                       <span className={`status-badge ${order.status}`}>
                         {order.status === 'cancellation_requested' && '⏳ Request Batal'}
                         {order.status === 'cancelled' && '🚫 Dibatalkan'}
@@ -1843,8 +1924,13 @@ const SchoolPemesanan = () => {
       {showCreateModal && (
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div className={`modal ${!orderPhase.includes('Tambahan') ? 'order-modal-extra-wide' : 'order-modal-wide'}`} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0 }}>Form Pemesanan Seragam & Buku</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0 }}>Form Pemesanan Seragam & Buku</h3>
+                <span style={{ padding: '3px 10px', borderRadius: '99px', background: '#dbeafe', color: '#1e40af', fontSize: '0.78rem', fontWeight: 700 }}>
+                  TA {activeAcademicYear}
+                </span>
+              </div>
               <button className="btn-close-modal" onClick={() => setShowCreateModal(false)}>✖</button>
             </div>
 
@@ -2298,12 +2384,12 @@ const SchoolPemesanan = () => {
                 )}
                 {(orderPhase === 'Tahap 1' && hasPhase1Order) && (
                   <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '12px' }}>
-                    <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 1.
+                    <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 1 di Tahun Ajaran {activeAcademicYear}.
                   </div>
                 )}
                 {(orderPhase === 'Tahap 2' && hasPhase2Order) && (
                   <div style={{ padding: '12px 16px', background: '#fef9c3', borderLeft: '4px solid #eab308', borderRadius: '4px', fontSize: '0.9rem', color: '#854d0e', marginBottom: '12px' }}>
-                    <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 2.
+                    <strong>Sudah Dipesan:</strong> Anda sudah melakukan pesanan untuk Tahap 2 di Tahun Ajaran {activeAcademicYear}.
                   </div>
                 )}
                 {!orderPhase.includes('Tambahan') && (!hasUploadedOrderExcel || !uploadedGdriveUrl) && (

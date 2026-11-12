@@ -3,11 +3,13 @@ import type { ReturnRequest, ReturnItem, SchoolLevel } from '../types';
 import { supabase } from '../lib/supabase';
 import { fetchAllSupabasePaged } from '../utils/supabasePagination';
 import { getWibDateString } from '../utils/dateWib';
+import { resolveAcademicYear } from '../utils/academicYear';
 
 interface CreateReturnInput {
   schoolUserId: string;
   schoolName: string;
   schoolLevel?: SchoolLevel;
+  academicYear: string;
   items: ReturnItem[];
   reasonCategory?: string;
   reason: string;
@@ -55,6 +57,7 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
       schoolUserId: d.school_user_id,
       schoolName: d.school_name,
       schoolLevel: d.school_level,
+      academicYear: resolveAcademicYear(d.academic_year),
       items: d.items,
       reasonCategory: d.reason_category,
       reason: d.reason,
@@ -124,6 +127,9 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
       if (!data.reason.trim()) {
         return { success: false, error: 'Alasan retur wajib diisi.' };
       }
+      if (!data.academicYear || !data.academicYear.trim()) {
+        return { success: false, error: 'Tahun Ajaran asal barang wajib dipilih.' };
+      }
 
       let newId = '';
       try {
@@ -144,6 +150,7 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
         school_user_id: data.schoolUserId,
         school_name: data.schoolName,
         school_level: data.schoolLevel,
+        academic_year: data.academicYear.trim(),
         items: data.items,
         reason_category: data.reasonCategory || 'Lainnya',
         reason: data.reason.trim(),

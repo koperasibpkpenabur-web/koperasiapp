@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Order } from '../../types';
+import { resolveAcademicYear } from '../../utils/academicYear';
 import { resolveItemUnit } from '../../utils/formatUnit';
 import { findMatchingOrderLine } from '../../utils/orderItemMatch';
 
@@ -200,6 +201,7 @@ const KwitansiPrint: React.FC<Props> = ({ order }) => {
         </div>
         <div style={{ fontSize: '13px', textAlign: 'right' }}>
           <div>Tanggal: {today}</div>
+          <div>Tahun Ajaran: <strong>{resolveAcademicYear(order.academicYear)}</strong></div>
         </div>
       </div>
 

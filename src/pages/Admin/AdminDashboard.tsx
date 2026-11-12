@@ -1,13 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
+import { fetchAllSupabasePaged } from '../../utils/supabasePagination';
+import {
+  buildAcademicYearOptions,
+  isValidAcademicYearFormat,
+  resolveAcademicYear,
+} from '../../utils/academicYear';
 import './admin.css';
 
 const AdminDashboard = () => {
   const { isMaintenanceMode, toggleMaintenanceMode } = useAuth();
   const settings = useSettings();
-  const { phase1Open, phase2Open, updatePhaseStatus } = settings;
+  const {
+    phase1Open,
+    phase2Open,
+    updatePhaseStatus,
+    activeAcademicYear,
+    academicYears,
+    updateActiveAcademicYear,
+    addAcademicYear,
+  } = settings;
 
   const [totalAdmin, setTotalAdmin] = useState(0);
   const [totalKopkar, setTotalKopkar] = useState(0);
@@ -23,9 +37,19 @@ const AdminDashboard = () => {
   }[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedSchoolReset, setSelectedSchoolReset] = useState<string>('ALL');
+  const [selectedResetYear, setSelectedResetYear] = useState<string>(activeAcademicYear);
+  const [detectedYears, setDetectedYears] = useState<string[]>([]);
+  const [selectedActiveYearInput, setSelectedActiveYearInput] = useState<string>(activeAcademicYear);
+  const [newAcademicYearInput, setNewAcademicYearInput] = useState<string>('');
+  const [isSavingAcademicYear, setIsSavingAcademicYear] = useState(false);
   const [gdriveUrlInput, setGdriveUrlInput] = useState<string>('');
   const [gdriveFolderInput, setGdriveFolderInput] = useState<string>('');
   const [gdrivePaymentFolderInput, setGdrivePaymentFolderInput] = useState<string>('');
+
+  useEffect(() => {
+    setSelectedActiveYearInput(activeAcademicYear);
+    setSelectedResetYear(activeAcademicYear);
+  }, [activeAcademicYear]);
 
   useEffect(() => {
     setGdriveUrlInput(settings.gdriveWebAppUrl || '');
@@ -42,7 +66,7 @@ const AdminDashboard = () => {
     return idMatch ? idMatch[0] : clean;
   };
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       // 1. Fetch app_users
       const { data: usersData } = await supabase.from('app_users').select('id, role, school_name, username');
@@ -54,22 +78,40 @@ const AdminDashboard = () => {
       // 2. Fetch school_whitelist
       const { data: whitelistData } = await supabase.from('school_whitelist').select('nama_sekolah, email');
 
-      // 3. Fetch orders
-      const { data: ordersData } = await supabase.from('orders').select('id, school_user_id, school_name');
-      setTotalOrders(ordersData?.length || 0);
+      // 3. Fetch seluruh orders (berpaginasi agar lintas TA tetap akurat)
+      const { data: ordersData } = await fetchAllSupabasePaged<any>((from, to) =>
+        supabase.from('orders').select('id, school_user_id, school_name, academic_year').range(from, to)
+      );
 
-      // 4. Fetch returns
-      const { data: returnsData } = await supabase.from('returns').select('id, school_user_id, school_name');
-      setTotalReturns(returnsData?.length || 0);
+      // 4. Fetch seluruh returns
+      const { data: returnsData } = await fetchAllSupabasePaged<any>((from, to) =>
+        supabase.from('returns').select('id, school_user_id, school_name, academic_year').range(from, to)
+      );
 
-      // Hitung urutan order berikutnya untuk hari ini
+      const yearsFound: Array<string | null | undefined> = [
+        ...ordersData.map((o) => o.academic_year),
+        ...returnsData.map((r) => r.academic_year),
+      ];
+      setDetectedYears(buildAcademicYearOptions(academicYears, yearsFound, activeAcademicYear));
+
+      const filteredOrders = selectedResetYear === 'ALL'
+        ? ordersData
+        : ordersData.filter((o) => resolveAcademicYear(o.academic_year) === selectedResetYear);
+      const filteredReturns = selectedResetYear === 'ALL'
+        ? returnsData
+        : returnsData.filter((r) => resolveAcademicYear(r.academic_year) === selectedResetYear);
+
+      setTotalOrders(filteredOrders.length);
+      setTotalReturns(filteredReturns.length);
+
+      // Hitung urutan order berikutnya untuk hari ini (nomor urut ORD global per tanggal WIB)
       const d = new Date();
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       const dateForId = `${year}${month}${day}`;
       const prefix = `ORD-${dateForId}-`;
-      const todayOrders = (ordersData || []).filter(o => o.id?.startsWith(prefix));
+      const todayOrders = ordersData.filter(o => o.id?.startsWith(prefix));
       let maxSeq = 0;
       todayOrders.forEach(o => {
         const parts = (o.id || '').split('-');
@@ -85,7 +127,7 @@ const AdminDashboard = () => {
       const schoolMap = new Map<string, { userIds: Set<string>; orderCount: number; returnCount: number; hasGoogle: boolean; hasManual: boolean }>();
 
       (usersData || []).forEach(u => {
-        if (u.role === 'sekolah' && u.school_name) {
+        if ((u.role === 'sekolah' || u.role === 'guru_ots') && u.school_name) {
           const sName = u.school_name.trim();
           if (!schoolMap.has(sName)) {
             schoolMap.set(sName, { userIds: new Set(), orderCount: 0, returnCount: 0, hasGoogle: false, hasManual: false });
@@ -107,7 +149,7 @@ const AdminDashboard = () => {
         }
       });
 
-      (ordersData || []).forEach(o => {
+      filteredOrders.forEach(o => {
         const sName = (o.school_name || '').trim();
         if (sName) {
           if (!schoolMap.has(sName)) {
@@ -119,7 +161,7 @@ const AdminDashboard = () => {
         }
       });
 
-      (returnsData || []).forEach(r => {
+      filteredReturns.forEach(r => {
         const sName = (r.school_name || '').trim();
         if (sName) {
           if (!schoolMap.has(sName)) {
@@ -148,11 +190,11 @@ const AdminDashboard = () => {
     } catch (err) {
       console.error('Error fetching admin stats:', err);
     }
-  };
+  }, [academicYears, activeAcademicYear, selectedResetYear]);
 
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, [fetchStats]);
 
   const totalSekolah = schoolOptions.length;
 
@@ -172,26 +214,47 @@ const AdminDashboard = () => {
     return res;
   };
 
+  const deleteOrderChunks = async (orderIds: string[]) => {
+    if (orderIds.length === 0) return;
+    const chunks = chunkArray(orderIds, 50);
+    for (const chunk of chunks) {
+      await supabase.from('vendor_payables').delete().in('order_id', chunk);
+      await supabase.from('order_items').delete().in('order_id', chunk);
+      await supabase.from('orders').delete().in('id', chunk);
+    }
+  };
+
+  const deleteParentOrderChunks = async (parentOrderIds: string[]) => {
+    if (parentOrderIds.length === 0) return;
+    const chunks = chunkArray(parentOrderIds, 50);
+    for (const chunk of chunks) {
+      await supabase.from('parent_order_items').delete().in('parent_order_id', chunk);
+      await supabase.from('parent_orders').delete().in('id', chunk);
+    }
+  };
+
   const handleResetHistory = async () => {
     const isAll = selectedSchoolReset === 'ALL';
     const isToday = selectedSchoolReset === 'TODAY';
+    const isAllYears = selectedResetYear === 'ALL';
     const targetSchool = schoolOptions.find(s => s.schoolName === selectedSchoolReset);
+    const yearScopeLabel = isAllYears ? 'SEMUA TAHUN AJARAN' : `Tahun Ajaran ${selectedResetYear}`;
 
     let desc = '';
     if (isAll) {
-      desc = 'SEMUA RIWAYAT PESANAN & RETUR dari SELURUH SEKOLAH (Akun Google maupun Akun Manajemen User). Nomor urut order hari ini akan ter-reset kembali ke 001.';
+      desc = `SEMUA RIWAYAT PESANAN, TAGIHAN VENDOR, & RETUR (${yearScopeLabel}) dari SELURUH SEKOLAH. Data stok gudang & master barang tetap utuh.`;
     } else if (isToday) {
-      desc = 'SELURUH PESANAN HARI INI dari semua sekolah. Nomor urut pesanan hari ini akan langsung ter-reset kembali ke 001.';
+      desc = `SELURUH PESANAN HARI INI (${yearScopeLabel}) dari semua sekolah. Data stok gudang tetap utuh.`;
     } else if (targetSchool) {
-      desc = `seluruh riwayat pesanan & retur untuk sekolah "${targetSchool.schoolName}" (termasuk pesanan via Akun Google dan Manajemen User).`;
+      desc = `seluruh riwayat pesanan & retur (${yearScopeLabel}) untuk sekolah "${targetSchool.schoolName}". Data stok gudang tetap utuh.`;
     } else {
-      desc = `riwayat pesanan untuk "${selectedSchoolReset}".`;
+      desc = `riwayat pesanan (${yearScopeLabel}) untuk "${selectedSchoolReset}".`;
     }
 
     const confirm1 = window.confirm(`PERINGATAN BAHAYA:\nAnda akan MENGHAPUS ${desc}\n\nTindakan ini TIDAK BISA DIBATALKAN. Yakin ingin melanjutkan?`);
     if (!confirm1) return;
 
-    const confirm2 = window.prompt(`Ketik "RESET" untuk mengonfirmasi penghapusan history transaksi:`);
+    const confirm2 = window.prompt(`Ketik "RESET" untuk mengonfirmasi penghapusan history transaksi (${yearScopeLabel}):`);
     if (confirm2 !== 'RESET') {
       alert('Konfirmasi dibatalkan. Data tetap aman.');
       return;
@@ -201,52 +264,43 @@ const AdminDashboard = () => {
 
     try {
       if (isAll) {
-        // 1. Ambil seluruh order_id
-        const { data: allOrders } = await supabase.from('orders').select('id');
-        const orderIds = (allOrders || []).map(o => o.id);
-        
-        if (orderIds.length > 0) {
-          const chunks = chunkArray(orderIds, 50);
-          for (const chunk of chunks) {
-            await supabase.from('order_items').delete().in('order_id', chunk);
-            await supabase.from('orders').delete().in('id', chunk);
-          }
-        }
+        let ordersQ = supabase.from('orders').select('id');
+        if (!isAllYears) ordersQ = ordersQ.eq('academic_year', selectedResetYear);
+        const { data: allOrders } = await ordersQ;
+        await deleteOrderChunks((allOrders || []).map(o => o.id));
 
-        // 2. Ambil seluruh returns
-        const { data: allReturns } = await supabase.from('returns').select('id');
+        let returnsQ = supabase.from('returns').select('id');
+        if (!isAllYears) returnsQ = returnsQ.eq('academic_year', selectedResetYear);
+        const { data: allReturns } = await returnsQ;
         const returnIds = (allReturns || []).map(r => r.id);
         if (returnIds.length > 0) {
-          const chunks = chunkArray(returnIds, 50);
-          for (const chunk of chunks) {
+          for (const chunk of chunkArray(returnIds, 50)) {
             await supabase.from('returns').delete().in('id', chunk);
           }
         }
 
-        // 3. Reset saldo retur di app_users
-        await supabase.from('app_users').update({ return_balance_tagihan: 0, return_balance_fee: 0 }).neq('id', '00000000-0000-0000-0000-000000000000');
+        let parentQ = supabase.from('parent_orders').select('id');
+        if (!isAllYears) parentQ = parentQ.eq('academic_year', selectedResetYear);
+        const { data: allParents } = await parentQ;
+        await deleteParentOrderChunks((allParents || []).map(p => p.id));
+
+        if (isAllYears) {
+          await supabase.from('app_users').update({ return_balance_tagihan: 0, return_balance_fee: 0 }).neq('id', '00000000-0000-0000-0000-000000000000');
+        }
 
       } else if (isToday) {
-        // Ambil pesanan hari ini berdasarkan prefix ORD-YYYYMMDD-
         const d = new Date();
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
         const prefix = `ORD-${year}${month}${day}-`;
 
-        const { data: todayOrders } = await supabase.from('orders').select('id').like('id', `${prefix}%`);
-        const orderIds = (todayOrders || []).map(o => o.id);
-
-        if (orderIds.length > 0) {
-          const chunks = chunkArray(orderIds, 50);
-          for (const chunk of chunks) {
-            await supabase.from('order_items').delete().in('order_id', chunk);
-            await supabase.from('orders').delete().in('id', chunk);
-          }
-        }
+        let todayQ = supabase.from('orders').select('id').like('id', `${prefix}%`);
+        if (!isAllYears) todayQ = todayQ.eq('academic_year', selectedResetYear);
+        const { data: todayOrders } = await todayQ;
+        await deleteOrderChunks((todayOrders || []).map(o => o.id));
 
       } else if (targetSchool) {
-        // 1. Ambil pesanan berdasarkan nama sekolah atau user_id terkait (mencakup akun Google & akun Manajemen User)
         const userIds = targetSchool.userIds;
         let ordersQuery = supabase.from('orders').select('id');
         if (userIds.length > 0) {
@@ -254,34 +308,36 @@ const AdminDashboard = () => {
         } else {
           ordersQuery = ordersQuery.eq('school_name', targetSchool.schoolName);
         }
+        if (!isAllYears) ordersQuery = ordersQuery.eq('academic_year', selectedResetYear);
 
         const { data: schoolOrders } = await ordersQuery;
-        const orderIds = (schoolOrders || []).map(o => o.id);
+        await deleteOrderChunks((schoolOrders || []).map(o => o.id));
 
-        if (orderIds.length > 0) {
-          const chunks = chunkArray(orderIds, 50);
-          for (const chunk of chunks) {
-            await supabase.from('order_items').delete().in('order_id', chunk);
-            await supabase.from('orders').delete().in('id', chunk);
-          }
-        }
-
-        // 2. Hapus retur untuk sekolah ini
         let returnsQuery = supabase.from('returns').delete();
         if (userIds.length > 0) {
           returnsQuery = returnsQuery.or(`school_name.eq."${targetSchool.schoolName}",school_user_id.in.(${userIds.join(',')})`);
         } else {
           returnsQuery = returnsQuery.eq('school_name', targetSchool.schoolName);
         }
+        if (!isAllYears) returnsQuery = returnsQuery.eq('academic_year', selectedResetYear);
         await returnsQuery;
 
-        // 3. Reset saldo retur di app_users jika ada
+        let parentQuery = supabase.from('parent_orders').select('id');
         if (userIds.length > 0) {
+          parentQuery = parentQuery.or(`school_name.eq."${targetSchool.schoolName}",school_user_id.in.(${userIds.join(',')})`);
+        } else {
+          parentQuery = parentQuery.eq('school_name', targetSchool.schoolName);
+        }
+        if (!isAllYears) parentQuery = parentQuery.eq('academic_year', selectedResetYear);
+        const { data: schoolParents } = await parentQuery;
+        await deleteParentOrderChunks((schoolParents || []).map(p => p.id));
+
+        if (isAllYears && userIds.length > 0) {
           await supabase.from('app_users').update({ return_balance_tagihan: 0, return_balance_fee: 0 }).in('id', userIds);
         }
       }
 
-      alert('BERHASIL: History transaksi telah dihapus. Sekolah sekarang dapat membuat pesanan baru, dan nomor urut pesanan hari ini ter-reset kembali ke 001.');
+      alert(`BERHASIL: History transaksi (${yearScopeLabel}) telah dihapus. Stok gudang & master barang tetap aman tidak berubah.`);
       await fetchStats();
     } catch (err: any) {
       alert('Terjadi kesalahan saat menghapus history: ' + err.message);
@@ -289,6 +345,8 @@ const AdminDashboard = () => {
       setIsDeleting(false);
     }
   };
+
+  const resetYearOptions = buildAcademicYearOptions(academicYears, detectedYears, activeAcademicYear);
 
   return (
     <div className="admin-dashboard">
@@ -402,7 +460,35 @@ const AdminDashboard = () => {
 
         {/* Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '14px', background: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #fecdd3' }}>
-          <div style={{ flex: '1 1 340px' }}>
+          <div style={{ flex: '0 1 220px' }}>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+              Filter Tahun Ajaran:
+            </label>
+            <select
+              value={selectedResetYear}
+              onChange={(e) => setSelectedResetYear(e.target.value)}
+              disabled={isDeleting}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: '8px',
+                fontSize: '0.88rem',
+                outline: 'none',
+                backgroundColor: '#ffffff',
+                fontWeight: 600,
+              }}
+            >
+              {resetYearOptions.map((yr) => (
+                <option key={yr} value={yr}>
+                  📅 TA {yr} {yr === activeAcademicYear ? '(Aktif)' : ''}
+                </option>
+              ))}
+              <option value="ALL">🌐 Semua Tahun Ajaran</option>
+            </select>
+          </div>
+
+          <div style={{ flex: '1 1 300px' }}>
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
               Pilih Target Penghapusan Riwayat:
             </label>
@@ -421,7 +507,7 @@ const AdminDashboard = () => {
               }}
             >
               <optgroup label="Pilihan Global">
-                <option value="ALL">💥 SEMUA SEKOLAH & AKUN (Hapus Seluruh Data Transaksi)</option>
+                <option value="ALL">💥 SEMUA SEKOLAH & AKUN (Hapus Data di Scope Tahun Ini)</option>
                 <option value="TODAY">📅 HANYA PESANAN HARI INI (Reset Nomor Urut Hari Ini ke 001)</option>
               </optgroup>
               <optgroup label="Pilih Riwayat Per Sekolah (Google & Manajemen User)">
@@ -459,6 +545,160 @@ const AdminDashboard = () => {
         </div>
       </div>
 
+      {/* Control Panel Tahun Ajaran Aktif */}
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1.5px solid #d5deef',
+          borderRadius: '16px',
+          padding: '20px 24px',
+          marginBottom: '26px',
+          boxShadow: '0 2px 8px rgba(57, 88, 134, 0.05)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '1.4rem' }}>🗓️</span>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e2d42', margin: 0 }}>
+              Pengaturan Tahun Ajaran Aktif (Siklus Pemesanan)
+            </h3>
+          </div>
+          <span
+            style={{
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              padding: '4px 12px',
+              borderRadius: '20px',
+              background: '#dbeafe',
+              color: '#1e40af',
+            }}
+          >
+            Aktif Saat Ini: TA {activeAcademicYear}
+          </span>
+        </div>
+
+        <p style={{ fontSize: '0.86rem', color: '#475569', margin: '0 0 14px', lineHeight: 1.5 }}>
+          Semua pesanan baru dari role <strong>Sekolah</strong> dan <strong>Guru OTS</strong>, serta batas pemesanan <em>1x Tahap 1 / 1x Tahap 2</em> per sekolah, otomatis masuk ke Tahun Ajaran Aktif di bawah ini. Stok gudang &amp; Master Barang tetap berkelanjutan antar tahun ajaran.
+        </p>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 260px', background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+              Pilih Tahun Ajaran Pemesanan Berjalan:
+            </label>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <select
+                value={selectedActiveYearInput}
+                onChange={(e) => setSelectedActiveYearInput(e.target.value)}
+                disabled={isSavingAcademicYear}
+                style={{
+                  flex: '1 1 160px',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
+                  background: '#ffffff',
+                }}
+              >
+                {resetYearOptions.map((yr) => (
+                  <option key={yr} value={yr}>
+                    TA {yr} {yr === activeAcademicYear ? '(Sedang Aktif)' : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={isSavingAcademicYear || selectedActiveYearInput === activeAcademicYear}
+                onClick={async () => {
+                  const ok = window.confirm(
+                    `Aktifkan Tahun Ajaran ${selectedActiveYearInput} untuk seluruh aplikasi?\n\nMulai sekarang, seluruh pesanan baru dari Sekolah dan Guru OTS akan tercatat ke TA ${selectedActiveYearInput} dan kuota pesan Tahap 1 / Tahap 2 sekolah mengikuti TA ${selectedActiveYearInput}.`
+                  );
+                  if (!ok) return;
+                  setIsSavingAcademicYear(true);
+                  try {
+                    await updateActiveAcademicYear(selectedActiveYearInput);
+                    setSelectedResetYear(selectedActiveYearInput);
+                    alert(`Tahun Ajaran Aktif berhasil diubah menjadi TA ${selectedActiveYearInput}.`);
+                  } finally {
+                    setIsSavingAcademicYear(false);
+                  }
+                }}
+                style={{
+                  padding: '9px 16px',
+                  backgroundColor: selectedActiveYearInput === activeAcademicYear ? '#94a3b8' : '#1d4ed8',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  cursor: selectedActiveYearInput === activeAcademicYear ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {isSavingAcademicYear ? '⏳ Menyimpan...' : '✓ Terapkan TA Aktif'}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ flex: '1 1 260px', background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+              Tambah Tahun Ajaran Baru (Format YYYY/YYYY):
+            </label>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Contoh: 2030/2031"
+                value={newAcademicYearInput}
+                onChange={(e) => setNewAcademicYearInput(e.target.value)}
+                disabled={isSavingAcademicYear}
+                style={{
+                  flex: '1 1 150px',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '0.86rem',
+                  background: '#ffffff',
+                }}
+              />
+              <button
+                type="button"
+                disabled={isSavingAcademicYear}
+                onClick={async () => {
+                  const candidate = newAcademicYearInput.trim();
+                  if (!isValidAcademicYearFormat(candidate)) {
+                    alert('Format Tahun Ajaran tidak valid. Gunakan format YYYY/YYYY yang berurutan (contoh: 2030/2031).');
+                    return;
+                  }
+                  setIsSavingAcademicYear(true);
+                  try {
+                    await addAcademicYear(candidate);
+                    setNewAcademicYearInput('');
+                    setSelectedActiveYearInput(candidate);
+                    alert(`Tahun Ajaran ${candidate} berhasil ditambahkan ke daftar sistem.`);
+                  } finally {
+                    setIsSavingAcademicYear(false);
+                  }
+                }}
+                style={{
+                  padding: '9px 16px',
+                  backgroundColor: '#059669',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                + Tambah TA
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Control Panel Pesanan Sekolah */}
       <div
         style={{
@@ -470,11 +710,16 @@ const AdminDashboard = () => {
           boxShadow: '0 2px 8px rgba(57, 88, 134, 0.05)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-          <span style={{ fontSize: '1.4rem' }}>🛒</span>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e2d42', margin: 0 }}>
-            Pengaturan Fase Pemesanan Sekolah
-          </h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '1.4rem' }}>🛒</span>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e2d42', margin: 0 }}>
+              Pengaturan Fase Pemesanan Sekolah
+            </h3>
+          </div>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>
+            Berlaku untuk Tahun Ajaran Aktif: <strong>TA {activeAcademicYear}</strong>
+          </span>
         </div>
         
         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>

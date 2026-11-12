@@ -1,12 +1,14 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, useMemo, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useReturns } from '../../context/ReturnContext';
+import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
 import type { Order, ShippingInfo } from '../../types';
 import { playOrderNotificationSound } from '../../utils/sound';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import SuratJalanPrint from './SuratJalanPrint';
 import { generateSuratJalanExcel } from '../../utils/excelGenerator';
 import { resolveItemUnit } from '../../utils/formatUnit';
@@ -81,6 +83,7 @@ const KopkarPesanan = () => {
       schoolName: row.school_name,
       schoolLevel: row.school_level,
       orderPhase: row.order_phase,
+      academicYear: resolveAcademicYear(row.academic_year),
       items: (row.order_items || []).map((it: any) => ({
         id: it.id,
         productId: it.product_id,
@@ -150,12 +153,37 @@ const KopkarPesanan = () => {
     deleteOrder,
   } = useOrders();
 
+  const { activeAcademicYear, academicYears } = useSettings();
+
   // 3 Tabs: 'active' (Berjalan), 'received' (History Diterima/Selesai), 'cancellations' (Riwayat Pembatalan)
   const [activeTab, setActiveTab] = useState<'active' | 'received' | 'cancellations'>('active');
+  const [yearFilter, setYearFilter] = useState<string>(activeAcademicYear);
+  const [hasCustomYear, setHasCustomYear] = useState<boolean>(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [cancelStatusFilter, setCancelStatusFilter] = useState<'all' | 'cancellation_requested' | 'cancelled' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  useEffect(() => {
+    if (!hasCustomYear && activeAcademicYear) {
+      setYearFilter(activeAcademicYear);
+    }
+  }, [activeAcademicYear, hasCustomYear]);
+
+  const availableAcademicYears = useMemo(
+    () =>
+      buildAcademicYearOptions(
+        academicYears,
+        orders.map((o) => o.academicYear),
+        activeAcademicYear
+      ),
+    [academicYears, activeAcademicYear, orders]
+  );
+
+  const yearScopedOrders = useMemo(() => {
+    if (yearFilter === 'ALL') return orders;
+    return orders.filter((o) => resolveAcademicYear(o.academicYear) === yearFilter);
+  }, [orders, yearFilter]);
 
   // Rejection modal (initial reject for pending order)
   const [rejectingOrder, setRejectingOrder] = useState<Order | null>(null);
@@ -204,40 +232,40 @@ const KopkarPesanan = () => {
   }, [printingOrder]);
 
   // 1. Pesanan Berjalan: pending, approved, shipped
-  const activeOrders = orders.filter(
+  const activeOrders = yearScopedOrders.filter(
     (o) => o.status === 'pending' || o.status === 'approved' || o.status === 'shipped'
   );
 
   // 2. History Diterima (Selesai): received
-  const receivedOrders = orders.filter((o) => o.status === 'received');
+  const receivedOrders = yearScopedOrders.filter((o) => o.status === 'received');
 
   // 3. History Pembatalan: cancellation_requested, cancelled, rejected
-  const cancellationOrders = orders.filter(
+  const cancellationOrders = yearScopedOrders.filter(
     (o) => o.status === 'cancelled' || o.status === 'cancellation_requested' || o.status === 'rejected'
   );
 
-  const pendingOrders = orders.filter((o) => o.status === 'pending').length;
-  const shippedOrders = orders.filter((o) => o.status === 'shipped').length;
+  const pendingOrders = yearScopedOrders.filter((o) => o.status === 'pending').length;
+  const shippedOrders = yearScopedOrders.filter((o) => o.status === 'shipped').length;
   const receivedCount = receivedOrders.length;
-  const cancelRequestsCount = orders.filter((o) => o.status === 'cancellation_requested').length;
+  const cancelRequestsCount = yearScopedOrders.filter((o) => o.status === 'cancellation_requested').length;
 
   // Financial aggregates
-  const totalOmzetStudent = orders
+  const totalOmzetStudent = yearScopedOrders
     .filter((o) => o.status !== 'cancelled' && o.status !== 'rejected')
     .reduce((acc, o) => acc + (o.totalPriceStudent || 0), 0);
 
-  const totalPaidRevenue = orders
+  const totalPaidRevenue = yearScopedOrders
     .filter((o) => o.paymentStatus === 'paid')
     .reduce((acc, o) => acc + (o.totalPriceStudent || 0), 0);
 
-  const totalSchoolFeeToDisburse = orders
+  const totalSchoolFeeToDisburse = yearScopedOrders
     .filter((o) => o.feeStatus === 'ready')
     .reduce((acc, o) => acc + (o.totalFeeSchool || 0), 0);
 
   // Phase summaries
-  const countTahap1 = orders.filter(o => o.orderPhase === 'Tahap 1' && o.status !== 'cancelled' && o.status !== 'rejected').length;
-  const countTahap2 = orders.filter(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected').length;
-  const countTambahan = orders.filter(o => o.orderPhase === 'Tambahan' && o.status !== 'cancelled' && o.status !== 'rejected').length;
+  const countTahap1 = yearScopedOrders.filter(o => o.orderPhase === 'Tahap 1' && o.status !== 'cancelled' && o.status !== 'rejected').length;
+  const countTahap2 = yearScopedOrders.filter(o => o.orderPhase === 'Tahap 2' && o.status !== 'cancelled' && o.status !== 'rejected').length;
+  const countTambahan = yearScopedOrders.filter(o => o.orderPhase === 'Tambahan' && o.status !== 'cancelled' && o.status !== 'rejected').length;
 
   const filteredActiveOrders = activeOrders.filter((ord) => {
     const matchesStatus = statusFilter === 'all' || ord.status === statusFilter;
@@ -762,6 +790,18 @@ const KopkarPesanan = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <select
+                value={yearFilter}
+                onChange={(e) => {
+                  setHasCustomYear(true);
+                  setYearFilter(e.target.value);
+                }}
+              >
+                <option value="ALL">Semua Tahun Ajaran</option>
+                {availableAcademicYears.map((yr) => (
+                  <option key={yr} value={yr}>TA {yr}</option>
+                ))}
+              </select>
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="all">Semua Status</option>
                 <option value="pending">Menunggu Persetujuan</option>
@@ -794,6 +834,23 @@ const KopkarPesanan = () => {
                       <tr key={order.id}>
                         <td>
                           <strong>{getFormattedOrderId(order)}</strong>
+                          <div>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                marginTop: '4px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                padding: '2px 7px',
+                                borderRadius: '999px',
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                border: '1px solid #bfdbfe',
+                              }}
+                            >
+                              TA {resolveAcademicYear(order.academicYear)}
+                            </span>
+                          </div>
                           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
                             {formatDate(order.createdAt)}
                           </div>
@@ -957,6 +1014,20 @@ const KopkarPesanan = () => {
                     <div className="mobile-card-header">
                       <div>
                         <span className="mobile-order-id">{getFormattedOrderId(order)}</span>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '999px',
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            marginLeft: '6px',
+                          }}
+                        >
+                          TA {resolveAcademicYear(order.academicYear)}
+                        </span>
                         <div style={{ fontWeight: 700, color: '#1e293b' }}>{order.schoolName}</div>
                       </div>
                       <span className={`status-badge ${order.status}`}>
@@ -1104,6 +1175,18 @@ const KopkarPesanan = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <select
+                value={yearFilter}
+                onChange={(e) => {
+                  setHasCustomYear(true);
+                  setYearFilter(e.target.value);
+                }}
+              >
+                <option value="ALL">Semua Tahun Ajaran</option>
+                {availableAcademicYears.map((yr) => (
+                  <option key={yr} value={yr}>TA {yr}</option>
+                ))}
+              </select>
               <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
                 <option value="all">Semua Pembayaran</option>
                 <option value="unpaid">Belum Lunas</option>
@@ -1129,6 +1212,20 @@ const KopkarPesanan = () => {
                       <tr key={order.id}>
                         <td>
                           <strong>{getFormattedOrderId(order)}</strong>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: '999px',
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
+                              marginLeft: '6px',
+                            }}
+                          >
+                            TA {resolveAcademicYear(order.academicYear)}
+                          </span>
                           <div style={{ fontWeight: 600, color: '#1e293b' }}>{order.schoolName}</div>
                           <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{formatDate(order.createdAt)}</div>
                         </td>
@@ -1178,6 +1275,20 @@ const KopkarPesanan = () => {
                     <div className="mobile-card-header">
                       <div>
                         <span className="mobile-order-id">{getFormattedOrderId(order)}</span>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '999px',
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            marginLeft: '6px',
+                          }}
+                        >
+                          TA {resolveAcademicYear(order.academicYear)}
+                        </span>
                         <div style={{ fontWeight: 700, color: '#1e293b' }}>{order.schoolName}</div>
                       </div>
                       <span className="status-badge received">✅ Diterima</span>
@@ -1238,6 +1349,18 @@ const KopkarPesanan = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <select
+                value={yearFilter}
+                onChange={(e) => {
+                  setHasCustomYear(true);
+                  setYearFilter(e.target.value);
+                }}
+              >
+                <option value="ALL">Semua Tahun Ajaran</option>
+                {availableAcademicYears.map((yr) => (
+                  <option key={yr} value={yr}>TA {yr}</option>
+                ))}
+              </select>
               <select
                 value={cancelStatusFilter}
                 onChange={(e) => setCancelStatusFilter(e.target.value as any)}
@@ -1321,6 +1444,20 @@ const KopkarPesanan = () => {
                       >
                         <td>
                           <strong>{order.id}</strong>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: '999px',
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
+                              marginLeft: '6px',
+                            }}
+                          >
+                            TA {resolveAcademicYear(order.academicYear)}
+                          </span>
                           <div style={{ fontWeight: 600, color: '#334155' }}>{order.schoolName}</div>
                           {order.orderPhase && (
                             <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Fase: {order.orderPhase}</span>
@@ -1447,6 +1584,20 @@ const KopkarPesanan = () => {
                     <div className="mobile-card-header">
                       <div>
                         <span className="mobile-order-id">{order.id}</span>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '999px',
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            marginLeft: '6px',
+                          }}
+                        >
+                          TA {resolveAcademicYear(order.academicYear)}
+                        </span>
                         <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#1e2d42' }}>{order.schoolName}</div>
                         <div className="mobile-card-date">
                           {formatDate(

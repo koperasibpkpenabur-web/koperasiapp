@@ -122,6 +122,7 @@ export interface Order {
   schoolName: string;      // Name of the school
   schoolLevel?: SchoolLevel; // Jenjang sekolah pemesan (TK/SD/SMP/SMA/SPK-SD/SPK-SMP/SPK-SMA)
   orderPhase?: 'Tahap 1' | 'Tambahan Tahap 1' | 'Tahap 2' | 'Tambahan Tahap 2' | 'Tambahan Mingguan' | 'On The Spot';
+  academicYear?: string;   // Klasifikasi Tahun Ajaran eksplisit (misal: '2026/2027', '2027/2028')
   items: OrderItem[];
   status: OrderStatus;
   notes: string;           // Notes from school
@@ -177,6 +178,7 @@ export interface ReturnRequest {
   schoolUserId: string;
   schoolName: string;
   schoolLevel?: SchoolLevel;
+  academicYear?: string;      // Tahun Ajaran Asal Barang retur
   items: ReturnItem[];
   reasonCategory?: string;    // Kategori alasan: Rusak, Cacat Jahitan, Salah Ukuran, Kelebihan, dll
   reason: string;             // Alasan retur detail
@@ -212,6 +214,7 @@ export interface VendorPayable {
   vendorName: string;
   orderId: string;
   schoolName: string;
+  academicYear?: string;
   totalAmount: number;
   status: 'pending' | 'paid';
   createdAt: string;
@@ -250,6 +253,7 @@ export interface ParentOrder {
   parentPhone?: string;
   parentEmail?: string;
   orderPhase?: string;
+  academicYear?: string;
   totalKopkar: number;
   totalFeeSchool: number;
   totalAmount: number;

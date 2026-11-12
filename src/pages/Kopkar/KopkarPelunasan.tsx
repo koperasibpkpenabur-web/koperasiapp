@@ -1,17 +1,20 @@
 
-﻿import { useState, useEffect, type FormEvent } from 'react';
+﻿import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders } from '../../context/OrderContext';
 import { useReturns } from '../../context/ReturnContext';
+import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
 import type { Order } from '../../types';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import SuratJalanPrint from './SuratJalanPrint';
 import './kopkar.css';
 
 const KopkarPelunasan = () => {
   const { user } = useAuth();
   const { pendingCount: pendingReturnsCount } = useReturns();
+  const { activeAcademicYear, academicYears } = useSettings();
   const [orders, setOrders] = useState<any[]>([]);
   // Paginasi Server-Side
   const [currentPage, setCurrentPage] = useState(1);
@@ -19,9 +22,16 @@ const KopkarPelunasan = () => {
   const [totalCount, setTotalCount] = useState(0);
 
   // Filters (moved up to avoid TDZ ReferenceError in useEffect)
+  const [yearFilter, setYearFilter] = useState<string>('ALL');
+  const [observedYears, setObservedYears] = useState<string[]>([]);
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const availableAcademicYears = useMemo(
+    () => buildAcademicYearOptions(academicYears, observedYears, activeAcademicYear),
+    [academicYears, activeAcademicYear, observedYears]
+  );
 
   // Aggregates
   const [totalOmzetStudent, setTotalOmzetStudent] = useState(0);
@@ -33,10 +43,15 @@ const KopkarPelunasan = () => {
 
   
   const fetchAggregates = async () => {
-    const { data, error } = await supabase.from('orders').select('status, payment_status, fee_status, order_phase, total_price_student, total_fee_school');
+    const { data, error } = await supabase.from('orders').select('status, payment_status, fee_status, order_phase, total_price_student, total_fee_school, academic_year');
     if (!error && data) {
+      const yrSet = new Set<string>();
       let omzet = 0, paid = 0, cT1 = 0, cT2 = 0, cTamb = 0, cCancelReq = 0;
       data.forEach(o => {
+        const ordYear = resolveAcademicYear(o.academic_year);
+        yrSet.add(ordYear);
+        if (yearFilter !== 'ALL' && ordYear !== yearFilter) return;
+
         if (o.status !== 'cancelled' && o.status !== 'rejected') omzet += Number(o.total_price_student) || 0;
         if (o.payment_status === 'paid') paid += Number(o.total_price_student) || 0;
         
@@ -46,6 +61,7 @@ const KopkarPelunasan = () => {
         else if (o.order_phase === 'Tahap 2') cT2++;
         else if (o.order_phase && o.order_phase.includes('Tambahan')) cTamb++;
       });
+      setObservedYears(Array.from(yrSet));
       setTotalOmzetStudent(omzet);
       setTotalPaidRevenue(paid);
       setCountTahap1(cT1);
@@ -58,6 +74,10 @@ const KopkarPelunasan = () => {
   const fetchOrders = async () => {
     let query = supabase.from('orders').select('*, order_items(*)', { count: 'exact' }).neq('status', 'cancelled').neq('status', 'rejected');
     
+    if (yearFilter !== 'ALL') {
+      query = query.eq('academic_year', yearFilter);
+    }
+
     if (paymentFilter !== 'all') {
       query = query.eq('payment_status', paymentFilter);
     }
@@ -92,6 +112,7 @@ const KopkarPelunasan = () => {
         schoolName: row.school_name,
         schoolLevel: row.school_level,
         orderPhase: row.order_phase,
+        academicYear: resolveAcademicYear(row.academic_year),
         items: (row.order_items || []).map((it: any) => ({
           id: it.id,
           productId: it.product_id,
@@ -129,11 +150,11 @@ const KopkarPelunasan = () => {
 
   useEffect(() => {
     fetchAggregates();
-  }, []);
+  }, [yearFilter]);
 
   useEffect(() => {
     fetchOrders();
-  }, [paymentFilter, timeFilter, searchQuery, currentPage]);
+  }, [paymentFilter, timeFilter, yearFilter, searchQuery, currentPage]);
 
 
   const {
@@ -336,6 +357,18 @@ const KopkarPelunasan = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
               <select
+                value={yearFilter}
+                onChange={(e) => {
+                  setYearFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="ALL">Semua Tahun Ajaran</option>
+                {availableAcademicYears.map((yr) => (
+                  <option key={yr} value={yr}>TA {yr}</option>
+                ))}
+              </select>
+              <select
                 value={timeFilter}
                 onChange={(e) => {
                   setTimeFilter(e.target.value);
@@ -374,6 +407,20 @@ const KopkarPelunasan = () => {
                       <tr key={order.id}>
                         <td>
                           <strong>{order.id}</strong>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: '999px',
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              border: '1px solid #bfdbfe',
+                              marginLeft: '6px',
+                            }}
+                          >
+                            TA {resolveAcademicYear(order.academicYear)}
+                          </span>
                           <div style={{ fontWeight: 600, color: '#1e293b' }}>{order.schoolName}</div>
                           <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{formatDate(order.createdAt)}</div>
                         </td>
@@ -499,6 +546,20 @@ const KopkarPelunasan = () => {
                     <div className="mobile-card-header">
                       <div>
                         <span className="mobile-order-id">{order.id}</span>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '999px',
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            marginLeft: '6px',
+                          }}
+                        >
+                          TA {resolveAcademicYear(order.academicYear)}
+                        </span>
                         <div style={{ fontWeight: 700, color: '#1e293b' }}>{order.schoolName}</div>
                       </div>
                       <span className="status-badge received">✅ Diterima</span>

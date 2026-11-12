@@ -12,6 +12,8 @@ try {
   // plugin may already be attached
 }
 import { supabase } from '../../lib/supabase';
+import { useSettings } from '../../context/SettingsContext';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 
 export interface ForecastItem {
   id: string;
@@ -51,6 +53,7 @@ interface Props {
     vendor_id: string;
     school_user_id: string;
     clothing_type?: string;
+    academic_year?: string;
     vendors?: { name: string; contact_person?: string; phone?: string };
     app_users?: { school_name: string; username?: string; school_level?: string };
   }>;
@@ -128,7 +131,26 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   products,
   readOnly = false,
 }) => {
-  const [targetYear, setTargetYear] = useState('2027/2028');
+  const { activeAcademicYear, academicYears } = useSettings();
+  const [targetYear, setTargetYear] = useState(activeAcademicYear);
+  const [hasCustomTargetYear, setHasCustomTargetYear] = useState(false);
+
+  useEffect(() => {
+    if (!hasCustomTargetYear && activeAcademicYear) {
+      setTargetYear(activeAcademicYear);
+    }
+  }, [activeAcademicYear, hasCustomTargetYear]);
+
+  const availableTargetYears = useMemo(
+    () =>
+      buildAcademicYearOptions(
+        academicYears,
+        plottings.map((p) => p.academic_year),
+        activeAcademicYear
+      ),
+    [academicYears, activeAcademicYear, plottings]
+  );
+
   const [forecastItems, setForecastItems] = useState<ForecastItem[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<'input' | 'allocation'>('input');
   const [selectedVendorFilter, setSelectedVendorFilter] = useState('ALL');
@@ -279,17 +301,19 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             const hasCorrupt = parsedLocal.some((it: any) => Number(it.total) > 100000000 || Object.values(it.sizes || {}).some((s: any) => Number(s) > 100000000));
             if (!hasCorrupt) {
               setForecastItems(normalizeLoadedItems(parsedLocal));
+              return;
             } else {
               localStorage.removeItem(storageKey);
-              setForecastItems([]);
             }
           }
         } catch (e) {
           console.error('Error parsing forecast json from local:', e);
         }
       }
+      setForecastItems([]);
     } catch (err) {
       console.error('Error loading forecast:', err);
+      setForecastItems([]);
     } finally {
       setLoading(false);
     }
@@ -1177,27 +1201,29 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
   // Plottings yang diperkaya dengan nama dan jenjang sekolah valid dari master schools
   const effectivePlottings = useMemo(() => {
-    return plottings.map((p) => {
-      let sName = p.app_users?.school_name || '';
-      let sEmail = p.app_users?.username || '';
-      let sLvl = p.app_users?.school_level || '';
-      const sch = schools.find((s) => s.id === p.school_user_id);
-      if (sch) {
-        if (!sName) sName = sch.school_name;
-        if (!sEmail) sEmail = sch.email || '';
-        if (!sLvl) sLvl = sch.level || '';
-      }
-      const resolvedLvl = resolveSchoolLevel(sName, sEmail, sLvl);
-      return {
-        ...p,
-        app_users: {
-          school_name: sName,
-          username: sEmail,
-          school_level: resolvedLvl,
-        },
-      };
-    });
-  }, [plottings, schools]);
+    return plottings
+      .filter((p) => resolveAcademicYear(p.academic_year) === targetYear)
+      .map((p) => {
+        let sName = p.app_users?.school_name || '';
+        let sEmail = p.app_users?.username || '';
+        let sLvl = p.app_users?.school_level || '';
+        const sch = schools.find((s) => s.id === p.school_user_id);
+        if (sch) {
+          if (!sName) sName = sch.school_name;
+          if (!sEmail) sEmail = sch.email || '';
+          if (!sLvl) sLvl = sch.level || '';
+        }
+        const resolvedLvl = resolveSchoolLevel(sName, sEmail, sLvl);
+        return {
+          ...p,
+          app_users: {
+            school_name: sName,
+            username: sEmail,
+            school_level: resolvedLvl,
+          },
+        };
+      });
+  }, [plottings, schools, targetYear]);
 
   // =========================================================================
   // 2. ENGINE DISTRIBUSI KE VENDOR BERDASARKAN PLOTTING & JENIS BARANG
@@ -4116,7 +4142,10 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             <label style={{ fontSize: '0.86rem', fontWeight: 600, color: '#334155' }}>Tahun Target:</label>
             <select
               value={targetYear}
-              onChange={(e) => setTargetYear(e.target.value)}
+              onChange={(e) => {
+                setHasCustomTargetYear(true);
+                setTargetYear(e.target.value);
+              }}
               style={{
                 padding: '8px 12px',
                 borderRadius: '8px',
@@ -4128,10 +4157,11 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                 outline: 'none',
               }}
             >
-              <option value="2027/2028">2027/2028</option>
-              <option value="2028/2029">2028/2029</option>
-              <option value="2029/2030">2029/2030</option>
-              <option value="2026/2027">2026/2027</option>
+              {availableTargetYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}
+                </option>
+              ))}
             </select>
           </div>
 

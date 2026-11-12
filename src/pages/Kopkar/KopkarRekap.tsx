@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
+import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import './kopkar.css';
 
 interface OrderItemRecap {
@@ -17,6 +19,7 @@ interface OrderRecap {
   schoolName: string;
   schoolLevel: string;
   orderPhase: string;
+  academicYear: string;
   status: string;
   createdAt: string;
   totalPriceStudent: number;
@@ -28,6 +31,7 @@ interface OrderRecap {
 interface RecapRow {
   orderId: string;
   orderDate: string;
+  academicYear: string;
   schoolName: string;
   level: string;
   phase: string;
@@ -44,6 +48,8 @@ interface RecapRow {
 }
 
 const KopkarRekap = () => {
+  const { activeAcademicYear, academicYears } = useSettings();
+  const [academicYearFilter, setAcademicYearFilter] = useState<string>(activeAcademicYear);
   const [statusFilter, setStatusFilter] = useState<string>('all_active');
   const [phaseFilter, setPhaseFilter] = useState<string>('all');
   const [levelFilter, setLevelFilter] = useState<string>('all');
@@ -51,6 +57,10 @@ const KopkarRekap = () => {
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  useEffect(() => {
+    setAcademicYearFilter(activeAcademicYear);
+  }, [activeAcademicYear]);
 
   const [orders, setOrders] = useState<OrderRecap[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,7 +106,7 @@ const KopkarRekap = () => {
         while (hasMore && !isCancelled) {
           let query = supabase
             .from('orders')
-            .select('id, school_name, school_level, order_phase, status, created_at, total_price_student, total_price_kopkar, total_fee_school, order_items(name, type, quantity, price_student, price_kopkar, fee_school)')
+            .select('id, school_name, school_level, order_phase, academic_year, status, created_at, total_price_student, total_price_kopkar, total_fee_school, order_items(name, type, quantity, price_student, price_kopkar, fee_school)')
             .order('created_at', { ascending: false });
 
           if (filterStartDate) {
@@ -132,6 +142,7 @@ const KopkarRekap = () => {
               schoolName: row.school_name || '-',
               schoolLevel: row.school_level || '-',
               orderPhase: row.order_phase || '-',
+              academicYear: resolveAcademicYear(row.academic_year),
               status: row.status || 'pending',
               createdAt: row.created_at || '',
               totalPriceStudent: Number(row.total_price_student) || 0,
@@ -162,11 +173,21 @@ const KopkarRekap = () => {
     };
   }, [filterStartDate, filterEndDate]);
 
+  const yearOptions = useMemo(
+    () => buildAcademicYearOptions(academicYears, orders.map((o) => o.academicYear), activeAcademicYear),
+    [academicYears, orders, activeAcademicYear]
+  );
+
   // Transform dan filter baris rekap
   const recapData = useMemo(() => {
     const qLower = searchQuery.trim().toLowerCase();
 
     const filteredOrders = orders.filter((o) => {
+      // 0. Filter Tahun Ajaran
+      if (academicYearFilter !== 'ALL' && o.academicYear !== academicYearFilter) {
+        return false;
+      }
+
       // 1. Filter Status
       if (statusFilter === 'all_active') {
         if (o.status === 'cancelled' || o.status === 'rejected') return false;
@@ -213,6 +234,7 @@ const KopkarRekap = () => {
           rows.push({
             orderId: o.id,
             orderDate: formattedDate,
+            academicYear: o.academicYear,
             schoolName: o.schoolName,
             level: o.schoolLevel || '-',
             phase: o.orderPhase || '-',
@@ -240,7 +262,7 @@ const KopkarRekap = () => {
     });
 
     return rows;
-  }, [orders, statusFilter, phaseFilter, levelFilter, searchQuery]);
+  }, [orders, academicYearFilter, statusFilter, phaseFilter, levelFilter, searchQuery]);
 
   // Statistik agregasi
   const totalQuantity = useMemo(() => recapData.reduce((acc, row) => acc + row.quantity, 0), [recapData]);
@@ -258,7 +280,7 @@ const KopkarRekap = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, phaseFilter, levelFilter, periodFilter, searchQuery]);
+  }, [academicYearFilter, statusFilter, phaseFilter, levelFilter, periodFilter, searchQuery]);
 
   const formatRupiah = (num: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -277,6 +299,7 @@ const KopkarRekap = () => {
     const exportData = recapData.map((row, index) => ({
       No: index + 1,
       'No. Pesanan': row.orderId,
+      'Tahun Ajaran': row.academicYear,
       'Tanggal Pesan': row.orderDate,
       'Nama Sekolah': row.schoolName,
       Jenjang: row.level,
@@ -298,6 +321,7 @@ const KopkarRekap = () => {
     const wscols = [
       { wch: 6 },  // No
       { wch: 20 }, // No Pesanan
+      { wch: 14 }, // Tahun Ajaran
       { wch: 15 }, // Tanggal
       { wch: 32 }, // Nama Sekolah
       { wch: 10 }, // Jenjang
@@ -317,7 +341,8 @@ const KopkarRekap = () => {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap_Pesanan');
-    XLSX.writeFile(workbook, `Rekap_Pesanan_Koperasi_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const taSlug = academicYearFilter === 'ALL' ? 'Semua_TA' : `TA_${academicYearFilter.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    XLSX.writeFile(workbook, `Rekap_Pesanan_Koperasi_${taSlug}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   return (
@@ -342,6 +367,20 @@ const KopkarRekap = () => {
         }}
       >
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+          {/* Filter Tahun Ajaran */}
+          <select
+            value={academicYearFilter}
+            onChange={(e) => setAcademicYearFilter(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', fontWeight: 600 }}
+          >
+            {yearOptions.map((yr) => (
+              <option key={yr} value={yr}>
+                TA {yr} {yr === activeAcademicYear ? '(Aktif)' : ''}
+              </option>
+            ))}
+            <option value="ALL">Semua Tahun Ajaran</option>
+          </select>
+
           {/* Filter Status */}
           <select
             value={statusFilter}
@@ -566,6 +605,7 @@ const KopkarRekap = () => {
                           <strong>{row.schoolName}</strong>
                           <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>
                             <span className={`badge-level ${row.level}`}>{row.level}</span>
+                            <span style={{ marginLeft: '6px', fontWeight: 700, color: '#0369a1' }}>TA {row.academicYear}</span>
                             <span style={{ marginLeft: '6px', fontWeight: 600, color: '#1e40af' }}>{row.phase}</span>
                             <span style={{ marginLeft: '6px', color: '#94a3b8' }}>• {row.orderDate}</span>
                           </div>

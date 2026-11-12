@@ -1,6 +1,7 @@
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { Order } from '../types';
+import { resolveAcademicYear } from './academicYear';
 import { resolveItemUnit } from './formatUnit';
 
 const terbilang = (angka: number): string => {
@@ -87,7 +88,7 @@ export const generateSuratJalanExcel = async (order: Order) => {
 
   worksheet.mergeCells('A7:G7');
   const orderIdCell = worksheet.getCell('A7');
-  orderIdCell.value = `No. Pesanan: ${order.id}`;
+  orderIdCell.value = `No. Pesanan: ${order.id}  |  Tahun Ajaran: ${resolveAcademicYear(order.academicYear)}`;
   orderIdCell.font = fontStyle;
   orderIdCell.alignment = { horizontal: 'center' };
 
