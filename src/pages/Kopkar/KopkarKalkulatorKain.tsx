@@ -1,5 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useSettings } from '../../context/SettingsContext';
+import { useProducts } from '../../context/ProductContext';
+import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
+import { fetchAllSupabasePaged } from '../../utils/supabasePagination';
+import { normalizeLevel, splitClothingTypes, type ForecastItem } from './KopkarPrediksiProduksi';
 import './kopkar.css';
 
 type GarmentType = 'kemeja' | 'celana' | 'rok' | 'rompi';
@@ -519,15 +524,627 @@ const PRESETS: PresetDef[] = [
   }
 ];
 
+interface KainVendor {
+  id: string;
+  name: string;
+  contact_person?: string;
+  phone?: string;
+}
+
+interface KainSchool {
+  id: string;
+  email: string;
+  school_name: string;
+  level: string;
+}
+
+interface KainPlotting {
+  id: string;
+  vendor_id: string;
+  school_user_id: string;
+  clothing_type?: string;
+  academic_year?: string;
+  vendors?: { name: string; contact_person?: string; phone?: string };
+  app_users?: { school_name: string; username?: string; school_level?: string };
+}
+
+interface RawForecastEntry {
+  id?: string;
+  level?: string;
+  uniformName?: string;
+  sizes?: Record<string, unknown>;
+  total?: unknown;
+  schoolBreakdown?: Record<string, Record<string, unknown>>;
+}
+
+interface CalcSizeResult {
+  name: string;
+  qty: number;
+  ratio: number;
+  forecastPct: number | null;
+  actualPct: number;
+  usageCm: number;
+  totalUsageCm: number;
+}
+
+interface UnmatchedForecastSize {
+  name: string;
+  qty: number;
+  pct: number;
+}
+
+interface VendorCalcDistribution {
+  vendorId: string;
+  vendorName: string;
+  contactPerson: string;
+  phone: string;
+  schoolCount: number;
+  totalSchoolsInLevel: number;
+  sharePercentage: number;
+  shareRatio: number;
+  allocRolls: number;
+  allocNetMeters: number;
+  calcTotalPcs: number;
+  calcSizes: Record<string, number>;
+  spkTotalPcs: number;
+  spkSizes: Record<string, number>;
+  neededRolls: number;
+}
+
+const PRESET_UNIFORM_HINTS: Record<string, string> = {
+  baju_sd: 'Kemeja Putih',
+  rompi_sd: 'Rompi Kotak',
+  celana_sd: 'Celana Merah',
+  rok_sd: 'Rok Merah',
+  baju_pramuka_siaga_sd: 'Pramuka Siaga Putra',
+  baju_smp_sma: 'Kemeja Putih',
+  rompi_smp_sma: 'Rompi Kotak',
+  celana_smp: 'Celana Biru',
+  celana_sma: 'Celana Abu',
+  rok_kulot_smp_sma: 'Rok Kulot',
+  baju_pramuka_putra_smp_sma: 'Kemeja Pramuka Putra',
+  baju_pramuka_putri_sma: 'Kemeja Pramuka Putri',
+  rok_kulot_pramuka_smp_sma: 'Rok Kulot Pramuka',
+};
+
+const SIZE_ALIASES: Record<string, string[]> = {
+  '2L': ['XXL'],
+  XXL: ['2L'],
+  '3L': ['XXXL'],
+  XXXL: ['3L'],
+  '4L': ['XXXXL'],
+  XXXXL: ['4L'],
+};
+
+function getForecastStorageKey(year: string): string {
+  return `production_forecast_${resolveAcademicYear(year).replace(/[^a-zA-Z0-9]/g, '_')}`;
+}
+
+function getForecastItemKey(item: Pick<ForecastItem, 'level' | 'uniformName'>): string {
+  return `${normalizeLevel(item.level)}___${(item.uniformName || '').trim().toUpperCase()}`;
+}
+
+function normalizeSizeKey(raw: string): string {
+  return (raw || '').toUpperCase().replace(/^SIZE\s+/i, '').trim();
+}
+
+function getForecastQtyForSize(forecastSizes: Record<string, number>, sizeName: string): number {
+  const cleanTarget = normalizeSizeKey(sizeName);
+  if (!cleanTarget) return 0;
+
+  for (const [k, v] of Object.entries(forecastSizes)) {
+    if (normalizeSizeKey(k) === cleanTarget) {
+      return Number(v) || 0;
+    }
+  }
+
+  const aliases = SIZE_ALIASES[cleanTarget] || [];
+  for (const alias of aliases) {
+    for (const [k, v] of Object.entries(forecastSizes)) {
+      if (normalizeSizeKey(k) === alias) {
+        return Number(v) || 0;
+      }
+    }
+  }
+  return 0;
+}
+
+function gcdTwo(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) {
+    const t = y;
+    y = x % y;
+    x = t;
+  }
+  return x || 1;
+}
+
+function getCanonicalForecastProductName(
+  rawName: string,
+  level: string,
+  products: Array<{ name?: string; level?: string }>
+): string {
+  const cleanRaw = (rawName || '').trim();
+  if (!cleanRaw) return '';
+  const upperKey = cleanRaw.toUpperCase();
+  const normLvl = level ? normalizeLevel(level) : '';
+
+  if (products && products.length > 0) {
+    if (normLvl) {
+      const matchedWithLvl = products.find(
+        p =>
+          (p.name || '').trim().toUpperCase() === upperKey &&
+          (normalizeLevel(p.level || '') === normLvl || normalizeLevel(p.level || '') === 'SEMUA')
+      );
+      if (matchedWithLvl?.name) return matchedWithLvl.name.trim();
+    }
+    const matched = products.find(p => (p.name || '').trim().toUpperCase() === upperKey);
+    if (matched?.name) return matched.name.trim();
+  }
+  return cleanRaw;
+}
+
+function normalizeForecastItems(
+  rawItems: RawForecastEntry[],
+  products: Array<{ name?: string; level?: string }>
+): ForecastItem[] {
+  const itemMap = new Map<string, ForecastItem>();
+
+  rawItems.forEach((it, idx) => {
+    if (!it.uniformName || !it.level) return;
+    const uLevel = normalizeLevel(it.level);
+    const canonicalName = getCanonicalForecastProductName(String(it.uniformName).trim(), uLevel, products);
+    const key = `${uLevel}___${canonicalName.toUpperCase()}`;
+
+    const cleanSizes: Record<string, number> = {};
+    Object.entries(it.sizes || {}).forEach(([sz, qty]) => {
+      cleanSizes[sz] = Number(qty) || 0;
+    });
+
+    if (!itemMap.has(key)) {
+      const cleanBreakdown: Record<string, Record<string, number>> = {};
+      if (it.schoolBreakdown && typeof it.schoolBreakdown === 'object') {
+        Object.entries(it.schoolBreakdown).forEach(([sch, bdSizes]) => {
+          cleanBreakdown[sch] = {};
+          Object.entries(bdSizes || {}).forEach(([sz, qty]) => {
+            cleanBreakdown[sch][sz] = Number(qty) || 0;
+          });
+        });
+      }
+      const computedTotal = Object.values(cleanSizes).reduce((sum, n) => sum + n, 0);
+      itemMap.set(key, {
+        id: it.id ? String(it.id) : `${key}-${idx}`,
+        level: uLevel,
+        uniformName: canonicalName,
+        sizes: cleanSizes,
+        total: computedTotal > 0 ? computedTotal : Number(it.total) || 0,
+        schoolBreakdown: cleanBreakdown,
+      });
+    } else {
+      const existing = itemMap.get(key)!;
+      Object.entries(cleanSizes).forEach(([sz, qty]) => {
+        existing.sizes[sz] = (existing.sizes[sz] || 0) + qty;
+      });
+      existing.total = Object.values(existing.sizes).reduce((sum, n) => sum + n, 0);
+
+      if (it.schoolBreakdown && typeof it.schoolBreakdown === 'object') {
+        if (!existing.schoolBreakdown) existing.schoolBreakdown = {};
+        Object.entries(it.schoolBreakdown).forEach(([sch, bdSizes]) => {
+          if (!existing.schoolBreakdown![sch]) existing.schoolBreakdown![sch] = {};
+          Object.entries(bdSizes || {}).forEach(([sz, qty]) => {
+            existing.schoolBreakdown![sch][sz] =
+              (existing.schoolBreakdown![sch][sz] || 0) + (Number(qty) || 0);
+          });
+        });
+      }
+    }
+  });
+
+  return Array.from(itemMap.values());
+}
+
+function resolveKainSchoolLevel(schoolName: string, email?: string, existingLevel?: string): string {
+  const n = (schoolName || '').toUpperCase();
+  const e = (email || '').toLowerCase();
+
+  if (n.includes('PRIMARY') || n.includes('SPK-SD') || n.includes('SD-SPK') || e.includes('primary')) return 'SPK-SD';
+  if (n.includes('LOWER') || n.includes('SPK-SMP') || n.includes('SMP-SPK') || e.includes('lower')) return 'SPK-SMP';
+  if (n.includes('UPPER') || n.includes('SPK-SMA') || n.includes('SMA-SPK') || e.includes('upper')) return 'SPK-SMA';
+
+  if (n.startsWith('TKK') || n.includes('TKK ') || n.includes('TK ') || e.includes('tkk') || e.includes('penjualan.k')) return 'TK';
+  if (n.startsWith('SDK') || n.includes('SDK ') || n.includes('SD ') || e.includes('sdk') || e.includes('penjualan.d')) return 'SD';
+  if (n.startsWith('SMPK') || n.includes('SMPK ') || n.includes('SMP ') || e.includes('smpk') || e.includes('penjualan.p')) return 'SMP';
+  if (n.startsWith('SMAK') || n.includes('SMKF') || n.includes('SMAK ') || n.includes('SMA ') || n.includes('SMK') || e.includes('smak') || e.includes('penjualan.a')) return 'SMA';
+
+  const cleanLvl = (existingLevel || '').toUpperCase().trim();
+  if (cleanLvl === 'SD-SPK' || cleanLvl === 'SPK-SD') return 'SPK-SD';
+  if (cleanLvl === 'SMP-SPK' || cleanLvl === 'SPK-SMP') return 'SPK-SMP';
+  if (cleanLvl === 'SMA-SPK' || cleanLvl === 'SPK-SMA') return 'SPK-SMA';
+  return cleanLvl;
+}
+
+function getKainLevelPrefix(level?: string, schoolName?: string): string {
+  const lvl = (level || '').toUpperCase().trim();
+  const n = (schoolName || '').toLowerCase().trim();
+  if (lvl.includes('TK') || lvl.includes('TKK') || n.startsWith('tkk') || n.includes(' tk ') || n.startsWith('tk ')) return 'K';
+  if (lvl.includes('SD') || lvl.includes('SDK') || n.startsWith('sdk') || n.includes(' sd ') || n.startsWith('sd ')) return 'D';
+  if (lvl.includes('SMP') || lvl.includes('SMPK') || n.startsWith('smpk') || n.includes(' smp ') || n.startsWith('smp ')) return 'P';
+  if (lvl.includes('SMA') || lvl.includes('SMAK') || lvl.includes('SMK') || n.startsWith('smak') || n.includes('smk') || n.includes(' sma ') || n.startsWith('sma ')) return 'A';
+  return 'D';
+}
+
+const BRANCH_CODES: Array<{ tokens: string[]; emailTokens: string[]; suffix: string; overrideK?: string }> = [
+  { tokens: ['gading serpong'], emailTokens: ['dgs', 'kgs', 'pgs', 'ags'], suffix: 'GS' },
+  { tokens: ['bintaro jaya'], emailTokens: ['dbj', 'kbj', 'pbj', 'abj'], suffix: 'BJ' },
+  { tokens: ['kota wisata'], emailTokens: ['dkw', 'kkw', 'pkw', 'akw', 'kowis'], suffix: 'KW' },
+  { tokens: ['harapan indah'], emailTokens: ['dhi', 'khi', 'phi', 'ahi'], suffix: 'HI' },
+  { tokens: ['kota modern'], emailTokens: ['dkm', 'kkm', 'pkm', 'akm'], suffix: 'KM' },
+  { tokens: ['agus salim'], emailTokens: ['das', 'kas', 'pas', 'aas'], suffix: 'AS', overrideK: 'KAG' },
+  { tokens: ['depok'], emailTokens: ['ddp', 'kdp', 'pdp', 'adp'], suffix: 'DP' },
+  { tokens: ['summarecon', 'sumarecon'], emailTokens: ['dsb', 'ksb', 'psb', 'asb', 'sumbek'], suffix: 'SB' },
+  { tokens: ['jababeka'], emailTokens: ['dkj', 'kkj', 'pkj', 'akj'], suffix: 'KJ' },
+  { tokens: ['kota tangerang'], emailTokens: ['akt'], suffix: 'KT' },
+];
+
+function getKainSchoolDisplayCode(schoolName: string, email?: string, level?: string): string {
+  const n = (schoolName || '').toLowerCase().trim();
+  const e = (email || '').toLowerCase().trim();
+  const prefix = getKainLevelPrefix(level, schoolName);
+
+  if (n.includes('international') || n.includes('pis') || e.includes('pis')) {
+    if (n.includes('gading') || e.includes('pis.kg') || e.includes('pis_kg')) return 'PIS KG';
+    if (n.includes('duren') || e.includes('pis.td') || e.includes('pis_td')) return 'PIS TD';
+    return 'PIS';
+  }
+  if (n.includes('tirtamarta 1') || n.includes('pondok indah') || e.includes('tirtamarta1') || e.includes('tirtamarta_1')) return 'TM 1';
+  if (n.includes('tirtamarta 2') || n.includes('cinere') || e.includes('tirtamarta2') || e.includes('tirtamarta_2')) return 'TM 2';
+  if (n.includes('tirtamarta')) return 'TM 1';
+  if (n.includes('farmasi') || e.includes('smkf')) return 'SMKF';
+  if (n.includes('kelapa gading indah') || e.includes('dkgi') || e.includes('kgi')) return 'DKGI';
+
+  for (const b of BRANCH_CODES) {
+    if (b.tokens.some(t => n.includes(t)) || b.emailTokens.some(t => e.includes(t))) {
+      if (b.overrideK && prefix === 'K') return b.overrideK;
+      return prefix + b.suffix;
+    }
+  }
+
+  const nameMatch = n.match(/(tkk|sdk|smpk|smak|tk|sd|smp|sma)\s*(\d+)/i);
+  if (nameMatch) {
+    const num = parseInt(nameMatch[2], 10);
+    return prefix + (num < 10 ? `0${num}` : String(num));
+  }
+
+  const emailMatch = e.match(/penjualan\.([a-z0-9]+)@/);
+  if (emailMatch) {
+    const numMatch = emailMatch[1].toUpperCase().match(/(\d+)/);
+    if (numMatch) {
+      const num = parseInt(numMatch[1], 10);
+      return prefix + (num < 10 ? `0${num}` : String(num));
+    }
+  }
+
+  return schoolName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || schoolName;
+}
+
+function isSchoolBreakdownMatch(schoolNameA: string, schoolNameB: string): boolean {
+  const cleanA = (schoolNameA || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanB = (schoolNameB || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!cleanA || !cleanB) return false;
+  if (cleanA === cleanB) return true;
+
+  const genericTerms = [
+    'sekolahpenabur',
+    'bpkpenabur',
+    'penabur',
+    'sekolah',
+    'bpk',
+    'sdpenabur',
+    'tkkpenabur',
+    'smpkpenabur',
+    'smakpenabur',
+  ];
+  if (genericTerms.includes(cleanA) || genericTerms.includes(cleanB)) return false;
+
+  const isTmA = cleanA.includes('tirtamarta') || cleanA.includes('tm1') || cleanA.includes('tm2') || cleanA.startsWith('tm');
+  const isTmB = cleanB.includes('tirtamarta') || cleanB.includes('tm1') || cleanB.includes('tm2') || cleanB.startsWith('tm');
+  if (isTmA !== isTmB) return false;
+
+  const getLvl = (s: string): string => {
+    const low = s.toLowerCase();
+    if (low.includes('tkk') || low.startsWith('tk') || low.startsWith('k0') || low.startsWith('k1')) return 'TK';
+    if (low.includes('sdk') || low.startsWith('sd') || low.startsWith('d0') || low.startsWith('d1')) return 'SD';
+    if (low.includes('smpk') || low.startsWith('smp') || low.startsWith('p0') || low.startsWith('p1')) return 'SMP';
+    if (low.includes('smak') || low.startsWith('sma') || low.startsWith('smk') || low.startsWith('a0') || low.startsWith('a1')) return 'SMA';
+    return '';
+  };
+  const lvlA = getLvl(cleanA);
+  const lvlB = getLvl(cleanB);
+  if (lvlA && lvlB && lvlA !== lvlB) return false;
+
+  const codeA = getKainSchoolDisplayCode(schoolNameA).toUpperCase();
+  const codeB = getKainSchoolDisplayCode(schoolNameB).toUpperCase();
+  if (codeA && codeB && codeA === codeB && !codeA.startsWith('SEKOL') && !codeB.startsWith('SEKOL')) return true;
+  if (codeA && codeA.replace(/[^A-Z0-9]/g, '') === cleanB.toUpperCase()) return true;
+  if (codeB && codeB.replace(/[^A-Z0-9]/g, '') === cleanA.toUpperCase()) return true;
+
+  const numA = (cleanA.match(/(?:tkk|sdk|smpk|smak|d|k|p|a)?(\d{1,2})/i) || [])[1];
+  const numB = (cleanB.match(/(?:tkk|sdk|smpk|smak|d|k|p|a)?(\d{1,2})/i) || [])[1];
+  if (numA && numB) return parseInt(numA, 10) === parseInt(numB, 10);
+  if ((numA && !numB) || (!numA && numB)) return false;
+
+  if (cleanA.length >= 6 && cleanB.length >= 6) {
+    return cleanA.includes(cleanB) || cleanB.includes(cleanA);
+  }
+  return false;
+}
+
+function normalizeItemName(str: string): string {
+  return (str || '')
+    .toUpperCase()
+    .replace(/\bSET\b/g, '')
+    .replace(/\b1\s+SET\b/g, '')
+    .replace(/[-_()/+]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isClothingTypeMatch(targetUniform: string, plottedType: string): boolean {
+  if (!targetUniform || !plottedType) return false;
+  const tRaw = targetUniform.trim().toUpperCase();
+  const pRaw = plottedType.trim().toUpperCase();
+  if (pRaw === 'SEMUA JENIS BAJU' || tRaw === 'SEMUA JENIS BAJU') return true;
+
+  const tNorm = normalizeItemName(targetUniform);
+  const pNorm = normalizeItemName(plottedType);
+  if (!tNorm || !pNorm) return false;
+  if (tNorm === pNorm) return true;
+
+  const isPramukaT = tNorm.includes('PRAMUKA');
+  const isPramukaP = pNorm.includes('PRAMUKA');
+  if (isPramukaT !== isPramukaP) {
+    const accTokens = ['BARET', 'LAKEN', 'KACU', 'SIAGA', 'PENGGALANG', 'PENEGAK', 'AMBALAN'];
+    if (!accTokens.some(k => tNorm.includes(k)) && !accTokens.some(k => pNorm.includes(k))) {
+      return false;
+    }
+  }
+
+  const exclusiveGroups = [
+    ['MERAH', 'BIRU', 'ABU'],
+    ['PUTRA', 'PUTRI'],
+    ['PANJANG', 'PENDEK'],
+    ['ROK', 'KULOT', 'CELANA'],
+  ];
+  for (const grp of exclusiveGroups) {
+    for (const token of grp) {
+      if (tNorm.includes(token) && grp.some(other => other !== token && pNorm.includes(other))) {
+        return false;
+      }
+    }
+  }
+
+  const hasSiagaT = tNorm.includes('SIAGA');
+  const hasPenggalangT = tNorm.includes('PENGGALANG');
+  const hasPenegakT = tNorm.includes('PENEGAK') || tNorm.includes('AMBALAN');
+  const hasSiagaP = pNorm.includes('SIAGA');
+  const hasPenggalangP = pNorm.includes('PENGGALANG');
+  const hasPenegakP = pNorm.includes('PENEGAK') || pNorm.includes('AMBALAN');
+
+  if (
+    (hasSiagaT && (hasPenggalangP || hasPenegakP)) ||
+    (hasSiagaP && (hasPenggalangT || hasPenegakT)) ||
+    (hasPenggalangT && (hasSiagaP || hasPenegakP)) ||
+    (hasPenggalangP && (hasSiagaT || hasPenegakT))
+  ) {
+    return false;
+  }
+
+  if (isPramukaT || isPramukaP) {
+    if (hasSiagaT && !hasSiagaP && (pNorm.includes('PENDEK') || pNorm.includes('PANJANG') || pNorm.includes('AMBALAN'))) return false;
+    if (hasSiagaP && !hasSiagaT && (tNorm.includes('PENDEK') || tNorm.includes('PANJANG') || tNorm.includes('AMBALAN'))) return false;
+    if (hasPenggalangT && !hasPenggalangP && (pNorm.includes('PANJANG') || pNorm.includes('AMBALAN'))) return false;
+    if (hasPenggalangP && !hasPenggalangT && (tNorm.includes('PANJANG') || tNorm.includes('AMBALAN'))) return false;
+  }
+
+  if (
+    (tNorm.includes('CELANA') || tNorm.includes('ROK') || tNorm.includes('KULOT')) &&
+    (pNorm.includes('CELANA') || pNorm.includes('ROK') || pNorm.includes('KULOT'))
+  ) {
+    const isPolosT = tNorm.includes('POLOS') || tNorm.includes('MERAH');
+    const isPolosP = pNorm.includes('POLOS') || pNorm.includes('MERAH');
+    if ((tNorm.includes('KOTAK') && isPolosP) || (pNorm.includes('KOTAK') && isPolosT)) {
+      return false;
+    }
+  }
+
+  if (tNorm.includes('PUTRI') && (tNorm.includes('KOTAK') || tNorm.includes('SERGM') || tNorm.includes('SERAGAM')) && pNorm.includes('PUTRI') && (pNorm.includes('KOTAK') || pNorm.includes('SERGM') || pNorm.includes('SERAGAM'))) return true;
+  if (tNorm.includes('PUTRA') && (tNorm.includes('KOTAK') || tNorm.includes('SERGM') || tNorm.includes('SERAGAM')) && pNorm.includes('PUTRA') && (pNorm.includes('KOTAK') || pNorm.includes('SERGM') || pNorm.includes('SERAGAM'))) return true;
+
+  if (tNorm.includes('KOTAK PUTRA') && pNorm.includes('KOTAK PUTRA')) return true;
+  if (tNorm.includes('KOTAK PUTRI') && pNorm.includes('KOTAK PUTRI')) return true;
+  if (tNorm.includes('ROMPI KOTAK') && pNorm.includes('ROMPI KOTAK')) return true;
+
+  if (tNorm.includes('CELANA MERAH') && (pNorm.includes('CELANA MERAH') || pNorm.includes('CELANA POLOS MERAH'))) return true;
+  if (tNorm.includes('CELANA POLOS') && (pNorm.includes('CELANA POLOS') || pNorm.includes('CELANA MERAH') || pNorm.includes('CELANA POLOS MERAH'))) return true;
+  if (tNorm.includes('KULOT MERAH') && (pNorm.includes('KULOT MERAH') || pNorm.includes('KULOT POLOS MERAH'))) return true;
+  if (tNorm.includes('KULOT POLOS') && (pNorm.includes('KULOT POLOS') || pNorm.includes('KULOT MERAH') || pNorm.includes('KULOT POLOS MERAH'))) return true;
+  if (tNorm.includes('ROK MERAH') && (pNorm.includes('ROK MERAH') || pNorm.includes('ROK POLOS MERAH'))) return true;
+  if (tNorm.includes('ROK POLOS') && (pNorm.includes('ROK POLOS') || pNorm.includes('ROK MERAH') || pNorm.includes('ROK POLOS MERAH'))) return true;
+
+  const exactPhrasePairs = [
+    'CELANA KOTAK', 'ROK KOTAK', 'KULOT KOTAK', 'KEMEJA PUTIH',
+    'CELANA BIRU', 'ROK BIRU', 'KULOT BIRU',
+    'ROK ABU', 'KULOT ABU',
+  ];
+  for (const phrase of exactPhrasePairs) {
+    if (tNorm.includes(phrase) && pNorm.includes(phrase)) return true;
+  }
+  if (tNorm.includes('CELANA ABU') && (pNorm.includes('CELANA ABU') || pNorm.includes('CELANA PANJANG ABU'))) return true;
+
+  const isOlahragaStr = (raw: string) =>
+    raw.includes('OLAHRAGA') ||
+    raw.includes(' OR ') ||
+    raw.endsWith(' OR') ||
+    raw.startsWith('OR ') ||
+    raw.includes('CELANA OR') ||
+    raw.includes('KAOS OR');
+  const isOrT = isOlahragaStr(tRaw);
+  const isOrP = isOlahragaStr(pRaw);
+  if (isOrT || isOrP) {
+    if (!isOrT || !isOrP) return false;
+    const isSetT = (tRaw.includes('SET') || tRaw === 'OLAHRAGA') && !tRaw.includes('KAOS') && !tRaw.includes('CELANA');
+    const isSetP = (pRaw.includes('SET') || pRaw === 'OLAHRAGA') && !pRaw.includes('KAOS') && !pRaw.includes('CELANA');
+    if (isSetT && isSetP) return true;
+    if (isSetT || isSetP) return false;
+
+    const isKaosT = tRaw.includes('KAOS');
+    const isKaosP = pRaw.includes('KAOS');
+    if (isKaosT && isKaosP) return true;
+    if (isKaosT || isKaosP) return false;
+
+    if (tRaw.includes('CELANA') && pRaw.includes('CELANA')) {
+      if ((tRaw.includes('PUTRA') && pRaw.includes('PUTRI')) || (tRaw.includes('PUTRI') && pRaw.includes('PUTRA'))) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  if (tNorm.includes('PRAMUKA') && pNorm.includes('PRAMUKA')) {
+    if (tNorm.includes('TOPI') !== pNorm.includes('TOPI')) return false;
+    if (tNorm.includes('KEMEJA') !== pNorm.includes('KEMEJA')) return false;
+    if (tNorm.includes('CELANA') !== pNorm.includes('CELANA')) return false;
+    if (tNorm.includes('ROK') !== pNorm.includes('ROK')) return false;
+    if (tNorm.includes('KULOT') !== pNorm.includes('KULOT')) return false;
+    if (tNorm.includes('KEMEJA') || tNorm.includes('CELANA') || tNorm.includes('ROK') || tNorm.includes('KULOT') || tNorm.includes('TOPI')) {
+      return true;
+    }
+    return false;
+  }
+
+  for (const acc of ['BARET', 'LAKEN', 'KACU', 'NAME TAG', 'CLEMEK', 'JAS LAB', 'BAJU RENANG']) {
+    if (tNorm.includes(acc) && pNorm.includes(acc)) return true;
+  }
+  if (tNorm.includes('AMBALAN') && pNorm.includes('AMBALAN')) {
+    return tNorm.includes('KEMEJA') === pNorm.includes('KEMEJA');
+  }
+
+  if (!tNorm.includes('TOPI') && !pNorm.includes('TOPI') && !tNorm.includes('DASI') && !pNorm.includes('DASI')) {
+    if (tNorm.length >= 7 && pNorm.length >= 7 && (tNorm.includes(pNorm) || pNorm.includes(tNorm))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const NON_FABRIC_FORECAST_TOKENS = [
+  'BUKU', 'AGENDA', 'KERTAS', 'MAP', 'TOPI', 'DASI', 'KAOS KAKI',
+  'SEPATU', 'GESPER', 'SABUK', 'KACU', 'BARET', 'LAKEN', 'NAME TAG',
+];
+
+function scorePresetToForecastMatch(
+  preset: PresetDef,
+  levelFilter: JenjangFilter,
+  item: ForecastItem
+): number {
+  const fUpper = (item.uniformName || '').toUpperCase();
+  if (!fUpper || NON_FABRIC_FORECAST_TOKENS.some(t => fUpper.includes(t))) {
+    return -100;
+  }
+
+  const fcLevel = normalizeLevel(item.level || '');
+  const presetLevels = preset.levels.map(l => normalizeLevel(l));
+  let score = 0;
+
+  if (levelFilter !== 'SEMUA') {
+    score += fcLevel === levelFilter ? 45 : -60;
+  } else if (presetLevels.includes(fcLevel)) {
+    score += 30;
+    if (fcLevel === presetLevels[0]) score += 5;
+  } else {
+    score -= 50;
+  }
+
+  const pUpper = (preset.label || '').toUpperCase();
+  const pPramuka = pUpper.includes('PRAMUKA') || pUpper.includes('SIAGA');
+  const fPramuka =
+    fUpper.includes('PRAMUKA') ||
+    fUpper.includes('SIAGA') ||
+    fUpper.includes('PENGGALANG') ||
+    fUpper.includes('PENEGAK') ||
+    fUpper.includes('AMBALAN');
+
+  if (pPramuka !== fPramuka) return -80;
+  if (pPramuka) score += 25;
+
+  const isRompiF = fUpper.includes('ROMPI');
+  const isCelanaF = fUpper.includes('CELANA');
+  const isRokOrKulotF = fUpper.includes('ROK') || fUpper.includes('KULOT');
+  const isTopF =
+    !isRompiF &&
+    !isCelanaF &&
+    !isRokOrKulotF &&
+    (fUpper.includes('KEMEJA') ||
+      fUpper.includes('BAJU') ||
+      fUpper.includes('ATASAN') ||
+      fUpper.includes('KOTAK PUTRA') ||
+      fUpper.includes('KOTAK PUTRI') ||
+      fUpper.includes('BATIK') ||
+      fUpper.includes('KAOS') ||
+      fUpper.includes('OLAHRAGA') ||
+      fUpper.includes('JAS'));
+
+  if (preset.type === 'rompi') score += isRompiF ? 30 : -45;
+  else if (preset.type === 'celana') score += isCelanaF ? 30 : -45;
+  else if (preset.type === 'rok') score += isRokOrKulotF ? 30 : -45;
+  else if (preset.type === 'kemeja') score += isTopF ? 25 : -45;
+
+  const pStrictPutra = pUpper.includes('PUTRA') && !pUpper.includes('PUTRI');
+  const pStrictPutri = pUpper.includes('PUTRI') && !pUpper.includes('PUTRA');
+  if (pStrictPutra) score += fUpper.includes('PUTRA') ? 15 : fUpper.includes('PUTRI') ? -25 : 0;
+  if (pStrictPutri) score += fUpper.includes('PUTRI') ? 15 : fUpper.includes('PUTRA') ? -25 : 0;
+
+  for (const kw of ['SIAGA', 'MERAH', 'BIRU', 'ABU', 'KOTAK', 'KULOT', 'PANJANG', 'PENDEK', 'BATIK']) {
+    if (pUpper.includes(kw) && fUpper.includes(kw)) score += 10;
+  }
+  if (!pUpper.includes('BATIK') && !fUpper.includes('BATIK')) score += 8;
+  if (!pPramuka && !pUpper.includes('KOTAK') && fUpper.includes('PUTIH')) score += 8;
+
+  return score;
+}
+
 interface KalkulatorKainProps {
   readOnly?: boolean;
 }
 
 const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
+  const { activeAcademicYear, academicYears } = useSettings();
+  const { products } = useProducts();
+
   const [totalRolls, setTotalRolls] = useState<number>(1);
   const [yardsPerRoll, setYardsPerRoll] = useState<number>(60);
   const [fabricWidth] = useState<number>(150);
   const [defectTolerance, setDefectTolerance] = useState<number>(5);
+
+  // State Tahun Ajaran & Integrasi Persentase Prediksi Produksi
+  const [forecastAcademicYear, setForecastAcademicYear] = useState<string>('2027/2028');
+  const [calcMode, setCalcMode] = useState<'forecast' | 'manual'>('forecast');
+  const [manualForecastSelection, setManualForecastSelection] = useState<{ scope: string; key: string }>({
+    scope: '',
+    key: '',
+  });
+  const [vendorFilterSelection, setVendorFilterSelection] = useState<{ scope: string; vendorId: string }>({
+    scope: '',
+    vendorId: 'ALL',
+  });
+  const [forecastItems, setForecastItems] = useState<ForecastItem[]>([]);
+  const [forecastLoading, setForecastLoading] = useState<boolean>(false);
+  const [vendors, setVendors] = useState<KainVendor[]>([]);
+  const [plottings, setPlottings] = useState<KainPlotting[]>([]);
+  const [schools, setSchools] = useState<KainSchool[]>([]);
+  const [vendorDataLoading, setVendorDataLoading] = useState<boolean>(false);
 
   const [selectedLevel, setSelectedLevel] = useState<JenjangFilter>('SEMUA');
   const [customPresets, setCustomPresets] = useState<PresetDef[]>([]);
@@ -552,6 +1169,301 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
   useEffect(() => {
     selectedKeyRef.current = selectedPresetKey;
   }, [selectedPresetKey]);
+
+  const selectionScope = `${selectedPresetKey}__${selectedLevel}__${forecastAcademicYear}`;
+  const manualForecastKey =
+    manualForecastSelection.scope === selectionScope ? manualForecastSelection.key : '';
+  const selectedVendorFilter =
+    vendorFilterSelection.scope === selectionScope ? vendorFilterSelection.vendorId : 'ALL';
+
+  const forecastYearOptions = useMemo(
+    () =>
+      buildAcademicYearOptions(
+        academicYears,
+        ['2027/2028', ...plottings.map(p => p.academic_year)],
+        activeAcademicYear
+      ),
+    [academicYears, plottings, activeAcademicYear]
+  );
+
+  // Fetch master vendor, plotting, dan sekolah untuk kalkulasi porsi (%) vendor per TA
+  useEffect(() => {
+    let active = true;
+
+    const loadVendorAndPlottingData = async () => {
+      if (active) setVendorDataLoading(true);
+      try {
+        const [vendorsRes, assignmentsRes, whitelistRes, appUsersRes] = await Promise.all([
+          fetchAllSupabasePaged<KainVendor>((from, to) =>
+            supabase.from('vendors').select('id, name, contact_person, phone').order('name', { ascending: true }).range(from, to)
+          ),
+          fetchAllSupabasePaged<Record<string, unknown>>((from, to) =>
+            supabase
+              .from('vendor_school_assignments')
+              .select('id, vendor_id, school_user_id, clothing_type, academic_year, vendors(name, contact_person, phone), app_users(school_name, username, school_level)')
+              .range(from, to)
+          ),
+          fetchAllSupabasePaged((from, to) =>
+            supabase.from('school_whitelist').select('*').range(from, to)
+          ),
+          fetchAllSupabasePaged((from, to) =>
+            supabase.from('app_users').select('id, username, name, school_name, school_level, role').eq('role', 'sekolah').range(from, to)
+          ),
+        ]);
+
+        if (!active) return;
+
+        const wlData = whitelistRes.data || [];
+        const appUsersData = appUsersRes.data || [];
+
+        const userMap = new Map<string, { id: string; school_name: string; school_level: string }>();
+        appUsersData.forEach((u: Record<string, unknown>) => {
+          const uname = typeof u.username === 'string' ? u.username.toLowerCase().trim() : '';
+          if (uname) {
+            userMap.set(uname, {
+              id: String(u.id || ''),
+              school_name: String(u.school_name || ''),
+              school_level: String(u.school_level || ''),
+            });
+          }
+        });
+
+        const schoolList: KainSchool[] = [];
+        const addedSchoolKeys = new Set<string>();
+        const wlMap = new Map<string, Record<string, unknown>>();
+
+        wlData.forEach((w: Record<string, unknown>) => {
+          wlMap.set(String(w.id || ''), w);
+          const emailClean = typeof w.email === 'string' ? w.email.toLowerCase().trim() : '';
+          if (!emailClean) return;
+          wlMap.set(emailClean, w);
+
+          const appUser = userMap.get(emailClean);
+          if (appUser) {
+            const rawJenjang = String(w.Jenjang || w.jenjang || appUser.school_level || 'SD').trim();
+            const sName = String(w.nama_sekolah || w.Nama_Sekolah || appUser.school_name || emailClean).trim();
+            schoolList.push({
+              id: appUser.id,
+              email: emailClean,
+              school_name: sName,
+              level: rawJenjang,
+            });
+            addedSchoolKeys.add(sName.toLowerCase().replace(/[^a-z0-9]/g, ''));
+          }
+        });
+
+        appUsersData.forEach((u: Record<string, unknown>) => {
+          if (u.role === 'guru_ots') return;
+          const schoolName = String(u.school_name || u.name || '').trim();
+          if (!schoolName) return;
+          const lowerName = schoolName.toLowerCase();
+          const lowerUser = String(u.username || '').toLowerCase();
+          if (
+            lowerName.includes('on the spot') ||
+            lowerName.includes('guru ots') ||
+            lowerName.includes('guru on the spot') ||
+            lowerName === 'sekolah penabur' ||
+            lowerName === 'bpk penabur' ||
+            lowerUser.includes('spot') ||
+            lowerUser.includes('guru_ots')
+          ) {
+            return;
+          }
+          const key = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (!addedSchoolKeys.has(key)) {
+            schoolList.push({
+              id: String(u.id || ''),
+              email: String(u.username || ''),
+              school_name: schoolName,
+              level: String(u.school_level || 'SD').trim(),
+            });
+            addedSchoolKeys.add(key);
+          }
+        });
+
+        const loadedVendors = (vendorsRes.data || []).slice().sort((a, b) =>
+          (a.name || '').localeCompare(b.name || '', 'id', { numeric: true, sensitivity: 'base' })
+        );
+
+        const loadedPlottings: KainPlotting[] = (assignmentsRes.data || []).map(row => {
+          const vendorRelRaw = Array.isArray(row.vendors) ? row.vendors[0] : row.vendors;
+          const appUserRelRaw = Array.isArray(row.app_users) ? row.app_users[0] : row.app_users;
+          const vendorRel =
+            vendorRelRaw && typeof vendorRelRaw === 'object'
+              ? {
+                  name: String((vendorRelRaw as Record<string, unknown>).name || ''),
+                  contact_person: (vendorRelRaw as Record<string, unknown>).contact_person
+                    ? String((vendorRelRaw as Record<string, unknown>).contact_person)
+                    : undefined,
+                  phone: (vendorRelRaw as Record<string, unknown>).phone
+                    ? String((vendorRelRaw as Record<string, unknown>).phone)
+                    : undefined,
+                }
+              : undefined;
+
+          const baseAppUser =
+            appUserRelRaw && typeof appUserRelRaw === 'object'
+              ? {
+                  school_name: String((appUserRelRaw as Record<string, unknown>).school_name || ''),
+                  username: (appUserRelRaw as Record<string, unknown>).username
+                    ? String((appUserRelRaw as Record<string, unknown>).username)
+                    : undefined,
+                  school_level: (appUserRelRaw as Record<string, unknown>).school_level
+                    ? String((appUserRelRaw as Record<string, unknown>).school_level)
+                    : undefined,
+                }
+              : undefined;
+
+          const basePlotting: KainPlotting = {
+            id: String(row.id || ''),
+            vendor_id: String(row.vendor_id || ''),
+            school_user_id: String(row.school_user_id || ''),
+            clothing_type: row.clothing_type ? String(row.clothing_type) : undefined,
+            academic_year: row.academic_year ? String(row.academic_year) : undefined,
+            vendors: vendorRel,
+            app_users: baseAppUser,
+          };
+
+          if (!basePlotting.app_users?.school_name) {
+            const sch = schoolList.find(s => s.id === basePlotting.school_user_id);
+            const wlSch = wlMap.get(String(basePlotting.school_user_id));
+            if (sch) {
+              return {
+                ...basePlotting,
+                app_users: {
+                  school_name: sch.school_name,
+                  username: sch.email || '',
+                  school_level: normalizeLevel(sch.level || ''),
+                },
+              };
+            }
+            if (wlSch) {
+              return {
+                ...basePlotting,
+                app_users: {
+                  school_name: String(wlSch.nama_sekolah || wlSch.Nama_Sekolah || ''),
+                  username: String(wlSch.email || ''),
+                  school_level: normalizeLevel(String(wlSch.Jenjang || wlSch.jenjang || '')),
+                },
+              };
+            }
+          } else if (basePlotting.app_users.school_level) {
+            return {
+              ...basePlotting,
+              app_users: {
+                ...basePlotting.app_users,
+                school_level: normalizeLevel(basePlotting.app_users.school_level),
+              },
+            };
+          }
+          return basePlotting;
+        });
+
+        setVendors(loadedVendors);
+        setSchools(schoolList);
+        setPlottings(loadedPlottings);
+      } catch (err) {
+        console.warn('Gagal memuat data vendor & plotting untuk kalkulator kain:', err);
+      } finally {
+        if (active) setVendorDataLoading(false);
+      }
+    };
+
+    loadVendorAndPlottingData();
+
+    const channel = supabase
+      .channel('kalkulator_vendor_plotting_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors' }, () => {
+        loadVendorAndPlottingData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendor_school_assignments' }, () => {
+        loadVendorAndPlottingData();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Fetch data persentase item dari tab Prediksi Produksi berdasarkan Tahun Ajaran terpilih
+  useEffect(() => {
+    let active = true;
+    const storageKey = getForecastStorageKey(forecastAcademicYear);
+
+    const loadForecastForYear = async () => {
+      if (active) setForecastLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', storageKey)
+          .maybeSingle();
+
+        if (!active) return;
+
+        if (!error && data?.value) {
+          try {
+            const parsed = JSON.parse(data.value);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const hasCorrupt = parsed.some(
+                (it: RawForecastEntry) =>
+                  Number(it.total) > 100000000 ||
+                  Object.values(it.sizes || {}).some(s => Number(s) > 100000000)
+              );
+              if (!hasCorrupt) {
+                setForecastItems(normalizeForecastItems(parsed, products));
+                if (active) setForecastLoading(false);
+                return;
+              }
+            }
+          } catch (parseErr) {
+            console.warn('Gagal parse JSON prediksi produksi dari DB:', parseErr);
+          }
+        }
+
+        const localRaw = localStorage.getItem(storageKey);
+        if (localRaw) {
+          try {
+            const parsedLocal = JSON.parse(localRaw);
+            if (Array.isArray(parsedLocal) && parsedLocal.length > 0) {
+              setForecastItems(normalizeForecastItems(parsedLocal, products));
+              if (active) setForecastLoading(false);
+              return;
+            }
+          } catch (localErr) {
+            console.warn('Gagal parse JSON prediksi produksi lokal:', localErr);
+          }
+        }
+
+        setForecastItems([]);
+      } catch (err) {
+        console.warn('Error loading forecast for year', forecastAcademicYear, err);
+        if (active) setForecastItems([]);
+      } finally {
+        if (active) setForecastLoading(false);
+      }
+    };
+
+    loadForecastForYear();
+
+    const settingsChannel = supabase
+      .channel(`kalkulator_forecast_sync_${storageKey}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'app_settings', filter: `key=eq.${storageKey}` },
+        () => {
+          loadForecastForYear();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(settingsChannel);
+    };
+  }, [forecastAcademicYear, products]);
 
   const allPresets = useMemo<PresetDef[]>(
     () => [...PRESETS, ...customPresets],
@@ -967,7 +1879,39 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
     ]);
   };
 
-  // Logic Perhitungan
+  // Urutkan & cocokkan item dari tab Prediksi Produksi terhadap model yang sedang dipilih
+  const sortedForecastOptions = useMemo(() => {
+    const items = forecastItems.filter(it => {
+      const upper = (it.uniformName || '').toUpperCase();
+      return !['BUKU', 'AGENDA', 'KERTAS', 'MAP'].some(tok => upper.includes(tok));
+    });
+
+    return items
+      .map(item => ({
+        key: getForecastItemKey(item),
+        item,
+        score: currentPreset ? scorePresetToForecastMatch(currentPreset, selectedLevel, item) : 0,
+      }))
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.item.total - a.item.total ||
+          a.item.uniformName.localeCompare(b.item.uniformName, 'id')
+      );
+  }, [forecastItems, currentPreset, selectedLevel]);
+
+  const matchedForecastItem = useMemo<ForecastItem | null>(() => {
+    if (manualForecastKey) {
+      const manualMatch = forecastItems.find(it => getForecastItemKey(it) === manualForecastKey);
+      if (manualMatch) return manualMatch;
+    }
+    if (sortedForecastOptions.length > 0 && sortedForecastOptions[0].score >= 20) {
+      return sortedForecastOptions[0].item;
+    }
+    return null;
+  }, [manualForecastKey, forecastItems, sortedForecastOptions]);
+
+  // Logic Perhitungan (terintegrasi proporsi % Prediksi Produksi per Tahun Ajaran)
   const calculation = useMemo(() => {
     const totalYards = totalRolls * yardsPerRoll;
     const grossLengthCm = totalYards * 91.44;
@@ -980,7 +1924,11 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
         lengthPerSet: 0,
         totalRatioParts: 0,
         maxSets: 0,
-        results: [] as { name: string; qty: number; usageCm: number; totalUsageCm: number }[],
+        avgUsageCm: 0,
+        modeUsed: 'manual' as 'forecast' | 'manual',
+        fallbackReason: '',
+        unmatchedForecastSizes: [] as UnmatchedForecastSize[],
+        results: [] as CalcSizeResult[],
         usedLengthCm: 0,
         remainingLengthCm: netLengthCm,
         totalPcs: 0,
@@ -990,50 +1938,191 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
     const sizesWithUsage = sizes.map(size => {
       let usageCm = 0;
       const seamAllowance = 15;
-
       const { data } = size;
       const type = currentPreset.type;
 
       if (type === 'kemeja') {
-        const pBaju = data.panjangBaju || 0;
-        const pLengan = data.panjangLengan || 0;
-        usageCm = pBaju + pLengan + seamAllowance;
+        usageCm = (data.panjangBaju || 0) + (data.panjangLengan || 0) + seamAllowance;
       } else if (type === 'rompi') {
-        const pBaju = data.panjangBaju || 0;
-        usageCm = pBaju + seamAllowance;
+        usageCm = (data.panjangBaju || 0) + seamAllowance;
       } else if (type === 'celana') {
-        const pCelana = data.panjangCelana || 0;
-        usageCm = pCelana + seamAllowance + 5;
+        usageCm = (data.panjangCelana || 0) + seamAllowance + 5;
       } else if (type === 'rok') {
-        const pRok = data.panjangRok || 0;
-        usageCm = pRok + seamAllowance;
+        usageCm = (data.panjangRok || 0) + seamAllowance;
       }
 
       return { ...size, usageCm };
     });
 
-    const lengthPerSet = sizesWithUsage.reduce((acc, curr) => acc + curr.usageCm * curr.ratio, 0);
-    const totalRatioParts = sizesWithUsage.reduce((acc, curr) => acc + curr.ratio, 0);
-
+    let modeUsed: 'forecast' | 'manual' = 'manual';
+    let fallbackReason = '';
+    let unmatchedForecastSizes: UnmatchedForecastSize[] = [];
+    let results: CalcSizeResult[] = [];
+    let usedLengthCm = 0;
+    let totalPcs = 0;
     let maxSets = 0;
-    let results: { name: string; qty: number; usageCm: number; totalUsageCm: number }[] = [];
+    let lengthPerSet = 0;
+    let totalRatioParts = 0;
+    let avgUsageCm = 0;
 
-    if (lengthPerSet > 0) {
-      maxSets = Math.floor(netLengthCm / lengthPerSet);
+    if (calcMode === 'forecast') {
+      if (!matchedForecastItem) {
+        fallbackReason =
+          forecastItems.length === 0
+            ? `Belum ada data Prediksi Produksi tersimpan untuk TA ${forecastAcademicYear}. Menggunakan Rasio Manual Size Chart.`
+            : `Belum ada item Prediksi Produksi TA ${forecastAcademicYear} yang cocok/dipilih. Menggunakan Rasio Manual Size Chart.`;
+      } else {
+        const seenNormalizedNames = new Set<string>();
+        const matchedEntries = sizesWithUsage.map(s => {
+          const normName = normalizeSizeKey(s.name);
+          const isDuplicate = !normName || seenNormalizedNames.has(normName);
+          if (normName && !isDuplicate) seenNormalizedNames.add(normName);
 
-      results = sizesWithUsage.map(s => {
-        const qty = maxSets * s.ratio;
-        return {
-          name: s.name,
-          qty,
-          usageCm: s.usageCm,
-          totalUsageCm: qty * s.usageCm,
-        };
-      });
+          const fcQty = isDuplicate ? 0 : getForecastQtyForSize(matchedForecastItem.sizes, s.name);
+          return {
+            size: s,
+            fcQty,
+            isActive: s.usageCm > 0 && fcQty > 0,
+          };
+        });
+
+        const chartSizeNames = new Set(
+          sizesWithUsage.map(s => normalizeSizeKey(s.name)).filter(Boolean)
+        );
+        unmatchedForecastSizes = Object.entries(matchedForecastItem.sizes)
+          .filter(([szName, qty]) => {
+            const num = Number(qty) || 0;
+            if (num <= 0) return false;
+            const cleanSz = normalizeSizeKey(szName);
+            if (chartSizeNames.has(cleanSz)) return false;
+            const aliases = SIZE_ALIASES[cleanSz] || [];
+            return !aliases.some(a => chartSizeNames.has(a));
+          })
+          .map(([szName, qty]) => {
+            const num = Number(qty) || 0;
+            return {
+              name: szName,
+              qty: num,
+              pct: matchedForecastItem.total > 0 ? (num / matchedForecastItem.total) * 100 : 0,
+            };
+          });
+
+        const matchedQtySum = matchedEntries.reduce(
+          (sum, e) => (e.isActive ? sum + e.fcQty : sum),
+          0
+        );
+
+        if (matchedQtySum <= 0) {
+          fallbackReason = `Nama ukuran di [${matchedForecastItem.level}] ${matchedForecastItem.uniformName} belum cocok dengan kolom Size pada Size Chart. Menggunakan Rasio Manual.`;
+        } else {
+          modeUsed = 'forecast';
+          const weightedItems = matchedEntries.map(e => ({
+            ...e,
+            weight: e.isActive ? e.fcQty / matchedQtySum : 0,
+          }));
+
+          avgUsageCm = weightedItems.reduce(
+            (sum, e) => (e.isActive ? sum + e.weight * e.size.usageCm : sum),
+            0
+          );
+
+          const allocatedQtys = weightedItems.map(() => 0);
+
+          if (avgUsageCm > 0 && netLengthCm > 0) {
+            const theoreticalTotal = netLengthCm / avgUsageCm;
+
+            weightedItems.forEach((item, idx) => {
+              if (!item.isActive) return;
+              allocatedQtys[idx] = Math.floor(theoreticalTotal * item.weight);
+            });
+
+            usedLengthCm = weightedItems.reduce(
+              (sum, item, idx) => sum + allocatedQtys[idx] * item.size.usageCm,
+              0
+            );
+
+            while (usedLengthCm > netLengthCm + 1e-6) {
+              let trimIdx = -1;
+              let smallestFrac = Infinity;
+              weightedItems.forEach((item, idx) => {
+                if (!item.isActive || allocatedQtys[idx] <= 0) return;
+                const frac = theoreticalTotal * item.weight - allocatedQtys[idx];
+                if (frac < smallestFrac) {
+                  smallestFrac = frac;
+                  trimIdx = idx;
+                }
+              });
+              if (trimIdx === -1) break;
+              allocatedQtys[trimIdx] -= 1;
+              usedLengthCm -= weightedItems[trimIdx].size.usageCm;
+            }
+
+            const remainderOrder = weightedItems
+              .map((item, idx) => ({
+                idx,
+                frac: item.isActive ? theoreticalTotal * item.weight - allocatedQtys[idx] : -1,
+                weight: item.weight,
+              }))
+              .filter(r => r.frac >= 0)
+              .sort((a, b) => b.frac - a.frac || b.weight - a.weight || a.idx - b.idx);
+
+            for (const entry of remainderOrder) {
+              const need = weightedItems[entry.idx].size.usageCm;
+              if (usedLengthCm + need <= netLengthCm + 1e-6) {
+                allocatedQtys[entry.idx] += 1;
+                usedLengthCm += need;
+              }
+            }
+          }
+
+          totalPcs = allocatedQtys.reduce((a, b) => a + b, 0);
+          usedLengthCm = weightedItems.reduce(
+            (sum, item, idx) => sum + allocatedQtys[idx] * item.size.usageCm,
+            0
+          );
+
+          results = weightedItems.map((item, idx) => {
+            const qty = allocatedQtys[idx];
+            return {
+              name: item.size.name,
+              qty,
+              ratio: item.size.ratio,
+              forecastPct: item.isActive ? item.weight * 100 : 0,
+              actualPct: totalPcs > 0 ? (qty / totalPcs) * 100 : 0,
+              usageCm: item.size.usageCm,
+              totalUsageCm: qty * item.size.usageCm,
+            };
+          });
+        }
+      }
     }
 
-    const usedLengthCm = maxSets * lengthPerSet;
-    const remainingLengthCm = netLengthCm - usedLengthCm;
+    if (modeUsed === 'manual') {
+      lengthPerSet = sizesWithUsage.reduce((acc, curr) => acc + curr.usageCm * curr.ratio, 0);
+      totalRatioParts = sizesWithUsage.reduce((acc, curr) => acc + curr.ratio, 0);
+      avgUsageCm = totalRatioParts > 0 ? lengthPerSet / totalRatioParts : 0;
+
+      if (lengthPerSet > 0) {
+        maxSets = Math.floor(netLengthCm / lengthPerSet);
+        totalPcs = maxSets * totalRatioParts;
+        usedLengthCm = maxSets * lengthPerSet;
+
+        results = sizesWithUsage.map(s => {
+          const qty = maxSets * s.ratio;
+          return {
+            name: s.name,
+            qty,
+            ratio: s.ratio,
+            forecastPct: null,
+            actualPct: totalPcs > 0 ? (qty / totalPcs) * 100 : 0,
+            usageCm: s.usageCm,
+            totalUsageCm: qty * s.usageCm,
+          };
+        });
+      }
+    }
+
+    const remainingLengthCm = Math.max(0, netLengthCm - usedLengthCm);
 
     return {
       grossLengthCm,
@@ -1041,12 +2130,275 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
       lengthPerSet,
       totalRatioParts,
       maxSets,
+      avgUsageCm,
+      modeUsed,
+      fallbackReason,
+      unmatchedForecastSizes,
       results,
       usedLengthCm,
       remainingLengthCm,
-      totalPcs: maxSets * totalRatioParts,
+      totalPcs,
     };
-  }, [totalRolls, yardsPerRoll, defectTolerance, currentPreset, sizes]);
+  }, [
+    totalRolls,
+    yardsPerRoll,
+    defectTolerance,
+    currentPreset,
+    sizes,
+    calcMode,
+    matchedForecastItem,
+    forecastItems.length,
+    forecastAcademicYear,
+  ]);
+
+  // Engine porsi alokasi vendor sesuai rumus tab Prediksi Produksi pada Tahun Ajaran terpilih
+  const vendorSummary = useMemo(() => {
+    const targetLevel = matchedForecastItem
+      ? normalizeLevel(matchedForecastItem.level)
+      : currentPreset
+        ? selectedLevel !== 'SEMUA'
+          ? selectedLevel
+          : normalizeLevel(currentPreset.levels[0] || 'SD')
+        : '';
+
+    const targetUniformName = matchedForecastItem
+      ? matchedForecastItem.uniformName
+      : currentPreset
+        ? PRESET_UNIFORM_HINTS[currentPreset.key] || currentPreset.label
+        : '';
+
+    const netCmPerRoll = yardsPerRoll * 91.44 * (1 - defectTolerance / 100);
+    const totalNeededRolls =
+      matchedForecastItem && calculation.avgUsageCm > 0 && netCmPerRoll > 0
+        ? (matchedForecastItem.total * calculation.avgUsageCm) / netCmPerRoll
+        : 0;
+
+    if (!targetLevel || !targetUniformName || plottings.length === 0) {
+      return {
+        targetLevel,
+        targetUniformName,
+        totalSchoolsForItem: 0,
+        totalNeededRolls,
+        vendors: [] as VendorCalcDistribution[],
+      };
+    }
+
+    const effectivePlottings = plottings
+      .filter(p => resolveAcademicYear(p.academic_year) === forecastAcademicYear)
+      .map(p => {
+        let sName = p.app_users?.school_name || '';
+        let sEmail = p.app_users?.username || '';
+        let sLvl = p.app_users?.school_level || '';
+        const sch = schools.find(s => s.id === p.school_user_id);
+        if (sch) {
+          if (!sName) sName = sch.school_name;
+          if (!sEmail) sEmail = sch.email || '';
+          if (!sLvl) sLvl = sch.level || '';
+        }
+        const resolvedLvl = resolveKainSchoolLevel(sName, sEmail, sLvl);
+        return {
+          ...p,
+          resolvedSchoolName: sName,
+          resolvedSchoolLevel: normalizeLevel(resolvedLvl),
+        };
+      });
+
+    const upperUniform = targetUniformName.toUpperCase();
+    const isBookItem =
+      upperUniform.includes('BUKU') ||
+      upperUniform.includes('AGENDA') ||
+      upperUniform.includes('KERTAS') ||
+      upperUniform.includes('MAP');
+
+    const matchedPlottings = effectivePlottings.filter(p => {
+      if (p.resolvedSchoolLevel !== normalizeLevel(targetLevel)) return false;
+      const plottedTypes = splitClothingTypes(p.clothing_type);
+      return plottedTypes.some(pt => {
+        if (pt === 'Semua Jenis Baju') return !isBookItem;
+        return isClothingTypeMatch(targetUniformName, pt);
+      });
+    });
+
+    const schoolsByVendor = new Map<string, Set<string>>();
+    matchedPlottings.forEach(p => {
+      if (!schoolsByVendor.has(p.vendor_id)) schoolsByVendor.set(p.vendor_id, new Set());
+      schoolsByVendor.get(p.vendor_id)!.add(p.school_user_id);
+    });
+
+    const activeVendors = Array.from(schoolsByVendor.entries())
+      .filter(([, sSet]) => sSet.size > 0)
+      .map(([vendorId, sSet]) => ({ vendorId, schoolCount: sSet.size }));
+
+    const totalSchoolsForItem = activeVendors.reduce((sum, av) => sum + av.schoolCount, 0);
+    if (totalSchoolsForItem === 0) {
+      return {
+        targetLevel,
+        targetUniformName,
+        totalSchoolsForItem: 0,
+        totalNeededRolls,
+        vendors: [] as VendorCalcDistribution[],
+      };
+    }
+
+    let maxVendorId = activeVendors[0].vendorId;
+    let maxVendorCount = -1;
+    activeVendors.forEach(av => {
+      if (av.schoolCount > maxVendorCount) {
+        maxVendorCount = av.schoolCount;
+        maxVendorId = av.vendorId;
+      }
+    });
+
+    // Bagi hasil potong kain saat ini ke vendor sesuai % porsi plotting (sama dg Prediksi Produksi)
+    const calcSizesByVendor = new Map<string, Record<string, number>>();
+    activeVendors.forEach(av => calcSizesByVendor.set(av.vendorId, {}));
+
+    calculation.results.forEach(res => {
+      if (res.qty <= 0 || !res.name) return;
+      let allocatedSum = 0;
+      activeVendors.forEach(av => {
+        const ratio = av.schoolCount / totalSchoolsForItem;
+        const vQty = Math.round(res.qty * ratio);
+        calcSizesByVendor.get(av.vendorId)![res.name] =
+          (calcSizesByVendor.get(av.vendorId)![res.name] || 0) + vQty;
+        allocatedSum += vQty;
+      });
+      const diff = res.qty - allocatedSum;
+      if (diff !== 0 && maxVendorId) {
+        calcSizesByVendor.get(maxVendorId)![res.name] =
+          (calcSizesByVendor.get(maxVendorId)![res.name] || 0) + diff;
+      }
+    });
+
+    // Hitung target SPK vendor dari Prediksi Produksi (prioritaskan schoolBreakdown jika tersedia)
+    const spkSizesByVendor = new Map<string, Record<string, number>>();
+    activeVendors.forEach(av => spkSizesByVendor.set(av.vendorId, {}));
+
+    if (matchedForecastItem) {
+      let matchedBySchool = false;
+      const bd = matchedForecastItem.schoolBreakdown;
+      if (bd && Object.keys(bd).length > 0) {
+        Object.entries(bd).forEach(([schoolName, schoolSizes]) => {
+          const targetPlot = matchedPlottings.find(p =>
+            isSchoolBreakdownMatch(schoolName, p.resolvedSchoolName)
+          );
+          if (targetPlot) {
+            matchedBySchool = true;
+            const vMap = spkSizesByVendor.get(targetPlot.vendor_id);
+            if (vMap) {
+              Object.entries(schoolSizes).forEach(([sz, qty]) => {
+                vMap[sz] = (vMap[sz] || 0) + (Number(qty) || 0);
+              });
+            }
+          }
+        });
+      }
+
+      if (!matchedBySchool) {
+        Object.entries(matchedForecastItem.sizes).forEach(([sz, totalSzQty]) => {
+          const cleanQty = Number(totalSzQty) || 0;
+          if (cleanQty <= 0) return;
+          let allocatedSum = 0;
+          activeVendors.forEach(av => {
+            const ratio = av.schoolCount / totalSchoolsForItem;
+            const qty = Math.round(cleanQty * ratio);
+            spkSizesByVendor.get(av.vendorId)![sz] = qty;
+            allocatedSum += qty;
+          });
+          const diff = cleanQty - allocatedSum;
+          if (diff !== 0 && maxVendorId) {
+            spkSizesByVendor.get(maxVendorId)![sz] =
+              (spkSizesByVendor.get(maxVendorId)![sz] || 0) + diff;
+          }
+        });
+      }
+    }
+
+    const distributions: VendorCalcDistribution[] = activeVendors.map(av => {
+      const vMeta = vendors.find(v => v.id === av.vendorId);
+      const plotMeta = matchedPlottings.find(p => p.vendor_id === av.vendorId);
+      const shareRatio = av.schoolCount / totalSchoolsForItem;
+      const sharePercentage = Math.round(shareRatio * 1000) / 10;
+      const calcSizes = calcSizesByVendor.get(av.vendorId) || {};
+      const calcTotalPcs = Object.values(calcSizes).reduce((sum, q) => sum + q, 0);
+      const spkSizes = spkSizesByVendor.get(av.vendorId) || {};
+      const spkTotalPcs = Object.values(spkSizes).reduce((sum, q) => sum + q, 0);
+      const neededRolls =
+        spkTotalPcs > 0 && calculation.avgUsageCm > 0 && netCmPerRoll > 0
+          ? (spkTotalPcs * calculation.avgUsageCm) / netCmPerRoll
+          : 0;
+
+      return {
+        vendorId: av.vendorId,
+        vendorName: vMeta?.name || plotMeta?.vendors?.name || 'Vendor',
+        contactPerson: vMeta?.contact_person || plotMeta?.vendors?.contact_person || '-',
+        phone: vMeta?.phone || plotMeta?.vendors?.phone || '-',
+        schoolCount: av.schoolCount,
+        totalSchoolsInLevel: totalSchoolsForItem,
+        sharePercentage,
+        shareRatio,
+        allocRolls: totalRolls * shareRatio,
+        allocNetMeters: (calculation.netLengthCm / 100) * shareRatio,
+        calcTotalPcs,
+        calcSizes,
+        spkTotalPcs,
+        spkSizes,
+        neededRolls,
+      };
+    });
+
+    distributions.sort(
+      (a, b) =>
+        b.sharePercentage - a.sharePercentage ||
+        a.vendorName.localeCompare(b.vendorName, 'id', { numeric: true, sensitivity: 'base' })
+    );
+
+    return {
+      targetLevel,
+      targetUniformName,
+      totalSchoolsForItem,
+      totalNeededRolls,
+      vendors: distributions,
+    };
+  }, [
+    matchedForecastItem,
+    currentPreset,
+    selectedLevel,
+    yardsPerRoll,
+    defectTolerance,
+    calculation.avgUsageCm,
+    calculation.results,
+    calculation.netLengthCm,
+    plottings,
+    forecastAcademicYear,
+    schools,
+    vendors,
+    totalRolls,
+  ]);
+
+  const handleApplyForecastRatiosToTable = () => {
+    if (readOnly || !matchedForecastItem) return;
+    const roundedWeights = sizes.map(s => {
+      const fcQty = getForecastQtyForSize(matchedForecastItem.sizes, s.name);
+      if (fcQty <= 0 || matchedForecastItem.total <= 0) return 0;
+      return Math.max(1, Math.round((fcQty / matchedForecastItem.total) * 100));
+    });
+    const positiveVals = roundedWeights.filter(v => v > 0);
+    if (positiveVals.length === 0) return;
+
+    const commonDivisor = positiveVals.reduce((acc, v) => gcdTwo(acc, v), positiveVals[0]);
+    setIsDirty(true);
+    setSizes(prev =>
+      prev.map((row, idx) => ({
+        ...row,
+        ratio: roundedWeights[idx] > 0 ? Math.max(1, Math.round(roundedWeights[idx] / commonDivisor)) : 0,
+      }))
+    );
+    setFeedback({
+      type: 'success',
+      text: `Proporsi persentase dari [${matchedForecastItem.level}] ${matchedForecastItem.uniformName} (TA ${forecastAcademicYear}) disalin ke kolom Rasio tabel.`,
+    });
+  };
 
   return (
     <div className="kain-calculator">
@@ -1367,42 +2719,534 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
 
         {/* KOLOM KANAN: PREDIKSI HASIL */}
         <div className="kain-summary-card">
-          <h3 className="kain-summary-title">
-            <span>🎯</span> Prediksi Hasil Vendor
-          </h3>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '10px',
+              flexWrap: 'wrap',
+              paddingBottom: '14px',
+              marginBottom: '16px',
+              borderBottom: '1px solid rgba(148, 163, 184, 0.22)',
+            }}
+          >
+            <h3 className="kain-summary-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
+              <span>🎯</span> Prediksi Hasil Vendor
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label
+                htmlFor="kain-forecast-year"
+                style={{ fontSize: '0.74rem', color: '#94a3b8', fontWeight: 600 }}
+              >
+                Tahun Ajaran:
+              </label>
+              <select
+                id="kain-forecast-year"
+                value={forecastAcademicYear}
+                onChange={e => setForecastAcademicYear(e.target.value)}
+                style={{
+                  background: '#f8fafc',
+                  color: '#0f172a',
+                  border: '1px solid #475569',
+                  borderRadius: '8px',
+                  padding: '5px 10px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {forecastYearOptions.map(yr => (
+                  <option key={yr} value={yr} style={{ background: '#ffffff', color: '#0f172a' }}>
+                    TA {yr}{yr === '2027/2028' ? ' (Target)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* KONTROL INTEGRASI PERSENTASE PREDIKSI PRODUKSI */}
+          <div
+            style={{
+              background: 'rgba(15, 23, 42, 0.55)',
+              border: '1px solid rgba(71, 85, 105, 0.6)',
+              borderRadius: '11px',
+              padding: '12px',
+              marginBottom: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setCalcMode('forecast')}
+                style={{
+                  flex: 1,
+                  minWidth: '140px',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  border: calcMode === 'forecast' ? '1px solid #38bdf8' : '1px solid rgba(100, 116, 139, 0.5)',
+                  background: calcMode === 'forecast' ? 'rgba(56, 189, 248, 0.18)' : 'rgba(30, 41, 59, 0.65)',
+                  color: calcMode === 'forecast' ? '#e0f2fe' : '#94a3b8',
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                📊 % Prediksi Produksi
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalcMode('manual')}
+                style={{
+                  flex: 1,
+                  minWidth: '120px',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  border: calcMode === 'manual' ? '1px solid #10b981' : '1px solid rgba(100, 116, 139, 0.5)',
+                  background: calcMode === 'manual' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(30, 41, 59, 0.65)',
+                  color: calcMode === 'manual' ? '#d1fae5' : '#94a3b8',
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ✏️ Rasio Manual Size Chart
+              </button>
+            </div>
+
+            {calcMode === 'forecast' && (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label
+                      htmlFor="kain-forecast-item"
+                      style={{ fontSize: '0.74rem', color: '#cbd5e1', fontWeight: 600 }}
+                    >
+                      Item Acuan Prediksi Produksi (TA {forecastAcademicYear}):
+                    </label>
+                    {forecastLoading && (
+                      <span style={{ fontSize: '0.7rem', color: '#38bdf8' }}>Memuat...</span>
+                    )}
+                  </div>
+                  <select
+                    id="kain-forecast-item"
+                    value={matchedForecastItem ? getForecastItemKey(matchedForecastItem) : ''}
+                    onChange={e =>
+                      setManualForecastSelection({ scope: selectionScope, key: e.target.value })
+                    }
+                    disabled={forecastItems.length === 0}
+                    style={{
+                      width: '100%',
+                      background: '#f8fafc',
+                      color: '#0f172a',
+                      border: '1px solid #475569',
+                      borderRadius: '8px',
+                      padding: '7px 10px',
+                      fontSize: '0.79rem',
+                      fontWeight: 600,
+                      cursor: forecastItems.length === 0 ? 'not-allowed' : 'pointer',
+                      opacity: forecastItems.length === 0 ? 0.7 : 1,
+                    }}
+                  >
+                    <option value="" style={{ background: '#ffffff', color: '#0f172a' }}>
+                      {forecastItems.length === 0
+                        ? `-- Belum ada data Prediksi Produksi TA ${forecastAcademicYear} --`
+                        : `-- Auto / Pilih Item Prediksi (${sortedForecastOptions.length} item tersedia) --`}
+                    </option>
+                    {sortedForecastOptions.map(opt => (
+                      <option
+                        key={opt.key}
+                        value={opt.key}
+                        style={{ background: '#ffffff', color: '#0f172a' }}
+                      >
+                        [{opt.item.level}] {opt.item.uniformName} ({opt.item.total.toLocaleString('id-ID')} pcs)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {matchedForecastItem && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '8px',
+                      flexWrap: 'wrap',
+                      fontSize: '0.74rem',
+                      color: '#cbd5e1',
+                    }}
+                  >
+                    <span>
+                      Target Rencana:{' '}
+                      <strong style={{ color: '#6ee7b7' }}>
+                        {matchedForecastItem.total.toLocaleString('id-ID')} pcs
+                      </strong>
+                      {vendorSummary.totalNeededRolls > 0 && (
+                        <>
+                          {' '}
+                          (&asymp;{' '}
+                          <strong style={{ color: '#38bdf8' }}>
+                            {vendorSummary.totalNeededRolls.toFixed(1)} roll
+                          </strong>
+                          )
+                        </>
+                      )}
+                    </span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {!readOnly && calculation.modeUsed === 'forecast' && (
+                        <button
+                          type="button"
+                          onClick={handleApplyForecastRatiosToTable}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(56, 189, 248, 0.45)',
+                            background: 'rgba(56, 189, 248, 0.14)',
+                            color: '#bae6fd',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                          title="Salin proporsi persentase Prediksi Produksi ke kolom Rasio di tabel Size Chart"
+                        >
+                          📋 Salin % ke Rasio
+                        </button>
+                      )}
+                      {!readOnly && vendorSummary.totalNeededRolls > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setTotalRolls(Math.max(1, Math.ceil(vendorSummary.totalNeededRolls)))}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(16, 185, 129, 0.45)',
+                            background: 'rgba(16, 185, 129, 0.16)',
+                            color: '#6ee7b7',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                          title="Simulasikan jumlah roll pada Bagian 1 agar mencukupi 100% target Prediksi Produksi"
+                        >
+                          ⚡ Isi {Math.ceil(vendorSummary.totalNeededRolls)} Roll
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {calculation.fallbackReason && (
+                  <div
+                    style={{
+                      fontSize: '0.73rem',
+                      color: '#fde68a',
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      borderRadius: '7px',
+                      padding: '6px 9px',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    ℹ️ {calculation.fallbackReason}
+                  </div>
+                )}
+
+                {calculation.unmatchedForecastSizes.length > 0 && calculation.modeUsed === 'forecast' && (
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      color: '#fde68a',
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      borderRadius: '7px',
+                      padding: '6px 9px',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    ⚠️ Ukuran{' '}
+                    {calculation.unmatchedForecastSizes
+                      .map(u => `${u.name} (${u.pct.toFixed(1)}%)`)
+                      .join(', ')}{' '}
+                    belum ada di tabel Size Chart; proporsi otomatis dinormalisasi ke ukuran yang tersedia.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
           <div className="kain-summary-hero">
             <div className="kain-summary-hero-label">Total Pakaian Jadi (Estimasi)</div>
             <div className="kain-summary-hero-value">
-              {calculation.totalPcs}
+              {calculation.totalPcs.toLocaleString('id-ID')}
               <span className="kain-summary-hero-unit">pcs</span>
             </div>
             <div className="kain-summary-hero-meta">
-              {calculation.maxSets} set produksi &times; {calculation.totalRatioParts} pcs/set
+              {calculation.modeUsed === 'forecast' ? (
+                <>
+                  📊 Proporsi % Prediksi TA {forecastAcademicYear} &bull; rata²{' '}
+                  {calculation.avgUsageCm.toFixed(1)} cm/pcs
+                </>
+              ) : (
+                <>
+                  {calculation.maxSets} set produksi &times; {calculation.totalRatioParts} pcs/set
+                </>
+              )}
             </div>
           </div>
 
           <div className="kain-breakdown-box">
-            <div className="kain-breakdown-header">
-              Rincian Per Size (Rasio)
+            <div className="kain-breakdown-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>
+                Rincian Per Size ({calculation.modeUsed === 'forecast' ? '% Prediksi Produksi' : 'Rasio'})
+              </span>
+              {calculation.modeUsed === 'forecast' && (
+                <span style={{ fontSize: '0.72rem', color: '#38bdf8', fontWeight: 700 }}>100% Kain Bersih</span>
+              )}
             </div>
             <div className="kain-breakdown-list">
               {calculation.results.length > 0 ? (
                 calculation.results.map((res, i) => (
                   <div key={i} className="kain-breakdown-row">
-                    <span className="kain-breakdown-name">
-                      Size {res.name || '?'}
+                    <span className="kain-breakdown-name" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span>Size {res.name || '?'}</span>
                       <span className="kain-breakdown-need">(butuh {res.usageCm}cm)</span>
+                      {res.forecastPct !== null ? (
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            padding: '1px 6px',
+                            borderRadius: '999px',
+                            background: res.forecastPct > 0 ? 'rgba(56, 189, 248, 0.16)' : 'rgba(100, 116, 139, 0.22)',
+                            color: res.forecastPct > 0 ? '#7dd3fc' : '#94a3b8',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {res.forecastPct.toFixed(1)}%
+                        </span>
+                      ) : res.actualPct > 0 ? (
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            padding: '1px 6px',
+                            borderRadius: '999px',
+                            background: 'rgba(16, 185, 129, 0.14)',
+                            color: '#6ee7b7',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {res.actualPct.toFixed(1)}%
+                        </span>
+                      ) : null}
                     </span>
-                    <span className="kain-breakdown-qty">{res.qty} pcs</span>
+                    <span className="kain-breakdown-qty">{res.qty.toLocaleString('id-ID')} pcs</span>
                   </div>
                 ))
               ) : (
                 <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-                  Isi panjang pola, rasio ukuran, dan jumlah gulungan kain untuk melihat rincian hasil.
+                  Isi panjang pola, ukuran, dan jumlah gulungan kain untuk melihat rincian hasil.
                 </div>
               )}
             </div>
+          </div>
+
+          {/* PORSI VENDOR BERDASARKAN RUMUS PLOTTING PREDIKSI PRODUKSI */}
+          <div className="kain-breakdown-box">
+            <div
+              className="kain-breakdown-header"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '8px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span>🏭 Porsi Hasil Vendor (TA {forecastAcademicYear})</span>
+              {vendorSummary.vendors.length > 0 && (
+                <select
+                  aria-label="Filter vendor"
+                  value={
+                    vendorSummary.vendors.some(v => v.vendorId === selectedVendorFilter)
+                      ? selectedVendorFilter
+                      : 'ALL'
+                  }
+                  onChange={e =>
+                    setVendorFilterSelection({ scope: selectionScope, vendorId: e.target.value })
+                  }
+                  style={{
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #475569',
+                    borderRadius: '7px',
+                    padding: '3px 8px',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    maxWidth: '185px',
+                  }}
+                >
+                  <option value="ALL" style={{ background: '#ffffff', color: '#0f172a' }}>
+                    Semua Vendor ({vendorSummary.vendors.length})
+                  </option>
+                  {vendorSummary.vendors.map(v => (
+                    <option key={v.vendorId} value={v.vendorId} style={{ background: '#ffffff', color: '#0f172a' }}>
+                      {v.vendorName} ({v.sharePercentage}%)
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {vendorSummary.targetUniformName && (
+              <div style={{ fontSize: '0.73rem', color: '#94a3b8', marginBottom: '10px' }}>
+                Plotting: <strong style={{ color: '#e2e8f0' }}>[{vendorSummary.targetLevel}] {vendorSummary.targetUniformName}</strong>
+                {vendorSummary.totalSchoolsForItem > 0 && (
+                  <> &bull; Total {vendorSummary.totalSchoolsForItem} sekolah ter-plot</>
+                )}
+              </div>
+            )}
+
+            {vendorDataLoading ? (
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Memuat data plotting vendor...</div>
+            ) : vendorSummary.vendors.length === 0 ? (
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.45 }}>
+                Belum ada plotting vendor di TA {forecastAcademicYear} untuk [{vendorSummary.targetLevel || '-'}]{' '}
+                {vendorSummary.targetUniformName || 'model ini'}.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {(selectedVendorFilter !== 'ALL' &&
+                vendorSummary.vendors.some(v => v.vendorId === selectedVendorFilter)
+                  ? vendorSummary.vendors.filter(v => v.vendorId === selectedVendorFilter)
+                  : vendorSummary.vendors
+                ).map(v => {
+                  const sizeChips = Object.entries(v.calcSizes).filter(([, qty]) => qty > 0);
+                  return (
+                    <div
+                      key={v.vendorId}
+                      style={{
+                        background: 'rgba(15, 23, 42, 0.55)',
+                        border: '1px solid rgba(71, 85, 105, 0.5)',
+                        borderRadius: '9px',
+                        padding: '10px 11px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '8px',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <strong style={{ fontSize: '0.86rem', color: '#f8fafc' }}>{v.vendorName}</strong>
+                        <span
+                          style={{
+                            background: 'rgba(14, 165, 233, 0.18)',
+                            border: '1px solid rgba(56, 189, 248, 0.35)',
+                            color: '#7dd3fc',
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            fontSize: '0.73rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {v.sharePercentage}% ({v.schoolCount}/{v.totalSchoolsInLevel} Sek.)
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.79rem',
+                          color: '#cbd5e1',
+                          gap: '8px',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <span>
+                          Dari {totalRolls} roll: <strong style={{ color: '#38bdf8' }}>{v.calcTotalPcs.toLocaleString('id-ID')} pcs</strong>
+                        </span>
+                        <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                          {v.allocRolls.toFixed(2)} roll &bull; {v.allocNetMeters.toFixed(1)} m bersih
+                        </span>
+                      </div>
+
+                      {sizeChips.length > 0 && (
+                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                          {sizeChips.map(([sz, qty]) => (
+                            <span
+                              key={sz}
+                              style={{
+                                fontSize: '0.71rem',
+                                padding: '2px 6px',
+                                borderRadius: '5px',
+                                background: 'rgba(30, 41, 59, 0.9)',
+                                border: '1px solid rgba(71, 85, 105, 0.5)',
+                                color: '#e2e8f0',
+                              }}
+                            >
+                              {sz}: <strong style={{ color: '#38bdf8' }}>{qty}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {matchedForecastItem && v.spkTotalPcs > 0 && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '8px',
+                            flexWrap: 'wrap',
+                            paddingTop: '5px',
+                            borderTop: '1px dashed rgba(148, 163, 184, 0.2)',
+                            fontSize: '0.73rem',
+                            color: '#94a3b8',
+                          }}
+                        >
+                          <span>
+                            Target SPK TA {forecastAcademicYear}:{' '}
+                            <strong style={{ color: '#6ee7b7' }}>{v.spkTotalPcs.toLocaleString('id-ID')} pcs</strong>
+                            {v.neededRolls > 0 && <> (&asymp; {v.neededRolls.toFixed(2)} roll)</>}
+                          </span>
+                          {!readOnly && v.neededRolls > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setTotalRolls(Math.max(1, Math.ceil(v.neededRolls)))}
+                              style={{
+                                padding: '2px 7px',
+                                borderRadius: '5px',
+                                border: '1px solid rgba(16, 185, 129, 0.4)',
+                                background: 'rgba(16, 185, 129, 0.14)',
+                                color: '#6ee7b7',
+                                fontSize: '0.69rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                              title={`Ubah Jml Gulungan di Bagian 1 menjadi ${Math.ceil(v.neededRolls)} roll`}
+                            >
+                              Hitung {Math.ceil(v.neededRolls)} Roll
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="kain-metrics-grid">
@@ -1425,7 +3269,7 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
           </div>
 
           <div className="kain-summary-note">
-            *Kalkulasi ini menggunakan standar industri (bidang kain 150cm) dimana pola badan muat berdampingan, lalu ditambah margin kampuh/keliman potong 15-20cm per baju. Hitungan kebutuhan kain hanya mengambil data Panjang Baju &amp; Panjang Lengan/Celana. Gunakan ini sbg target/acuan vendor.
+            *Kalkulasi menggunakan standar industri (bidang kain 150cm) + kampuh potong 15-20cm/baju. Pada mode <strong>% Prediksi Produksi</strong>, proporsi ukuran dan porsi alokasi per vendor mengikuti rumusan tab Prediksi Produksi pada Tahun Ajaran yang dipilih.
           </div>
         </div>
       </div>
