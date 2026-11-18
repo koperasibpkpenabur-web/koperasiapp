@@ -28,6 +28,7 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
 
 // Lazy loading modul halaman (Code Splitting dengan auto-retry)
 const LoginPage = lazyWithRetry(() => import('../pages/Auth/LoginPage'));
+const TerimaBarangPage = lazyWithRetry(() => import('../pages/Public/TerimaBarangPage'));
 const AdminDashboard = lazyWithRetry(() => import('../pages/Admin/AdminDashboard'));
 const UserManagement = lazyWithRetry(() => import('../pages/Admin/UserManagement'));
 const SchoolDashboard = lazyWithRetry(() => import('../pages/School/SchoolDashboard'));
@@ -76,10 +77,14 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-        {/* Public route */}
+        {/* Public routes */}
         <Route
           path="/login"
           element={isAuthenticated ? <RootRedirect /> : <LoginPage />}
+        />
+        <Route
+          path="/terima-barang"
+          element={<TerimaBarangPage />}
         />
 
         {/* Protected routes inside MainLayout */}

@@ -591,20 +591,75 @@ interface VendorCalcDistribution {
   neededRolls: number;
 }
 
+export interface VendorFabricMutation {
+  id: string;
+  created_at?: string;
+  academic_year: string;
+  vendor_id: string;
+  date: string;
+  mutation_type: 'inbound' | 'usage' | 'initial' | 'adjustment';
+  fabric_type: string;
+  supplier_name?: string | null;
+  document_no?: string | null;
+  rolls: number;
+  length_yards: number;
+  length_meters: number;
+  garment_pcs: number;
+  system_expected_yards: number;
+  notes?: string | null;
+  created_by?: string | null;
+  vendors?: { name: string } | null;
+}
+
+const STANDARD_FABRIC_TYPES: string[] = [
+  'Kain Putih TC (Kemeja Putih SD/SMP/SMA)',
+  'Kain Famatex Biru (SMP)',
+  'Kain Famatex Abu (SMA)',
+  'Kain Merah (SD)',
+  'Kain Kotak SD (Rompi/Rok/Celana)',
+  'Kain Kotak SMP (Rompi)',
+  'Kain Kotak SMA (Rompi)',
+  'Kain Pramuka Siaga (SD)',
+  'Kain Pramuka Penggalang (SMP)',
+  'Kain Pramuka Penegak (SMA)',
+  'Kain Batik',
+  'Lainnya / Khusus',
+];
+
+// Pemetaan Resmi Pola Size Chart -> SKU Manajemen Barang (SSOT)
+const SIZECHART_TO_SSOT_MAPPING: Record<string, string[]> = {
+  // SD
+  baju_sd: ['Kemeja Putih'],
+  rompi_sd: ['Rompi Kotak'],
+  celana_sd: ['Celana Polos (Merah)', 'Celana Kotak', 'Celana Pramuka Siaga', 'Celana Pramuka Penggalang', 'Celana Merah'],
+  rok_sd: ['Rok Polos Kls 1-2 (Merah)', 'Rok Kotak Kls 1-2', 'Rok Merah'],
+  baju_pramuka_siaga_sd: ['Kemeja Pramuka Siaga Putra Kls 1-4', 'Kemeja Pramuka Siaga Putri Kls 1-4', 'Pramuka Siaga'],
+  // SMP
+  baju_smp_sma: ['Kemeja Putih'],
+  rompi_smp_sma: ['Rompi Kotak'],
+  celana_smp: ['Celana Biru', 'Celana Pendek Pramuka'],
+  rok_kulot_smp_sma: ['Kulot Biru', 'Rok Kulot'],
+  baju_pramuka_putra_smp_sma: ['Kemeja Pramuka Putra + Ambalan', 'Kemeja Pramuka Putra'],
+  rok_kulot_pramuka_smp_sma: ['Kulot Pramuka', 'Rok Kulot Pramuka'],
+  // SMA
+  celana_sma: ['Celana Panjang Abu', 'Celana Panjang Pramuka', 'Celana Abu'],
+  baju_pramuka_putri_sma: ['Kemeja Pramuka Putri'],
+};
+
 const PRESET_UNIFORM_HINTS: Record<string, string> = {
   baju_sd: 'Kemeja Putih',
   rompi_sd: 'Rompi Kotak',
-  celana_sd: 'Celana Merah',
-  rok_sd: 'Rok Merah',
-  baju_pramuka_siaga_sd: 'Pramuka Siaga Putra',
+  celana_sd: 'Celana Polos / Kotak / Pramuka',
+  rok_sd: 'Rok Polos / Kotak Kls 1-2',
+  baju_pramuka_siaga_sd: 'Pramuka Siaga Putra/Putri',
   baju_smp_sma: 'Kemeja Putih',
   rompi_smp_sma: 'Rompi Kotak',
-  celana_smp: 'Celana Biru',
-  celana_sma: 'Celana Abu',
-  rok_kulot_smp_sma: 'Rok Kulot',
-  baju_pramuka_putra_smp_sma: 'Kemeja Pramuka Putra',
+  celana_smp: 'Celana Biru / Pramuka',
+  celana_sma: 'Celana Abu / Pramuka',
+  rok_kulot_smp_sma: 'Kulot Biru',
+  baju_pramuka_putra_smp_sma: 'Kemeja Pramuka Putra + Ambalan',
   baju_pramuka_putri_sma: 'Kemeja Pramuka Putri',
-  rok_kulot_pramuka_smp_sma: 'Rok Kulot Pramuka',
+  rok_kulot_pramuka_smp_sma: 'Kulot Pramuka',
 };
 
 const SIZE_ALIASES: Record<string, string[]> = {
@@ -1112,6 +1167,16 @@ function scorePresetToForecastMatch(
   if (!pUpper.includes('BATIK') && !fUpper.includes('BATIK')) score += 8;
   if (!pPramuka && !pUpper.includes('KOTAK') && fUpper.includes('PUTIH')) score += 8;
 
+  // Pencocokan langsung berdasarkan Kamus Resmi Sizechart -> SSOT Manajemen Barang
+  const mappedNames = SIZECHART_TO_SSOT_MAPPING[preset.key] || [];
+  for (const mName of mappedNames) {
+    const cleanM = mName.toUpperCase();
+    if (fUpper === cleanM || fUpper.includes(cleanM) || cleanM.includes(fUpper)) {
+      score += 70;
+      break;
+    }
+  }
+
   return score;
 }
 
@@ -1119,14 +1184,100 @@ interface KalkulatorKainProps {
   readOnly?: boolean;
 }
 
+export interface FabricBatch {
+  id: string;
+  label: string;
+  rolls: number;
+  lengthPerRoll: number;
+  unit: 'yard' | 'meter';
+}
+
 const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
   const { activeAcademicYear, academicYears } = useSettings();
   const { products } = useProducts();
 
-  const [totalRolls, setTotalRolls] = useState<number>(1);
-  const [yardsPerRoll, setYardsPerRoll] = useState<number>(60);
-  const [fabricWidth] = useState<number>(150);
+  // Multi-Supplier & Variable Rolls di Bagian 1
+  const [fabricBatches, setFabricBatches] = useState<FabricBatch[]>([
+    { id: 'batch-1', label: 'Supplier Kain A', rolls: 1, lengthPerRoll: 60, unit: 'yard' },
+  ]);
+  const [fabricWidth, setFabricWidth] = useState<number>(150);
   const [defectTolerance, setDefectTolerance] = useState<number>(5);
+
+  const fabricTotals = useMemo(() => {
+    let totalRolls = 0;
+    let totalYards = 0;
+    let totalMeters = 0;
+
+    fabricBatches.forEach(b => {
+      const r = Math.max(0, Number(b.rolls) || 0);
+      const len = Math.max(0, Number(b.lengthPerRoll) || 0);
+      totalRolls += r;
+      if (b.unit === 'meter') {
+        const m = r * len;
+        totalMeters += m;
+        totalYards += m / 0.9144;
+      } else {
+        const y = r * len;
+        totalYards += y;
+        totalMeters += y * 0.9144;
+      }
+    });
+
+    const avgYardsPerRoll = totalRolls > 0 ? totalYards / totalRolls : 0;
+    const avgMetersPerRoll = totalRolls > 0 ? totalMeters / totalRolls : 0;
+
+    return {
+      totalRolls,
+      totalYards,
+      totalMeters,
+      avgYardsPerRoll,
+      avgMetersPerRoll,
+    };
+  }, [fabricBatches]);
+
+  const totalRolls = fabricTotals.totalRolls;
+  const yardsPerRoll = fabricTotals.avgYardsPerRoll;
+
+  const setTotalRolls = (newRolls: number) => {
+    setFabricBatches(prev => {
+      if (prev.length === 0) {
+        return [{ id: `batch-${Date.now()}`, label: 'Supplier Kain A', rolls: newRolls, lengthPerRoll: 60, unit: 'yard' }];
+      }
+      return [{ ...prev[0], rolls: newRolls }, ...prev.slice(1)];
+    });
+  };
+
+  const handleAddFabricBatch = () => {
+    if (readOnly) return;
+    const nextIdx = fabricBatches.length + 1;
+    const nextChar = String.fromCharCode(64 + ((nextIdx - 1) % 26) + 1);
+    setFabricBatches(prev => [
+      ...prev,
+      {
+        id: `batch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        label: `Supplier Kain ${nextChar}`,
+        rolls: 1,
+        lengthPerRoll: 60,
+        unit: 'yard',
+      },
+    ]);
+  };
+
+  const handleUpdateFabricBatch = (id: string, updates: Partial<FabricBatch>) => {
+    if (readOnly) return;
+    setFabricBatches(prev => prev.map(b => (b.id === id ? { ...b, ...updates } : b)));
+  };
+
+  const handleRemoveFabricBatch = (id: string) => {
+    if (readOnly) return;
+    if (fabricBatches.length <= 1) {
+      setFabricBatches([
+        { id: 'batch-1', label: 'Supplier Kain A', rolls: 1, lengthPerRoll: 60, unit: 'yard' },
+      ]);
+      return;
+    }
+    setFabricBatches(prev => prev.filter(b => b.id !== id));
+  };
 
   // State Tahun Ajaran & Integrasi Persentase Prediksi Produksi
   const [forecastAcademicYear, setForecastAcademicYear] = useState<string>('2027/2028');
@@ -1154,6 +1305,59 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Sub-Tab Navigasi: 'simulasi' | 'buku_kain'
+  const [activeKainSubTab, setActiveKainSubTab] = useState<'simulasi' | 'buku_kain'>('simulasi');
+
+  // State Buku Mutasi & Sisa Kain Vendor
+  const [fabricMutations, setFabricMutations] = useState<VendorFabricMutation[]>([]);
+  const [fabricMutationsLoading, setFabricMutationsLoading] = useState<boolean>(false);
+  const [bookAcademicYear, setBookAcademicYear] = useState<string>('2026/2027');
+  const [bookVendorId, setBookVendorId] = useState<string>('ALL');
+  const [bookFabricFilter, setBookFabricFilter] = useState<string>('ALL');
+  const [searchMutationQuery, setSearchMutationQuery] = useState<string>('');
+
+  // Modal 1: Catat Kain Masuk dari Supplier
+  const [showInboundModal, setShowInboundModal] = useState<boolean>(false);
+  const [inboundVendorId, setInboundVendorId] = useState<string>('');
+  const [inboundAcademicYear, setInboundAcademicYear] = useState<string>('2026/2027');
+  const [inboundFabricType, setInboundFabricType] = useState<string>(STANDARD_FABRIC_TYPES[0]);
+  const [inboundCustomFabricType, setInboundCustomFabricType] = useState<string>('');
+  const [inboundDate, setInboundDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [inboundSupplierName, setInboundSupplierName] = useState<string>('');
+  const [inboundDocNo, setInboundDocNo] = useState<string>('');
+  const [inboundRolls, setInboundRolls] = useState<number>(1);
+  const [inboundLengthYards, setInboundLengthYards] = useState<number>(60);
+  const [inboundLengthMeters, setInboundLengthMeters] = useState<number>(54.86);
+  const [inboundNotes, setInboundNotes] = useState<string>('');
+  const [inboundSaving, setInboundSaving] = useState<boolean>(false);
+
+  // Modal 2: Catat Laporan Setor Baju & Sisa Vendor
+  const [showUsageModal, setShowUsageModal] = useState<boolean>(false);
+  const [usageVendorId, setUsageVendorId] = useState<string>('');
+  const [usageAcademicYear, setUsageAcademicYear] = useState<string>('2026/2027');
+  const [usageFabricType, setUsageFabricType] = useState<string>(STANDARD_FABRIC_TYPES[0]);
+  const [usageDate, setUsageDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [usageDocNo, setUsageDocNo] = useState<string>('');
+  const [usageGarmentPcs, setUsageGarmentPcs] = useState<number>(0);
+  const [usageLengthYards, setUsageLengthYards] = useState<number>(0);
+  const [usageLengthMeters, setUsageLengthMeters] = useState<number>(0);
+  const [usageClaimRemainingYards, setUsageClaimRemainingYards] = useState<string>('');
+  const [usageNotes, setUsageNotes] = useState<string>('');
+  const [usageSaving, setUsageSaving] = useState<boolean>(false);
+
+  // Modal 3: Catat Saldo Awal / Opname Penyesuaian
+  const [showInitialModal, setShowInitialModal] = useState<boolean>(false);
+  const [initialVendorId, setInitialVendorId] = useState<string>('');
+  const [initialAcademicYear, setInitialAcademicYear] = useState<string>('2026/2027');
+  const [initialFabricType, setInitialFabricType] = useState<string>(STANDARD_FABRIC_TYPES[0]);
+  const [initialType, setInitialType] = useState<'initial' | 'adjustment'>('initial');
+  const [initialDate, setInitialDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [initialRolls, setInitialRolls] = useState<number>(0);
+  const [initialLengthYards, setInitialLengthYards] = useState<number>(0);
+  const [initialLengthMeters, setInitialLengthMeters] = useState<number>(0);
+  const [initialNotes, setInitialNotes] = useState<string>('');
+  const [initialSaving, setInitialSaving] = useState<boolean>(false);
 
   // Modal Tambah Item Model Baru
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -1913,8 +2117,9 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
 
   // Logic Perhitungan (terintegrasi proporsi % Prediksi Produksi per Tahun Ajaran)
   const calculation = useMemo(() => {
-    const totalYards = totalRolls * yardsPerRoll;
-    const grossLengthCm = totalYards * 91.44;
+    const totalYards = fabricTotals.totalYards;
+    const widthFactor = (fabricWidth > 0 ? fabricWidth : 150) / 150;
+    const grossLengthCm = totalYards * 91.44 * widthFactor;
     const netLengthCm = grossLengthCm * (1 - defectTolerance / 100);
 
     if (!currentPreset) {
@@ -2140,8 +2345,8 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
       totalPcs,
     };
   }, [
-    totalRolls,
-    yardsPerRoll,
+    fabricTotals,
+    fabricWidth,
     defectTolerance,
     currentPreset,
     sizes,
@@ -2167,7 +2372,8 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
         ? PRESET_UNIFORM_HINTS[currentPreset.key] || currentPreset.label
         : '';
 
-    const netCmPerRoll = yardsPerRoll * 91.44 * (1 - defectTolerance / 100);
+    const widthFactor = (fabricWidth > 0 ? fabricWidth : 150) / 150;
+    const netCmPerRoll = yardsPerRoll * 91.44 * widthFactor * (1 - defectTolerance / 100);
     const totalNeededRolls =
       matchedForecastItem && calculation.avgUsageCm > 0 && netCmPerRoll > 0
         ? (matchedForecastItem.total * calculation.avgUsageCm) / netCmPerRoll
@@ -2365,6 +2571,7 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
     currentPreset,
     selectedLevel,
     yardsPerRoll,
+    fabricWidth,
     defectTolerance,
     calculation.avgUsageCm,
     calculation.results,
@@ -2375,6 +2582,13 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
     vendors,
     totalRolls,
   ]);
+
+  const activeSimulasiVendorId = useMemo(() => {
+    if (selectedVendorFilter && selectedVendorFilter !== 'ALL') {
+      return selectedVendorFilter;
+    }
+    return vendorSummary.vendors.length > 0 ? vendorSummary.vendors[0].vendorId : '';
+  }, [selectedVendorFilter, vendorSummary.vendors]);
 
   const handleApplyForecastRatiosToTable = () => {
     if (readOnly || !matchedForecastItem) return;
@@ -2400,69 +2614,807 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
     });
   };
 
+  // Fetch data mutasi kain dari Supabase
+  const loadFabricMutations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('vendor_fabric_mutations')
+        .select('*, vendors(name)')
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching vendor_fabric_mutations:', error);
+      } else if (data) {
+        setFabricMutations(data as VendorFabricMutation[]);
+      }
+    } catch (err) {
+      console.error('Failed to load fabric mutations:', err);
+    } finally {
+      setFabricMutationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    const loadInitial = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('vendor_fabric_mutations')
+          .select('*, vendors(name)')
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (!active) return;
+        if (error) {
+          console.error('Error fetching vendor_fabric_mutations:', error);
+        } else if (data) {
+          setFabricMutations(data as VendorFabricMutation[]);
+        }
+      } catch (err) {
+        console.error('Failed to load fabric mutations on mount:', err);
+      } finally {
+        if (active) setFabricMutationsLoading(false);
+      }
+    };
+
+    loadInitial();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const openInboundFromCalculator = () => {
+    if (!activeSimulasiVendorId) {
+      setFeedback({
+        type: 'error',
+        text: 'Pilih Target Vendor terlebih dahulu di panel kanan sebelum mencatat kirim kain.',
+      });
+      return;
+    }
+    setInboundVendorId(activeSimulasiVendorId);
+    setInboundAcademicYear(forecastAcademicYear);
+
+    // Tebak jenis kain dari preset model
+    let suggestedFabric = STANDARD_FABRIC_TYPES[0];
+    const pKey = selectedPresetKey.toLowerCase();
+    if (pKey.includes('celana_smp') || pKey.includes('kulot_smp')) {
+      suggestedFabric = 'Kain Famatex Biru (SMP)';
+    } else if (pKey.includes('celana_sma')) {
+      suggestedFabric = 'Kain Famatex Abu (SMA)';
+    } else if (pKey.includes('celana_sd') || pKey.includes('rok_sd')) {
+      suggestedFabric = 'Kain Merah (SD)';
+    } else if (pKey.includes('rompi')) {
+      suggestedFabric = pKey.includes('sd') ? 'Kain Kotak SD (Rompi/Rok/Celana)' : 'Kain Kotak SMP (Rompi)';
+    } else if (pKey.includes('pramuka')) {
+      suggestedFabric = pKey.includes('sd') ? 'Kain Pramuka Siaga (SD)' : 'Kain Pramuka Penggalang (SMP)';
+    }
+    setInboundFabricType(suggestedFabric);
+    setInboundCustomFabricType('');
+    setInboundSupplierName(fabricBatches[0]?.label || 'Supplier Kain');
+    setInboundDocNo('');
+    setInboundRolls(fabricTotals.totalRolls);
+    setInboundLengthYards(Number(fabricTotals.totalYards.toFixed(2)));
+    setInboundLengthMeters(Number(fabricTotals.totalMeters.toFixed(2)));
+    setInboundNotes(
+      `Kirim kain untuk SPK ${matchedForecastItem ? `[${matchedForecastItem.level}] ${matchedForecastItem.uniformName}` : currentPreset?.label || 'seragam'}`
+    );
+    setShowInboundModal(true);
+  };
+
+  const handleSaveInboundMutation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inboundVendorId) {
+      alert('Pilih vendor penerima kain!');
+      return;
+    }
+    const finalFabricType =
+      inboundFabricType === 'Lainnya / Khusus'
+        ? inboundCustomFabricType.trim() || 'Kain Khusus'
+        : inboundFabricType;
+
+    setInboundSaving(true);
+    try {
+      const payload = {
+        academic_year: inboundAcademicYear,
+        vendor_id: inboundVendorId,
+        date: inboundDate,
+        mutation_type: 'inbound',
+        fabric_type: finalFabricType,
+        supplier_name: inboundSupplierName.trim() || null,
+        document_no: inboundDocNo.trim() || null,
+        rolls: Number(inboundRolls) || 0,
+        length_yards: Number(inboundLengthYards) || 0,
+        length_meters: Number(inboundLengthMeters) || 0,
+        garment_pcs: 0,
+        system_expected_yards: 0,
+        notes: inboundNotes.trim() || null,
+      };
+
+      const { data, error } = await supabase
+        .from('vendor_fabric_mutations')
+        .insert(payload)
+        .select('*, vendors(name)')
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setFabricMutations(prev => [data as VendorFabricMutation, ...prev]);
+      }
+      setShowInboundModal(false);
+      setFeedback({
+        type: 'success',
+        text: `Berhasil mencatat kiriman kain ${inboundLengthYards} Yard ke ${vendors.find(v => v.id === inboundVendorId)?.name || 'vendor'}!`,
+      });
+      setActiveKainSubTab('buku_kain');
+      setBookAcademicYear(inboundAcademicYear);
+      setBookVendorId(inboundVendorId);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Gagal menyimpan mutasi kain: ${msg}`);
+    } finally {
+      setInboundSaving(false);
+    }
+  };
+
+  const handleSaveUsageMutation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!usageVendorId) {
+      alert('Pilih vendor penjahit!');
+      return;
+    }
+
+    setUsageSaving(true);
+    try {
+      const approxUsagePerPcsYards =
+        calculation.avgUsageCm > 0 ? calculation.avgUsageCm / 91.44 : 1.25;
+      const expectedYards =
+        Number(usageGarmentPcs) > 0
+          ? Number((Number(usageGarmentPcs) * approxUsagePerPcsYards).toFixed(2))
+          : 0;
+
+      const payload = {
+        academic_year: usageAcademicYear,
+        vendor_id: usageVendorId,
+        date: usageDate,
+        mutation_type: 'usage',
+        fabric_type: usageFabricType,
+        supplier_name: null,
+        document_no: usageDocNo.trim() || null,
+        rolls: 0,
+        length_yards: Number(usageLengthYards) || 0,
+        length_meters: Number(usageLengthMeters) || 0,
+        garment_pcs: Number(usageGarmentPcs) || 0,
+        system_expected_yards: expectedYards,
+        notes:
+          [
+            usageNotes.trim(),
+            usageClaimRemainingYards ? `Klaim sisa di vendor: ${usageClaimRemainingYards} yd` : '',
+          ]
+            .filter(Boolean)
+            .join(' • ') || null,
+      };
+
+      const { data, error } = await supabase
+        .from('vendor_fabric_mutations')
+        .insert(payload)
+        .select('*, vendors(name)')
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setFabricMutations(prev => [data as VendorFabricMutation, ...prev]);
+      }
+      setShowUsageModal(false);
+      setFeedback({
+        type: 'success',
+        text: `Laporan setoran ${usageGarmentPcs} pcs dari ${vendors.find(v => v.id === usageVendorId)?.name || 'vendor'} berhasil dicatat!`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Gagal menyimpan laporan setoran vendor: ${msg}`);
+    } finally {
+      setUsageSaving(false);
+    }
+  };
+
+  const handleSaveInitialMutation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!initialVendorId) {
+      alert('Pilih vendor!');
+      return;
+    }
+
+    setInitialSaving(true);
+    try {
+      const payload = {
+        academic_year: initialAcademicYear,
+        vendor_id: initialVendorId,
+        date: initialDate,
+        mutation_type: initialType,
+        fabric_type: initialFabricType,
+        supplier_name: null,
+        document_no: initialType === 'initial' ? 'SALDO AWAL' : 'OPNAME FISIK',
+        rolls: Number(initialRolls) || 0,
+        length_yards: Number(initialLengthYards) || 0,
+        length_meters: Number(initialLengthMeters) || 0,
+        garment_pcs: 0,
+        system_expected_yards: 0,
+        notes: initialNotes.trim() || null,
+      };
+
+      const { data, error } = await supabase
+        .from('vendor_fabric_mutations')
+        .insert(payload)
+        .select('*, vendors(name)')
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setFabricMutations(prev => [data as VendorFabricMutation, ...prev]);
+      }
+      setShowInitialModal(false);
+      setFeedback({
+        type: 'success',
+        text: `Saldo awal / penyesuaian kain berhasil dicatat!`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Gagal menyimpan saldo awal: ${msg}`);
+    } finally {
+      setInitialSaving(false);
+    }
+  };
+
+  const handleDeleteMutation = async (id: string) => {
+    if (readOnly) return;
+    if (
+      !window.confirm(
+        'Hapus transaksi mutasi kain ini? Saldo sisa kain akan dihitung ulang secara otomatis.'
+      )
+    ) {
+      return;
+    }
+    try {
+      const { error } = await supabase.from('vendor_fabric_mutations').delete().eq('id', id);
+      if (error) throw error;
+      setFabricMutations(prev => prev.filter(m => m.id !== id));
+      setFeedback({ type: 'success', text: 'Transaksi mutasi kain berhasil dihapus.' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Gagal menghapus mutasi kain: ${msg}`);
+    }
+  };
+
+  // Perhitungan Saldo Sisa Kain per Vendor & Jenis Kain (Berkelanjutan Antar-TA)
+  const fabricBalances = useMemo(() => {
+    const allFiltered = fabricMutations.filter(m => {
+      const matchVendor = bookVendorId === 'ALL' || m.vendor_id === bookVendorId;
+      const matchFabric = bookFabricFilter === 'ALL' || m.fabric_type === bookFabricFilter;
+      const matchSearch =
+        !searchMutationQuery ||
+        (m.fabric_type && m.fabric_type.toLowerCase().includes(searchMutationQuery.toLowerCase())) ||
+        (m.supplier_name && m.supplier_name.toLowerCase().includes(searchMutationQuery.toLowerCase())) ||
+        (m.document_no && m.document_no.toLowerCase().includes(searchMutationQuery.toLowerCase())) ||
+        (m.notes && m.notes.toLowerCase().includes(searchMutationQuery.toLowerCase())) ||
+        (m.vendors?.name && m.vendors.name.toLowerCase().includes(searchMutationQuery.toLowerCase()));
+      return matchVendor && matchFabric && matchSearch;
+    });
+
+    const fabricTypeSet = new Set<string>();
+    fabricMutations.forEach(m => {
+      if (m.fabric_type) fabricTypeSet.add(m.fabric_type);
+    });
+    STANDARD_FABRIC_TYPES.forEach(t => {
+      if (t !== 'Lainnya / Khusus') fabricTypeSet.add(t);
+    });
+
+    const targetYear = bookAcademicYear;
+
+    const summaryByType: Record<
+      string,
+      {
+        fabricType: string;
+        prevCarryOverYards: number;
+        inboundYards: number;
+        inboundMeters: number;
+        inboundRolls: number;
+        usageYards: number;
+        usageMeters: number;
+        garmentPcs: number;
+        systemExpectedYards: number;
+        adjustmentYards: number;
+        balanceYards: number;
+        balanceMeters: number;
+      }
+    > = {};
+
+    Array.from(fabricTypeSet).forEach(ft => {
+      summaryByType[ft] = {
+        fabricType: ft,
+        prevCarryOverYards: 0,
+        inboundYards: 0,
+        inboundMeters: 0,
+        inboundRolls: 0,
+        usageYards: 0,
+        usageMeters: 0,
+        garmentPcs: 0,
+        systemExpectedYards: 0,
+        adjustmentYards: 0,
+        balanceYards: 0,
+        balanceMeters: 0,
+      };
+    });
+
+    fabricMutations
+      .filter(m => bookVendorId === 'ALL' || m.vendor_id === bookVendorId)
+      .forEach(m => {
+        const ft = m.fabric_type || 'Lainnya';
+        if (!summaryByType[ft]) {
+          summaryByType[ft] = {
+            fabricType: ft,
+            prevCarryOverYards: 0,
+            inboundYards: 0,
+            inboundMeters: 0,
+            inboundRolls: 0,
+            usageYards: 0,
+            usageMeters: 0,
+            garmentPcs: 0,
+            systemExpectedYards: 0,
+            adjustmentYards: 0,
+            balanceYards: 0,
+            balanceMeters: 0,
+          };
+        }
+
+        const item = summaryByType[ft];
+        const isPastYear = m.academic_year < targetYear;
+        const isCurrentYear = m.academic_year === targetYear;
+
+        if (isPastYear) {
+          if (m.mutation_type === 'inbound' || m.mutation_type === 'initial') {
+            item.prevCarryOverYards += Number(m.length_yards) || 0;
+          } else if (m.mutation_type === 'usage') {
+            item.prevCarryOverYards -= Number(m.length_yards) || 0;
+          } else if (m.mutation_type === 'adjustment') {
+            item.prevCarryOverYards += Number(m.length_yards) || 0;
+          }
+        } else if (isCurrentYear) {
+          if (m.mutation_type === 'inbound') {
+            item.inboundYards += Number(m.length_yards) || 0;
+            item.inboundMeters += Number(m.length_meters) || 0;
+            item.inboundRolls += Number(m.rolls) || 0;
+          } else if (m.mutation_type === 'initial') {
+            item.prevCarryOverYards += Number(m.length_yards) || 0;
+          } else if (m.mutation_type === 'usage') {
+            item.usageYards += Number(m.length_yards) || 0;
+            item.usageMeters += Number(m.length_meters) || 0;
+            item.garmentPcs += Number(m.garment_pcs) || 0;
+            item.systemExpectedYards += Number(m.system_expected_yards) || 0;
+          } else if (m.mutation_type === 'adjustment') {
+            item.adjustmentYards += Number(m.length_yards) || 0;
+          }
+        }
+      });
+
+    Object.values(summaryByType).forEach(it => {
+      it.balanceYards =
+        it.prevCarryOverYards + it.inboundYards - it.usageYards + it.adjustmentYards;
+      it.balanceMeters = it.balanceYards * 0.9144;
+    });
+
+    const activeSummaries = Object.values(summaryByType).filter(
+      it =>
+        it.balanceYards !== 0 ||
+        it.inboundYards > 0 ||
+        it.usageYards > 0 ||
+        it.prevCarryOverYards !== 0 ||
+        bookFabricFilter === it.fabricType
+    );
+
+    return {
+      summaries: activeSummaries,
+      currentYearMutations: allFiltered.filter(m => m.academic_year === targetYear),
+    };
+  }, [fabricMutations, bookAcademicYear, bookVendorId, bookFabricFilter, searchMutationQuery]);
+
   return (
-    <div className="kain-calculator">
-      {/* SECTION 1: DATA GULUNGAN KAIN */}
-      <div className="kain-card">
-        <div className="kain-card-header">
-          <h3 className="kain-card-title">
-            <span>📏</span> 1. Data Gulungan Kain
-          </h3>
-          <p className="kain-card-subtitle">
-            Masukkan jumlah roll kain, panjang per gulungan, dan toleransi cacat kain sebelum dipotong vendor.
-          </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* SUB-NAVIGASI UTAMA KALKULATOR KAIN */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+          background: 'rgba(15, 23, 42, 0.6)',
+          border: '1px solid rgba(71, 85, 105, 0.5)',
+          borderRadius: '12px',
+          padding: '10px 14px',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setActiveKainSubTab('simulasi')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '9px',
+              border:
+                activeKainSubTab === 'simulasi'
+                  ? '1px solid #38bdf8'
+                  : '1px solid rgba(100, 116, 139, 0.4)',
+              background:
+                activeKainSubTab === 'simulasi'
+                  ? 'rgba(56, 189, 248, 0.22)'
+                  : 'rgba(30, 41, 59, 0.6)',
+              color: activeKainSubTab === 'simulasi' ? '#e0f2fe' : '#94a3b8',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+            }}
+          >
+            <span>🧮</span> Simulasi Hitung Kain
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveKainSubTab('buku_kain')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '9px',
+              border:
+                activeKainSubTab === 'buku_kain'
+                  ? '1px solid #10b981'
+                  : '1px solid rgba(100, 116, 139, 0.4)',
+              background:
+                activeKainSubTab === 'buku_kain'
+                  ? 'rgba(16, 185, 129, 0.22)'
+                  : 'rgba(30, 41, 59, 0.6)',
+              color: activeKainSubTab === 'buku_kain' ? '#d1fae5' : '#94a3b8',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+            }}
+          >
+            <span>📖</span> Buku Mutasi & Sisa Kain Vendor
+            {fabricMutations.length > 0 && (
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  background: '#059669',
+                  color: '#ffffff',
+                  padding: '2px 7px',
+                  borderRadius: '999px',
+                  fontWeight: 800,
+                }}
+              >
+                {fabricMutations.length}
+              </span>
+            )}
+          </button>
         </div>
 
-        <div className="kain-roll-grid">
-          <div className="kain-field">
-            <label htmlFor="kain-total-rolls">Jml Gulungan (Roll)</label>
-            <div className={`kain-input-group ${readOnly ? 'is-disabled' : ''}`}>
-              <input
-                id="kain-total-rolls"
-                type="number"
-                min={1}
-                disabled={readOnly}
-                className="kain-field-input"
-                placeholder="1"
-                value={totalRolls === 0 ? '' : totalRolls}
-                onFocus={e => e.target.select()}
-                onChange={e => setTotalRolls(Math.max(0, Number(e.target.value) || 0))}
-              />
-              <span className="kain-input-unit">Roll</span>
-            </div>
-          </div>
+        {activeKainSubTab === 'simulasi' && activeSimulasiVendorId && (
+          <button
+            type="button"
+            onClick={openInboundFromCalculator}
+            style={{
+              padding: '7px 13px',
+              borderRadius: '8px',
+              border: '1px solid #059669',
+              background: 'rgba(5, 150, 105, 0.22)',
+              color: '#6ee7b7',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            title="Catat gulungan kain yang disimulasikan saat ini langsung ke Buku Mutasi Kain vendor terpilih"
+          >
+            <span>📥</span> Catat Kirim Kain ke Vendor ({fabricTotals.totalRolls} Roll)
+          </button>
+        )}
+      </div>
 
-          <div className="kain-field">
-            <label htmlFor="kain-yards-roll">Yard per Gulung</label>
-            <div className={`kain-input-group ${readOnly ? 'is-disabled' : ''}`}>
-              <input
-                id="kain-yards-roll"
-                type="number"
-                min={1}
-                disabled={readOnly}
-                className="kain-field-input"
-                placeholder="60"
-                value={yardsPerRoll === 0 ? '' : yardsPerRoll}
-                onFocus={e => e.target.select()}
-                onChange={e => setYardsPerRoll(Math.max(0, Number(e.target.value) || 0))}
-              />
-              <span className="kain-input-unit">Yard</span>
-            </div>
-          </div>
+      {feedback && (
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: '9px',
+            fontSize: '0.82rem',
+            fontWeight: 600,
+            background:
+              feedback.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+            border: feedback.type === 'success' ? '1px solid #10b981' : '1px solid #ef4444',
+            color: feedback.type === 'success' ? '#6ee7b7' : '#fca5a5',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span>{feedback.text}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              fontSize: '1rem',
+            }}
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
+      {/* TAMPILAN 1: SIMULASI HITUNG KAIN */}
+      {activeKainSubTab === 'simulasi' && (
+        <div className="kain-calculator">
+      {/* SECTION 1: DATA GULUNGAN KAIN (MULTI-SUPPLIER & ROLL VARIATIF) */}
+      <div className="kain-card">
+        <div className="kain-card-header kain-card-header--split">
+          <div>
+            <h3 className="kain-card-title">
+              <span>📏</span> 1. Data Gulungan Kain
+            </h3>
+            <p className="kain-card-subtitle">
+              Input gulungan kain dari berbagai supplier. Panjang yard/meter dapat berbeda per kelompok roll.
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              style={{
+                fontSize: '0.78rem',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                background: 'rgba(56, 189, 248, 0.14)',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                color: '#7dd3fc',
+                fontWeight: 600,
+              }}
+            >
+              Total: {fabricTotals.totalRolls} Roll &bull; {fabricTotals.totalYards.toFixed(1)} Yard ({fabricTotals.totalMeters.toFixed(1)} m)
+            </span>
+          </div>
+        </div>
+
+        {/* TABEL BATCH SUPPLIER */}
+        <div style={{ overflowX: 'auto', marginBottom: '14px' }}>
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '0.82rem',
+              textAlign: 'left',
+            }}
+          >
+            <thead>
+              <tr style={{ background: 'rgba(15, 23, 42, 0.75)', color: '#94a3b8', borderBottom: '1px solid rgba(71, 85, 105, 0.6)' }}>
+                <th style={{ padding: '8px 10px', fontWeight: 600 }}>No / Asal Supplier</th>
+                <th style={{ padding: '8px 10px', fontWeight: 600, width: '130px' }}>Jml Gulungan</th>
+                <th style={{ padding: '8px 10px', fontWeight: 600, width: '150px' }}>Panjang per Roll</th>
+                <th style={{ padding: '8px 10px', fontWeight: 600, width: '110px' }}>Satuan</th>
+                <th style={{ padding: '8px 10px', fontWeight: 600, width: '170px' }}>Subtotal</th>
+                {!readOnly && (
+                  <th style={{ padding: '8px 10px', fontWeight: 600, width: '50px', textAlign: 'center' }}>
+                    ✕
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {fabricBatches.map((batch, idx) => {
+                const subYards =
+                  batch.unit === 'meter'
+                    ? (batch.rolls * batch.lengthPerRoll) / 0.9144
+                    : batch.rolls * batch.lengthPerRoll;
+                const subMeters = subYards * 0.9144;
+
+                return (
+                  <tr
+                    key={batch.id}
+                    style={{
+                      borderBottom: '1px solid rgba(51, 65, 85, 0.45)',
+                      background: idx % 2 === 0 ? 'rgba(30, 41, 59, 0.25)' : 'transparent',
+                    }}
+                  >
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        type="text"
+                        disabled={readOnly}
+                        value={batch.label}
+                        onChange={e => handleUpdateFabricBatch(batch.id, { label: e.target.value })}
+                        placeholder={`Supplier Kain ${String.fromCharCode(65 + idx)}`}
+                        style={{
+                          width: '100%',
+                          background: 'rgba(15, 23, 42, 0.6)',
+                          border: '1px solid rgba(71, 85, 105, 0.5)',
+                          borderRadius: '6px',
+                          color: '#f8fafc',
+                          padding: '6px 8px',
+                          fontSize: '0.8rem',
+                        }}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <input
+                          type="number"
+                          min={0}
+                          disabled={readOnly}
+                          value={batch.rolls === 0 ? '' : batch.rolls}
+                          onFocus={e => e.target.select()}
+                          onChange={e =>
+                            handleUpdateFabricBatch(batch.id, {
+                              rolls: Math.max(0, Number(e.target.value) || 0),
+                            })
+                          }
+                          style={{
+                            width: '75px',
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            border: '1px solid rgba(71, 85, 105, 0.5)',
+                            borderRadius: '6px',
+                            color: '#f8fafc',
+                            padding: '6px 8px',
+                            fontSize: '0.8rem',
+                            textAlign: 'right',
+                          }}
+                        />
+                        <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Roll</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        disabled={readOnly}
+                        value={batch.lengthPerRoll === 0 ? '' : batch.lengthPerRoll}
+                        onFocus={e => e.target.select()}
+                        onChange={e =>
+                          handleUpdateFabricBatch(batch.id, {
+                            lengthPerRoll: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        style={{
+                          width: '90px',
+                          background: 'rgba(15, 23, 42, 0.6)',
+                          border: '1px solid rgba(71, 85, 105, 0.5)',
+                          borderRadius: '6px',
+                          color: '#f8fafc',
+                          padding: '6px 8px',
+                          fontSize: '0.8rem',
+                          textAlign: 'right',
+                        }}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <select
+                        disabled={readOnly}
+                        value={batch.unit}
+                        onChange={e =>
+                          handleUpdateFabricBatch(batch.id, {
+                            unit: e.target.value as 'yard' | 'meter',
+                          })
+                        }
+                        style={{
+                          background: '#f8fafc',
+                          color: '#0f172a',
+                          border: '1px solid #475569',
+                          borderRadius: '6px',
+                          padding: '5px 8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <option value="yard" style={{ background: '#ffffff', color: '#0f172a' }}>
+                          Yard
+                        </option>
+                        <option value="meter" style={{ background: '#ffffff', color: '#0f172a' }}>
+                          Meter
+                        </option>
+                      </select>
+                    </td>
+                    <td style={{ padding: '8px 10px', color: '#e2e8f0', fontSize: '0.78rem' }}>
+                      <strong>{subYards.toFixed(1)}</strong> Yard{' '}
+                      <span style={{ color: '#94a3b8' }}>({subMeters.toFixed(1)} m)</span>
+                    </td>
+                    {!readOnly && (
+                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        {fabricBatches.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFabricBatch(batch.id)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                              fontSize: '0.88rem',
+                              padding: '2px 6px',
+                            }}
+                            title="Hapus baris gulungan ini"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* TOMBOL TAMBAH BARIS BATCH */}
+        {!readOnly && (
+          <div style={{ marginBottom: '14px' }}>
+            <button
+              type="button"
+              onClick={handleAddFabricBatch}
+              style={{
+                background: 'rgba(56, 189, 248, 0.12)',
+                border: '1px dashed rgba(56, 189, 248, 0.45)',
+                color: '#38bdf8',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>+</span> Tambah Baris Gulungan (Beda Supplier / Panjang)
+            </button>
+          </div>
+        )}
+
+        {/* SETTING GLOBAL KAIN: LEBAR KAIN & TOLERANSI CACAT */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '12px',
+            paddingTop: '12px',
+            borderTop: '1px solid rgba(71, 85, 105, 0.4)',
+          }}
+        >
           <div className="kain-field">
             <label htmlFor="kain-fabric-width">Lebar Kain (cm)</label>
-            <div className="kain-input-group is-disabled">
+            <div className={`kain-input-group ${readOnly ? 'is-disabled' : ''}`}>
               <input
                 id="kain-fabric-width"
                 type="number"
-                value={fabricWidth}
-                disabled
+                min={50}
+                max={300}
+                disabled={readOnly}
+                value={fabricWidth === 0 ? '' : fabricWidth}
+                onFocus={e => e.target.select()}
+                onChange={e => setFabricWidth(Math.max(50, Number(e.target.value) || 150))}
                 className="kain-field-input"
               />
               <span className="kain-input-unit">cm</span>
             </div>
-            <span className="kain-field-hint">*Standar bidang 150cm</span>
+            <span className="kain-field-hint">*Standar bidang 150cm (skala luas bidang otomatis dihitung)</span>
           </div>
 
           <div className="kain-field">
@@ -2481,6 +3433,7 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
               />
               <span className="kain-input-unit">%</span>
             </div>
+            <span className="kain-field-hint">*Potongan kain susut/rusak sebelum dijahit</span>
           </div>
         </div>
       </div>
@@ -3222,29 +4175,80 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
                             {v.neededRolls > 0 && <> (&asymp; {v.neededRolls.toFixed(2)} roll)</>}
                           </span>
                           {!readOnly && v.neededRolls > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setTotalRolls(Math.max(1, Math.ceil(v.neededRolls)))}
-                              style={{
-                                padding: '2px 7px',
-                                borderRadius: '5px',
-                                border: '1px solid rgba(16, 185, 129, 0.4)',
-                                background: 'rgba(16, 185, 129, 0.14)',
-                                color: '#6ee7b7',
-                                fontSize: '0.69rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                              }}
-                              title={`Ubah Jml Gulungan di Bagian 1 menjadi ${Math.ceil(v.neededRolls)} roll`}
-                            >
-                              Hitung {Math.ceil(v.neededRolls)} Roll
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={() => setTotalRolls(Math.max(1, Math.ceil(v.neededRolls)))}
+                                style={{
+                                  padding: '2px 7px',
+                                  borderRadius: '5px',
+                                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                                  background: 'rgba(16, 185, 129, 0.14)',
+                                  color: '#6ee7b7',
+                                  fontSize: '0.69rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                                title={`Ubah Jml Gulungan di Bagian 1 menjadi ${Math.ceil(v.neededRolls)} roll`}
+                              >
+                                Hitung {Math.ceil(v.neededRolls)} Roll
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setVendorFilterSelection({ scope: selectionScope, vendorId: v.vendorId });
+                                  setInboundVendorId(v.vendorId);
+                                  openInboundFromCalculator();
+                                }}
+                                style={{
+                                  padding: '2px 7px',
+                                  borderRadius: '5px',
+                                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                                  background: 'rgba(56, 189, 248, 0.14)',
+                                  color: '#7dd3fc',
+                                  fontSize: '0.69rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                                title={`Catat kirim kain khusus untuk vendor ${v.vendorName}`}
+                              >
+                                📥 Kirim Kain
+                              </button>
+                            </div>
                           )}
                         </div>
                       )}
                     </div>
                   );
                 })}
+
+                {/* AKSI CEPAT KIRIM KAIN */}
+                {!readOnly && (
+                  <div style={{ marginTop: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={openInboundFromCalculator}
+                      style={{
+                        width: '100%',
+                        padding: '9px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid #10b981',
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.35))',
+                        color: '#a7f3d0',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                      title="Salin hasil simulasi ini langsung ke Buku Mutasi & Sisa Kain Vendor"
+                    >
+                      <span>📥</span> Catat Kirim Kain ke Vendor Ini
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -3269,10 +4273,617 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
           </div>
 
           <div className="kain-summary-note">
-            *Kalkulasi menggunakan standar industri (bidang kain 150cm) + kampuh potong 15-20cm/baju. Pada mode <strong>% Prediksi Produksi</strong>, proporsi ukuran dan porsi alokasi per vendor mengikuti rumusan tab Prediksi Produksi pada Tahun Ajaran yang dipilih.
+            *Kalkulasi memakai lebar kain <strong>{fabricWidth}cm</strong> (faktor skala {(fabricWidth / 150).toFixed(2)}x bidang kain) + kampuh potong 15-20cm/baju. Pada Mode A, 100% kain kiriman dihitung untuk vendor terpilih lalu dievaluasi terhadap target SPK TA {forecastAcademicYear}.
           </div>
         </div>
       </div>
+    </div>
+  )}
+
+      {/* TAMPILAN 2: BUKU MUTASI & SISA KAIN VENDOR */}
+      {activeKainSubTab === 'buku_kain' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* FILTER & AKSI BAR */}
+          <div
+            style={{
+              background: '#1e293b',
+              border: '1px solid rgba(71, 85, 105, 0.6)',
+              borderRadius: '12px',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.08rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📖</span> Buku Mutasi &amp; Sisa Kain Vendor
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                  Pencatatan saldo kain masuk supplier, pemakaian jahit, dan sisa bahan di bengkel vendor (berkelanjutan antar Tahun Ajaran).
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={loadFabricMutations}
+                  disabled={fabricMutationsLoading}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(148, 163, 184, 0.4)',
+                    background: 'rgba(30, 41, 59, 0.6)',
+                    color: '#94a3b8',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                  title="Muat ulang mutasi kain dari database"
+                >
+                  {fabricMutationsLoading ? 'Memuat...' : '↺ Refresh'}
+                </button>
+                {!readOnly && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInboundVendorId(bookVendorId !== 'ALL' ? bookVendorId : vendors[0]?.id || '');
+                        setInboundAcademicYear(bookAcademicYear);
+                        setShowInboundModal(true);
+                      }}
+                    style={{
+                      padding: '7px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #0284c7',
+                      background: 'rgba(2, 132, 199, 0.22)',
+                      color: '#bae6fd',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <span>+</span> Catat Kain Masuk Supplier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUsageVendorId(bookVendorId !== 'ALL' ? bookVendorId : vendors[0]?.id || '');
+                      setUsageAcademicYear(bookAcademicYear);
+                      setShowUsageModal(true);
+                    }}
+                    style={{
+                      padding: '7px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #10b981',
+                      background: 'rgba(16, 185, 129, 0.2)',
+                      color: '#d1fae5',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <span>+</span> Laporan Setor Baju &amp; Sisa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInitialVendorId(bookVendorId !== 'ALL' ? bookVendorId : vendors[0]?.id || '');
+                      setInitialAcademicYear(bookAcademicYear);
+                      setShowInitialModal(true);
+                    }}
+                    style={{
+                      padding: '7px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #f59e0b',
+                      background: 'rgba(245, 158, 11, 0.2)',
+                      color: '#fef3c7',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <span>⚖️</span> Saldo Awal / Opname
+                  </button>
+                </>
+              )}
+            </div>
+            </div>
+
+            {/* BARIS KONTROL FILTER */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '10px',
+                paddingTop: '12px',
+                borderTop: '1px solid rgba(148, 163, 184, 0.2)',
+              }}
+            >
+              <div>
+                <label style={{ display: 'block', fontSize: '0.74rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>
+                  Tahun Ajaran:
+                </label>
+                <select
+                  value={bookAcademicYear}
+                  onChange={e => setBookAcademicYear(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #475569',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {forecastYearOptions.map(yr => (
+                    <option key={yr} value={yr} style={{ background: '#ffffff', color: '#0f172a' }}>
+                      TA {yr}{yr === '2027/2028' ? ' (Target)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.74rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>
+                  Filter Vendor:
+                </label>
+                <select
+                  value={bookVendorId}
+                  onChange={e => setBookVendorId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #475569',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="ALL" style={{ background: '#ffffff', color: '#0f172a' }}>
+                    -- Semua Vendor ({vendors.length}) --
+                  </option>
+                  {vendors.map(v => (
+                    <option key={v.id} value={v.id} style={{ background: '#ffffff', color: '#0f172a' }}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.74rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>
+                  Filter Jenis Kain:
+                </label>
+                <select
+                  value={bookFabricFilter}
+                  onChange={e => setBookFabricFilter(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #475569',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="ALL" style={{ background: '#ffffff', color: '#0f172a' }}>
+                    -- Semua Jenis Kain --
+                  </option>
+                  {STANDARD_FABRIC_TYPES.map(ft => (
+                    <option key={ft} value={ft} style={{ background: '#ffffff', color: '#0f172a' }}>
+                      {ft}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.74rem', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>
+                  Cari Dokumen / Catatan:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Cari supplier, no. DO, vendor..."
+                  value={searchMutationQuery}
+                  onChange={e => setSearchMutationQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1px solid #475569',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    fontSize: '0.8rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* KARTU SALDO SISA KAIN BERKELANJUTAN */}
+          <div
+            style={{
+              background: '#1e293b',
+              border: '1px solid rgba(71, 85, 105, 0.6)',
+              borderRadius: '12px',
+              padding: '16px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '12px',
+                flexWrap: 'wrap',
+                gap: '8px',
+              }}
+            >
+              <h4 style={{ margin: 0, fontSize: '0.94rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📦</span> Saldo Sisa Kain Tersimpan di Vendor (TA {bookAcademicYear})
+              </h4>
+              <span style={{ fontSize: '0.74rem', color: '#38bdf8' }}>
+                {bookVendorId === 'ALL'
+                  ? 'Akumulasi Seluruh Vendor'
+                  : vendors.find(v => v.id === bookVendorId)?.name || 'Vendor Terpilih'}
+              </span>
+            </div>
+
+            <div
+              style={{
+                fontSize: '0.73rem',
+                color: '#cbd5e1',
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                lineHeight: 1.45,
+                marginBottom: '14px',
+              }}
+            >
+              💡 <strong>Saldo Berkelanjutan:</strong> Sisa kain di akhir TA sebelumnya otomatis menjadi Saldo Awal di TA {bookAcademicYear}. Perhitungan sisa kain dihitung dari <em>Saldo Awal + Kain Masuk Supplier - Pemakaian Baju Jadi + Penyesuaian Opname</em>.
+            </div>
+
+            {fabricBalances.summaries.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 16px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                Belum ada mutasi atau saldo kain yang tercatat untuk filter ini. Klik <strong>+ Catat Kain Masuk Supplier</strong> di atas untuk memulai.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '12px',
+                }}
+              >
+                {fabricBalances.summaries.map(it => {
+                  const isPositive = it.balanceYards > 0;
+                  const isZero = it.balanceYards === 0;
+                  const statusBg = isPositive
+                    ? 'rgba(16, 185, 129, 0.15)'
+                    : isZero
+                      ? 'rgba(100, 116, 139, 0.15)'
+                      : 'rgba(239, 68, 68, 0.15)';
+                  const statusBorder = isPositive
+                    ? 'rgba(16, 185, 129, 0.4)'
+                    : isZero
+                      ? 'rgba(100, 116, 139, 0.4)'
+                      : 'rgba(239, 68, 68, 0.4)';
+                  const statusColor = isPositive ? '#6ee7b7' : isZero ? '#cbd5e1' : '#fca5a5';
+
+                  return (
+                    <div
+                      key={it.fabricType}
+                      style={{
+                        background: 'rgba(15, 23, 42, 0.65)',
+                        border: `1px solid ${statusBorder}`,
+                        borderRadius: '10px',
+                        padding: '12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                        <strong style={{ fontSize: '0.84rem', color: '#f8fafc', lineHeight: 1.35 }}>
+                          {it.fabricType}
+                        </strong>
+                        <span
+                          style={{
+                            background: statusBg,
+                            color: statusColor,
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '2px 7px',
+                            borderRadius: '999px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {isPositive ? 'Tersedia' : isZero ? 'Habis' : 'Defisit'}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          background: 'rgba(30, 41, 59, 0.6)',
+                          borderRadius: '8px',
+                          padding: '8px 10px',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <div style={{ fontSize: '0.69rem', color: '#94a3b8' }}>Sisa Kain di Vendor Saat Ini</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: statusColor }}>
+                          {it.balanceYards.toFixed(1)} <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Yard</span>
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                          &asymp; {it.balanceMeters.toFixed(2)} Meter
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: '0.72rem', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#94a3b8' }}>Bawaan TA Lalu:</span>
+                          <strong style={{ color: it.prevCarryOverYards >= 0 ? '#93c5fd' : '#fca5a5' }}>
+                            {it.prevCarryOverYards >= 0 ? '+' : ''}{it.prevCarryOverYards.toFixed(1)} yd
+                          </strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#94a3b8' }}>Kain Masuk TA Ini:</span>
+                          <strong style={{ color: '#6ee7b7' }}>
+                            +{it.inboundYards.toFixed(1)} yd ({it.inboundRolls} roll)
+                          </strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#94a3b8' }}>Terpakai Jahit:</span>
+                          <strong style={{ color: '#fca5a5' }}>
+                            -{it.usageYards.toFixed(1)} yd ({it.garmentPcs} pcs)
+                          </strong>
+                        </div>
+                        {it.adjustmentYards !== 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#94a3b8' }}>Penyesuaian Opname:</span>
+                            <strong style={{ color: it.adjustmentYards >= 0 ? '#fde68a' : '#fca5a5' }}>
+                              {it.adjustmentYards >= 0 ? '+' : ''}{it.adjustmentYards.toFixed(1)} yd
+                            </strong>
+                          </div>
+                        )}
+                        {it.systemExpectedYards > 0 && it.usageYards > 0 && (
+                          <div
+                            style={{
+                              marginTop: '4px',
+                              paddingTop: '4px',
+                              borderTop: '1px dashed rgba(148, 163, 184, 0.2)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              fontSize: '0.7rem',
+                            }}
+                          >
+                            <span style={{ color: '#94a3b8' }}>Audit Efisiensi:</span>
+                            <span
+                              style={{
+                                color: it.systemExpectedYards >= it.usageYards ? '#6ee7b7' : '#fde68a',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {it.systemExpectedYards >= it.usageYards
+                                ? `Hemat ${(it.systemExpectedYards - it.usageYards).toFixed(1)} yd`
+                                : `Boros +${(it.usageYards - it.systemExpectedYards).toFixed(1)} yd`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* TABEL MUTASI KAIN & JEJAK AUDIT */}
+          <div
+            style={{
+              background: '#1e293b',
+              border: '1px solid rgba(71, 85, 105, 0.6)',
+              borderRadius: '12px',
+              padding: '16px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '12px',
+                flexWrap: 'wrap',
+                gap: '8px',
+              }}
+            >
+              <h4 style={{ margin: 0, fontSize: '0.94rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📋</span> Riwayat Mutasi Kain &amp; Audit Vendor (TA {bookAcademicYear})
+              </h4>
+              <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                Total {fabricBalances.currentYearMutations.length} transaksi di TA ini
+              </span>
+            </div>
+
+            {fabricMutationsLoading ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                Memuat buku mutasi kain...
+              </div>
+            ) : fabricBalances.currentYearMutations.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                Belum ada transaksi mutasi kain yang tercatat di TA {bookAcademicYear}.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', color: '#e2e8f0' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.25)', color: '#94a3b8', textAlign: 'left' }}>
+                      <th style={{ padding: '8px 6px' }}>Tanggal</th>
+                      <th style={{ padding: '8px 6px' }}>Vendor</th>
+                      <th style={{ padding: '8px 6px' }}>Tipe</th>
+                      <th style={{ padding: '8px 6px' }}>Jenis Kain</th>
+                      <th style={{ padding: '8px 6px' }}>Dokumen / Keterangan</th>
+                      <th style={{ padding: '8px 6px', textAlign: 'center' }}>Roll</th>
+                      <th style={{ padding: '8px 6px', textAlign: 'right' }}>Yard</th>
+                      <th style={{ padding: '8px 6px', textAlign: 'right' }}>Meter</th>
+                      <th style={{ padding: '8px 6px', textAlign: 'right' }}>Baju (pcs)</th>
+                      <th style={{ padding: '8px 6px', textAlign: 'center' }}>Audit Standar</th>
+                      {!readOnly && <th style={{ padding: '8px 6px', textAlign: 'center' }}>Aksi</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fabricBalances.currentYearMutations.map(m => {
+                      const isMinus = m.mutation_type === 'usage';
+                      const typeLabel =
+                        m.mutation_type === 'inbound'
+                          ? '📥 Masuk Supplier'
+                          : m.mutation_type === 'usage'
+                            ? '✂️ Setor & Pakai'
+                            : m.mutation_type === 'initial'
+                              ? '📦 Saldo Awal'
+                              : '⚖️ Opname';
+                      const typeBg =
+                        m.mutation_type === 'inbound'
+                          ? 'rgba(2, 132, 199, 0.2)'
+                          : m.mutation_type === 'usage'
+                            ? 'rgba(239, 68, 68, 0.2)'
+                            : m.mutation_type === 'initial'
+                              ? 'rgba(56, 189, 248, 0.2)'
+                              : 'rgba(245, 158, 11, 0.2)';
+                      const typeColor =
+                        m.mutation_type === 'inbound'
+                          ? '#7dd3fc'
+                          : m.mutation_type === 'usage'
+                            ? '#fca5a5'
+                            : m.mutation_type === 'initial'
+                              ? '#bae6fd'
+                              : '#fde68a';
+
+                      return (
+                        <tr key={m.id} style={{ borderBottom: '1px dashed rgba(148, 163, 184, 0.15)' }}>
+                          <td style={{ padding: '8px 6px', whiteSpace: 'nowrap' }}>
+                            {m.date ? new Date(m.date).toLocaleDateString('id-ID') : '-'}
+                          </td>
+                          <td style={{ padding: '8px 6px', fontWeight: 600, color: '#f8fafc' }}>
+                            {m.vendors?.name || '-'}
+                          </td>
+                          <td style={{ padding: '8px 6px', whiteSpace: 'nowrap' }}>
+                            <span
+                              style={{
+                                background: typeBg,
+                                color: typeColor,
+                                padding: '2px 7px',
+                                borderRadius: '999px',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {typeLabel}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 6px' }}>{m.fabric_type}</td>
+                          <td style={{ padding: '8px 6px', color: '#cbd5e1' }}>
+                            <div>{m.document_no || m.supplier_name || '-'}</div>
+                            {m.notes && <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{m.notes}</div>}
+                          </td>
+                          <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                            {m.rolls > 0 ? `${m.rolls} roll` : '-'}
+                          </td>
+                          <td
+                            style={{
+                              padding: '8px 6px',
+                              textAlign: 'right',
+                              fontWeight: 700,
+                              color: isMinus ? '#fca5a5' : '#6ee7b7',
+                            }}
+                          >
+                            {isMinus ? '-' : '+'}{Number(m.length_yards).toFixed(1)} yd
+                          </td>
+                          <td style={{ padding: '8px 6px', textAlign: 'right', color: '#cbd5e1' }}>
+                            {isMinus ? '-' : '+'}{Number(m.length_meters).toFixed(2)} m
+                          </td>
+                          <td style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 600 }}>
+                            {m.garment_pcs > 0 ? `${m.garment_pcs} pcs` : '-'}
+                          </td>
+                          <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                            {m.system_expected_yards > 0 ? (
+                              <div style={{ fontSize: '0.71rem' }}>
+                                <span style={{ color: '#94a3b8' }}>Std: {m.system_expected_yards.toFixed(1)} yd</span>
+                                <br />
+                                <strong
+                                  style={{
+                                    color: m.system_expected_yards >= m.length_yards ? '#6ee7b7' : '#fca5a5',
+                                  }}
+                                >
+                                  {m.system_expected_yards >= m.length_yards
+                                    ? `Hemat ${(m.system_expected_yards - m.length_yards).toFixed(1)} yd`
+                                    : `Boros +${(m.length_yards - m.system_expected_yards).toFixed(1)} yd`}
+                                </strong>
+                              </div>
+                            ) : (
+                              <span style={{ color: '#64748b' }}>-</span>
+                            )}
+                          </td>
+                          {!readOnly && (
+                            <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMutation(m.id)}
+                                style={{
+                                  background: 'rgba(239, 68, 68, 0.15)',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                  color: '#fca5a5',
+                                  padding: '3px 7px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.7rem',
+                                  cursor: 'pointer',
+                                }}
+                                title="Hapus mutasi kain ini"
+                              >
+                                Hapus
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* MODAL TAMBAH ITEM MODEL SERAGAM */}
       {showAddModal && !readOnly && (
@@ -3370,6 +4981,587 @@ const KopkarKalkulatorKain = ({ readOnly = false }: KalkulatorKainProps) => {
                 </button>
                 <button type="submit" className="kain-btn-save" disabled={isSaving}>
                   {isSaving ? 'Menyimpan...' : '✓ Tambah & Simpan Item'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: CATAT KAIN MASUK DARI SUPPLIER */}
+      {showInboundModal && !readOnly && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!inboundSaving) setShowInboundModal(false);
+          }}
+        >
+          <div className="modal kain-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>📥</span> Catat Kain Masuk dari Supplier
+            </h3>
+            <p className="kain-modal-desc">
+              Catat penerimaan kain dari supplier yang dikirimkan ke bengkel vendor penjahit.
+            </p>
+
+            <form onSubmit={handleSaveInboundMutation} className="modal-form">
+              <div className="kain-modal-row">
+                <div className="form-group flex-1">
+                  <label htmlFor="inbound-vendor">Vendor Penerima Kain *</label>
+                  <select
+                    id="inbound-vendor"
+                    value={inboundVendorId}
+                    onChange={e => setInboundVendorId(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  >
+                    <option value="" style={{ background: '#ffffff', color: '#0f172a' }}>
+                      -- Pilih Vendor Penerima --
+                    </option>
+                    {vendors.map(v => (
+                      <option key={v.id} value={v.id} style={{ background: '#ffffff', color: '#0f172a' }}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ width: '150px' }}>
+                  <label htmlFor="inbound-year">Tahun Ajaran *</label>
+                  <select
+                    id="inbound-year"
+                    value={inboundAcademicYear}
+                    onChange={e => setInboundAcademicYear(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  >
+                    {forecastYearOptions.map(yr => (
+                      <option key={yr} value={yr} style={{ background: '#ffffff', color: '#0f172a' }}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="inbound-fabric">Jenis Bahan Kain *</label>
+                <select
+                  id="inbound-fabric"
+                  value={inboundFabricType}
+                  onChange={e => setInboundFabricType(e.target.value)}
+                  required
+                  style={{ background: '#f8fafc', color: '#0f172a' }}
+                >
+                  {STANDARD_FABRIC_TYPES.map(ft => (
+                    <option key={ft} value={ft} style={{ background: '#ffffff', color: '#0f172a' }}>
+                      {ft}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {inboundFabricType === 'Lainnya / Khusus' && (
+                <div className="form-group">
+                  <label htmlFor="inbound-custom-fabric">Ketik Nama Bahan Kain Khusus *</label>
+                  <input
+                    id="inbound-custom-fabric"
+                    type="text"
+                    placeholder="mis. Kain Drill Hitam / Kotak Khusus TK"
+                    value={inboundCustomFabricType}
+                    onChange={e => setInboundCustomFabricType(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+              )}
+
+              <div className="kain-modal-row">
+                <div className="form-group flex-1">
+                  <label htmlFor="inbound-date">Tanggal Kirim / Terima *</label>
+                  <input
+                    id="inbound-date"
+                    type="date"
+                    value={inboundDate}
+                    onChange={e => setInboundDate(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label htmlFor="inbound-doc">No. Surat Jalan / DO / Faktur</label>
+                  <input
+                    id="inbound-doc"
+                    type="text"
+                    placeholder="mis. SJ-TXT-2027-01"
+                    value={inboundDocNo}
+                    onChange={e => setInboundDocNo(e.target.value)}
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="inbound-supplier">Asal Supplier Kain</label>
+                <input
+                  id="inbound-supplier"
+                  type="text"
+                  placeholder="mis. Toko Kain Sentosa / PT Grand Textile"
+                  value={inboundSupplierName}
+                  onChange={e => setInboundSupplierName(e.target.value)}
+                  style={{ background: '#f8fafc', color: '#0f172a' }}
+                />
+              </div>
+
+              <div className="kain-modal-row">
+                <div className="form-group" style={{ width: '130px' }}>
+                  <label htmlFor="inbound-rolls">Jml Gulungan</label>
+                  <input
+                    id="inbound-rolls"
+                    type="number"
+                    min="0"
+                    value={inboundRolls}
+                    onChange={e => setInboundRolls(Math.max(0, parseInt(e.target.value) || 0))}
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+
+                <div className="form-group flex-1">
+                  <label htmlFor="inbound-yards">Panjang (Yard) *</label>
+                  <input
+                    id="inbound-yards"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={inboundLengthYards}
+                    onChange={e => {
+                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                      setInboundLengthYards(val);
+                      setInboundLengthMeters(Number((val * 0.9144).toFixed(2)));
+                    }}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a', fontWeight: 700 }}
+                  />
+                </div>
+
+                <div className="form-group flex-1">
+                  <label htmlFor="inbound-meters">Panjang (Meter)</label>
+                  <input
+                    id="inbound-meters"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={inboundLengthMeters}
+                    onChange={e => {
+                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                      setInboundLengthMeters(val);
+                      setInboundLengthYards(Number((val / 0.9144).toFixed(2)));
+                    }}
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="inbound-notes">Catatan Tambahan</label>
+                <textarea
+                  id="inbound-notes"
+                  rows={2}
+                  placeholder="mis. Dikirim 2 tahap, kain warna putih bersih untuk kemeja SD"
+                  value={inboundNotes}
+                  onChange={e => setInboundNotes(e.target.value)}
+                  style={{ background: '#f8fafc', color: '#0f172a', borderRadius: '8px', padding: '8px' }}
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="kain-btn-reset"
+                  onClick={() => setShowInboundModal(false)}
+                  disabled={inboundSaving}
+                >
+                  Batal
+                </button>
+                <button type="submit" className="kain-btn-save" disabled={inboundSaving}>
+                  {inboundSaving ? 'Menyimpan...' : '✓ Simpan Kain Masuk'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: CATAT LAPORAN SETOR BAJU & PEMAKAIAN KAIN VENDOR */}
+      {showUsageModal && !readOnly && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!usageSaving) setShowUsageModal(false);
+          }}
+        >
+          <div className="modal kain-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>✂️</span> Laporan Setor Baju &amp; Pemakaian Kain
+            </h3>
+            <p className="kain-modal-desc">
+              Catat laporan hasil jahit baju jadi dari vendor untuk memotong saldo kain dan menguji efisiensi pemotongan bahan.
+            </p>
+
+            <form onSubmit={handleSaveUsageMutation} className="modal-form">
+              <div className="kain-modal-row">
+                <div className="form-group flex-1">
+                  <label htmlFor="usage-vendor">Vendor Penjahit *</label>
+                  <select
+                    id="usage-vendor"
+                    value={usageVendorId}
+                    onChange={e => setUsageVendorId(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  >
+                    <option value="" style={{ background: '#ffffff', color: '#0f172a' }}>
+                      -- Pilih Vendor --
+                    </option>
+                    {vendors.map(v => (
+                      <option key={v.id} value={v.id} style={{ background: '#ffffff', color: '#0f172a' }}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ width: '150px' }}>
+                  <label htmlFor="usage-year">Tahun Ajaran *</label>
+                  <select
+                    id="usage-year"
+                    value={usageAcademicYear}
+                    onChange={e => setUsageAcademicYear(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  >
+                    {forecastYearOptions.map(yr => (
+                      <option key={yr} value={yr} style={{ background: '#ffffff', color: '#0f172a' }}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="usage-fabric">Jenis Bahan Kain Terpakai *</label>
+                <select
+                  id="usage-fabric"
+                  value={usageFabricType}
+                  onChange={e => setUsageFabricType(e.target.value)}
+                  required
+                  style={{ background: '#f8fafc', color: '#0f172a' }}
+                >
+                  {STANDARD_FABRIC_TYPES.map(ft => (
+                    <option key={ft} value={ft} style={{ background: '#ffffff', color: '#0f172a' }}>
+                      {ft}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="kain-modal-row">
+                <div className="form-group flex-1">
+                  <label htmlFor="usage-date">Tanggal Setor Baju *</label>
+                  <input
+                    id="usage-date"
+                    type="date"
+                    value={usageDate}
+                    onChange={e => setUsageDate(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label htmlFor="usage-doc">No. SPK / Bukti Setor</label>
+                  <input
+                    id="usage-doc"
+                    type="text"
+                    placeholder="mis. SPK-2027-01 / BAST-05"
+                    value={usageDocNo}
+                    onChange={e => setUsageDocNo(e.target.value)}
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="usage-garment-pcs">Jumlah Baju Jadi yang Disetor (pcs) *</label>
+                <input
+                  id="usage-garment-pcs"
+                  type="number"
+                  min="1"
+                  placeholder="mis. 500"
+                  value={usageGarmentPcs || ''}
+                  onChange={e => {
+                    const pcs = Math.max(0, parseInt(e.target.value) || 0);
+                    setUsageGarmentPcs(pcs);
+                    if (pcs > 0 && usageLengthYards === 0) {
+                      const estYd = Number((pcs * 1.25).toFixed(1));
+                      setUsageLengthYards(estYd);
+                      setUsageLengthMeters(Number((estYd * 0.9144).toFixed(2)));
+                    }
+                  }}
+                  required
+                  style={{ background: '#f8fafc', color: '#0f172a', fontWeight: 700 }}
+                />
+              </div>
+
+              <div className="kain-modal-row">
+                <div className="form-group flex-1">
+                  <label htmlFor="usage-yards">Kain yang Terpakai (Yard) *</label>
+                  <input
+                    id="usage-yards"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={usageLengthYards || ''}
+                    onChange={e => {
+                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                      setUsageLengthYards(val);
+                      setUsageLengthMeters(Number((val * 0.9144).toFixed(2)));
+                    }}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a', fontWeight: 700 }}
+                  />
+                </div>
+
+                <div className="form-group flex-1">
+                  <label htmlFor="usage-meters">Kain yang Terpakai (Meter)</label>
+                  <input
+                    id="usage-meters"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={usageLengthMeters || ''}
+                    onChange={e => {
+                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                      setUsageLengthMeters(val);
+                      setUsageLengthYards(Number((val / 0.9144).toFixed(2)));
+                    }}
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="usage-claim-remain">Klaim Sisa Kain Riil di Vendor (Opsional)</label>
+                <input
+                  id="usage-claim-remain"
+                  type="text"
+                  placeholder="mis. Vendor melapor sisa 35 yard di rak bengkel"
+                  value={usageClaimRemainingYards}
+                  onChange={e => setUsageClaimRemainingYards(e.target.value)}
+                  style={{ background: '#f8fafc', color: '#0f172a' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="usage-notes">Catatan Tambahan</label>
+                <textarea
+                  id="usage-notes"
+                  rows={2}
+                  placeholder="Catatan hasil potong vendor / kondisi sisa kain..."
+                  value={usageNotes}
+                  onChange={e => setUsageNotes(e.target.value)}
+                  style={{ background: '#f8fafc', color: '#0f172a', borderRadius: '8px', padding: '8px' }}
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="kain-btn-reset"
+                  onClick={() => setShowUsageModal(false)}
+                  disabled={usageSaving}
+                >
+                  Batal
+                </button>
+                <button type="submit" className="kain-btn-save" disabled={usageSaving}>
+                  {usageSaving ? 'Menyimpan...' : '✓ Simpan Laporan Setor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: CATAT SALDO AWAL / OPNAME PENYESUAIAN */}
+      {showInitialModal && !readOnly && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!initialSaving) setShowInitialModal(false);
+          }}
+        >
+          <div className="modal kain-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>⚖️</span> Saldo Awal / Opname Fisik Kain Vendor
+            </h3>
+            <p className="kain-modal-desc">
+              Masukkan saldo awal sisa kain bawaan secara manual atau sesuaikan angka opname fisik di bengkel vendor.
+            </p>
+
+            <form onSubmit={handleSaveInitialMutation} className="modal-form">
+              <div className="kain-modal-row">
+                <div className="form-group flex-1">
+                  <label htmlFor="initial-vendor">Vendor *</label>
+                  <select
+                    id="initial-vendor"
+                    value={initialVendorId}
+                    onChange={e => setInitialVendorId(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  >
+                    <option value="" style={{ background: '#ffffff', color: '#0f172a' }}>
+                      -- Pilih Vendor --
+                    </option>
+                    {vendors.map(v => (
+                      <option key={v.id} value={v.id} style={{ background: '#ffffff', color: '#0f172a' }}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ width: '150px' }}>
+                  <label htmlFor="initial-year">Tahun Ajaran *</label>
+                  <select
+                    id="initial-year"
+                    value={initialAcademicYear}
+                    onChange={e => setInitialAcademicYear(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  >
+                    {forecastYearOptions.map(yr => (
+                      <option key={yr} value={yr} style={{ background: '#ffffff', color: '#0f172a' }}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="kain-modal-row">
+                <div className="form-group flex-1">
+                  <label htmlFor="initial-type">Tipe Catatan *</label>
+                  <select
+                    id="initial-type"
+                    value={initialType}
+                    onChange={e => setInitialType(e.target.value as 'initial' | 'adjustment')}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  >
+                    <option value="initial">📦 Saldo Awal TA</option>
+                    <option value="adjustment">⚖️ Penyesuaian Opname Fisik</option>
+                  </select>
+                </div>
+
+                <div className="form-group flex-1">
+                  <label htmlFor="initial-fabric">Jenis Bahan Kain *</label>
+                  <select
+                    id="initial-fabric"
+                    value={initialFabricType}
+                    onChange={e => setInitialFabricType(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  >
+                    {STANDARD_FABRIC_TYPES.map(ft => (
+                      <option key={ft} value={ft} style={{ background: '#ffffff', color: '#0f172a' }}>
+                        {ft}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="kain-modal-row">
+                <div className="form-group flex-1">
+                  <label htmlFor="initial-date">Tanggal *</label>
+                  <input
+                    id="initial-date"
+                    type="date"
+                    value={initialDate}
+                    onChange={e => setInitialDate(e.target.value)}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+                <div className="form-group" style={{ width: '130px' }}>
+                  <label htmlFor="initial-rolls">Jumlah Roll</label>
+                  <input
+                    id="initial-rolls"
+                    type="number"
+                    value={initialRolls}
+                    onChange={e => setInitialRolls(parseInt(e.target.value) || 0)}
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+              </div>
+
+              <div className="kain-modal-row">
+                <div className="form-group flex-1">
+                  <label htmlFor="initial-yards">Panjang (Yard) *</label>
+                  <input
+                    id="initial-yards"
+                    type="number"
+                    step="0.1"
+                    value={initialLengthYards || ''}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setInitialLengthYards(val);
+                      setInitialLengthMeters(Number((val * 0.9144).toFixed(2)));
+                    }}
+                    required
+                    style={{ background: '#f8fafc', color: '#0f172a', fontWeight: 700 }}
+                  />
+                </div>
+
+                <div className="form-group flex-1">
+                  <label htmlFor="initial-meters">Panjang (Meter)</label>
+                  <input
+                    id="initial-meters"
+                    type="number"
+                    step="0.1"
+                    value={initialLengthMeters || ''}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setInitialLengthMeters(val);
+                      setInitialLengthYards(Number((val / 0.9144).toFixed(2)));
+                    }}
+                    style={{ background: '#f8fafc', color: '#0f172a' }}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="initial-notes">Keterangan / Alasan Penyesuaian</label>
+                <textarea
+                  id="initial-notes"
+                  rows={2}
+                  placeholder="mis. Saldo sisa fisik dihitung bersama mandor tanggal sekian..."
+                  value={initialNotes}
+                  onChange={e => setInitialNotes(e.target.value)}
+                  style={{ background: '#f8fafc', color: '#0f172a', borderRadius: '8px', padding: '8px' }}
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="kain-btn-reset"
+                  onClick={() => setShowInitialModal(false)}
+                  disabled={initialSaving}
+                >
+                  Batal
+                </button>
+                <button type="submit" className="kain-btn-save" disabled={initialSaving}>
+                  {initialSaving ? 'Menyimpan...' : '✓ Simpan Saldo'}
                 </button>
               </div>
             </form>

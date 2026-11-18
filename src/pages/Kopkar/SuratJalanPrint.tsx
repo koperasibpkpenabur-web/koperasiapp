@@ -3,6 +3,8 @@ import type { Order } from '../../types';
 import { resolveAcademicYear } from '../../utils/academicYear';
 import { resolveItemUnit } from '../../utils/formatUnit';
 import { findMatchingOrderLine } from '../../utils/orderItemMatch';
+import { QrCodeSvg } from '../../utils/qrCode';
+import { buildOrderReceiveUrl } from '../../utils/orderQrToken';
 
 const formatRupiah = (angka: number) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
@@ -178,9 +180,32 @@ const SuratJalanPrint: React.FC<Props> = ({ order }) => {
             </div>
           </div>
         </div>
-        <div style={{ fontSize: '13.5px', textAlign: 'right' }}>
+        <div style={{ fontSize: '13.5px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
           <div>Tanggal: {today}</div>
           <div>Tahun Ajaran: <strong>{resolveAcademicYear(order.academicYear)}</strong></div>
+          {/* QR Code Penerimaan Barang */}
+          <div
+            style={{
+              marginTop: '4px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              padding: '2px',
+              border: '1px dashed #64748b',
+              borderRadius: '4px',
+              background: '#ffffff',
+              width: 'fit-content',
+            }}
+            title="Scan QR Code ini menggunakan kamera HP untuk konfirmasi terima barang di sistem AKSARA"
+          >
+            <QrCodeSvg value={buildOrderReceiveUrl(order.id)} size={64} />
+            <span style={{ fontSize: '8.5px', fontWeight: 'bold', marginTop: '2px', letterSpacing: '0.2px', color: '#0f172a' }}>
+              SCAN TERIMA BARANG
+            </span>
+            <span style={{ fontSize: '7px', color: '#64748b', lineHeight: 1 }}>
+              Buka kamera HP Anda
+            </span>
+          </div>
         </div>
       </div>
 
