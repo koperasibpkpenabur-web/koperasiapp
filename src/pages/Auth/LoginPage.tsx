@@ -132,13 +132,14 @@ const LoginPage = () => {
     <div className="login-page">
       <div className="login-card split-layout">
         <div className="login-left">
-          <p className="login-welcome-title">Welcome to</p>
-          <img
-            src={`${import.meta.env.BASE_URL}Logo Aksara Update Ukuran.png`}
-            alt="Logo AKSARA"
-            className="login-logo-img"
-          />
-          <p className="login-tagline">Akses Sistem Administrasi Koperasi BPK PENABUR</p>
+          <h1 className="login-welcome-title">Welcome to</h1>
+          <div className="login-logo-container">
+            <img
+              src={`${import.meta.env.BASE_URL}Logo Aksara Update Ukuran.png`}
+              alt="Logo AKSARA"
+              className="login-logo-img"
+            />
+          </div>
         </div>
 
         <div className="login-right">
