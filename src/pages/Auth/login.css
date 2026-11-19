@@ -10,14 +10,14 @@
 .login-card.split-layout {
   display: flex;
   flex-direction: row;
-  max-width: 880px;
+  max-width: 760px;
   width: 100%;
   padding: 0;
   overflow: hidden;
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: 18px;
   border: 1px solid var(--border-subtle, #d5deef);
-  box-shadow: 0 24px 60px rgba(20, 35, 58, 0.22);
+  box-shadow: 0 20px 50px rgba(20, 35, 58, 0.22);
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -27,9 +27,9 @@
 }
 
 .login-left {
-  flex: 1.25;
+  flex: 1.1;
   background: linear-gradient(145deg, #395886 0%, #243956 100%);
-  padding: 36px 32px;
+  padding: 28px 24px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -40,11 +40,11 @@
 
 .login-logo-img {
   width: 100%;
-  max-width: 280px;
+  max-width: 220px;
   height: auto;
   display: block;
   margin: 0 auto;
-  filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.22));
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.22));
   transition: transform 0.3s ease;
 }
 
@@ -53,12 +53,20 @@
 }
 
 .login-left .login-welcome-title {
+  color: rgba(255, 255, 255, 0.72);
+  margin-top: 10px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.login-left .login-welcome-to {
   color: white;
-  margin-top: 18px;
-  font-size: 1.38rem;
+  margin-top: 14px;
+  font-size: 1.25rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
 .login-left .login-tagline {
@@ -71,7 +79,7 @@
 
 .login-right {
   flex: 1;
-  padding: 28px 36px 22px;
+  padding: 24px 30px 20px;
   background: #ffffff;
   display: flex;
   flex-direction: column;

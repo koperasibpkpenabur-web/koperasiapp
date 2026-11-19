@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import NotificationPopup from '../NotificationPopup';
 import OrderRealtimeNotification from '../common/OrderRealtimeNotification';
+import CartModalGlobal from '../common/CartModalGlobal';
 import './layout.css';
 
 const MainLayout = () => {
@@ -31,6 +32,7 @@ const MainLayout = () => {
       
       <NotificationPopup />
       <OrderRealtimeNotification />
+      <CartModalGlobal />
     </div>
   );
 };

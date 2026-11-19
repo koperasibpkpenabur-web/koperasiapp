@@ -14,7 +14,7 @@ import { generateSuratJalanExcel } from '../../utils/excelGenerator';
 import { resolveItemUnit } from '../../utils/formatUnit';
 import { getWibDateString, getWibTimeString } from '../../utils/dateWib';
 import { findMatchingOrderLine } from '../../utils/orderItemMatch';
-import { buildOrderReceiveUrl, getSchoolDefaultPin } from '../../utils/orderQrToken';
+
 import './kopkar.css';
 
 const KopkarPesanan = () => {
@@ -2043,73 +2043,6 @@ const KopkarPesanan = () => {
               </div>
             </div>
 
-            {/* BUKTI TERIMA & LINK QR CODE PENERIMAAN BARANG */}
-            {detailOrder.status === 'shipped' && (
-              <div
-                style={{
-                  marginTop: '14px',
-                  padding: '12px 14px',
-                  borderRadius: '10px',
-                  background: '#f0fdf4',
-                  border: '1px solid #bbf7d0',
-                  color: '#166534',
-                  fontSize: '0.84rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                  <div>
-                    <strong>📱 Link Konfirmasi Terima Barang (Scan QR):</strong>
-                    <div style={{ fontSize: '0.75rem', color: '#15803d', marginTop: '2px' }}>
-                      PIN Default Sekolah: <strong>{getSchoolDefaultPin(detailOrder.schoolName)}</strong> (dapat dibagikan ke penerima di sekolah)
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = buildOrderReceiveUrl(detailOrder.id);
-                        navigator.clipboard.writeText(url);
-                        alert('Link penerimaan barang berhasil disalin!\n' + url);
-                      }}
-                      style={{
-                        padding: '5px 10px',
-                        borderRadius: '6px',
-                        border: '1px solid #16a34a',
-                        background: '#ffffff',
-                        color: '#15803d',
-                        fontWeight: 600,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      📋 Salin Link
-                    </button>
-                    <a
-                      href={buildOrderReceiveUrl(detailOrder.id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '5px 10px',
-                        borderRadius: '6px',
-                        border: '1px solid #0284c7',
-                        background: '#0284c7',
-                        color: '#ffffff',
-                        fontWeight: 600,
-                        fontSize: '0.78rem',
-                        textDecoration: 'none',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                      }}
-                    >
-                      👁️ Buka Form
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {detailOrder.status === 'received' && detailOrder.receiveInfo && (
               <div
@@ -2127,7 +2060,7 @@ const KopkarPesanan = () => {
                 }}
               >
                 <div style={{ fontWeight: 700, color: '#0f172a' }}>
-                  ✅ Bukti Tanda Terima Fisik ({detailOrder.receiveInfo.receivedVia === 'qr_scan_surat_jalan' ? 'Scan QR Surat Jalan' : 'Input Manual'})
+                  ✅ Bukti Tanda Terima Fisik
                 </div>
                 <div>
                   Diterima oleh: <strong>{detailOrder.receiveInfo.receivedBy || '-'}</strong>
