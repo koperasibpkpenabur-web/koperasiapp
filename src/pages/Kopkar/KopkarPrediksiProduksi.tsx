@@ -2456,150 +2456,95 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   };
 
   // 1b. Download Template Excel SPK Vendor per Jenjang (SSOT Manajemen Barang)
-  const handleDownloadVendorSPKTemplate = async () => {
+  const handleDownloadVendorSPKTemplate = () => {
     if (vendors.length === 0) {
       alert('Belum ada data vendor yang terdaftar di sistem.');
       return;
     }
 
-    const targetVendors = selectedVendorFilter !== 'ALL'
-      ? vendors.filter((v) => v.id === selectedVendorFilter)
-      : vendors;
-
-    if (targetVendors.length === 0) {
-      alert('Pilih vendor terlebih dahulu atau pastikan data vendor tersedia.');
+    if (selectedVendorFilter === 'ALL') {
+      alert('Silakan pilih salah satu Vendor pada dropdown di samping terlebih dahulu (misal: ANDRYNA) untuk mengunduh template SPK khusus vendor tersebut.');
       return;
     }
 
-    if (selectedVendorFilter === 'ALL' && targetVendors.length > 1) {
-      const confirmAll = window.confirm(
-        `Anda sedang memilih 'Semua Vendor'. Apakah Anda ingin mengunduh template SPK untuk seluruh ${targetVendors.length} vendor sekaligus?`
-      );
-      if (!confirmAll) return;
+    const vendor = vendors.find((v) => v.id === selectedVendorFilter);
+    if (!vendor) {
+      alert('Vendor yang dipilih tidak ditemukan.');
+      return;
     }
 
+    const workbook = XLSX.utils.book_new();
     const sheetOrder = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
 
-    for (const vendor of targetVendors) {
-      const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'Koperasi Konsumen Karyawan BPK PENABUR Jakarta';
-      workbook.created = new Date();
+    let sheetsAdded = 0;
 
-      const thinBorder: Partial<ExcelJS.Borders> = {
-        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-        right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-      };
+    sheetOrder.forEach((lvl) => {
+      const uniformList = getItemsAndSizesForLevel(lvl);
+      if (uniformList.length === 0) return;
 
-      const headerFill: ExcelJS.Fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFF1F5F9' },
-      };
+      const plottedSchools = Array.from(
+        new Set(
+          effectivePlottings
+            .filter(
+              (p) =>
+                p.vendor_id === vendor.id &&
+                normalizeLevel(p.app_users?.school_level || '') === normalizeLevel(lvl)
+            )
+            .map((p) => p.app_users?.school_name)
+            .filter(Boolean)
+        )
+      );
 
-      sheetOrder.forEach((lvl) => {
-        const uniformList = getItemsAndSizesForLevel(lvl);
-        if (uniformList.length === 0) return;
+      const schoolStr = plottedSchools.length > 0
+        ? `Sekolah Jenjang ${lvl} yang Dilayani (${plottedSchools.length} Sekolah): ${plottedSchools.join(', ')}`
+        : `Sekolah Jenjang ${lvl} yang Dilayani: Belum ada sekolah yang di-plot`;
 
-        const worksheet = workbook.addWorksheet(lvl, {
-          views: [{ showGridLines: true }],
+      const rows: any[][] = [
+        [`SURAT PERINTAH KERJA (SPK) PRODUKSI - JENJANG ${lvl}`],
+        [`Tahun Ajaran: ${targetYear}`],
+        [`Vendor / Mitra: ${vendor.name}`],
+        [`PIC: ${vendor.contact_person || '-'} | No. Telp: ${vendor.phone || '-'}`],
+        [schoolStr],
+        [],
+        ['JENIS BARANG', 'UKURAN', 'TOTAL (PCS)']
+      ];
+
+      const merges: XLSX.Range[] = [];
+      let curRowIdx = 7; // Baris data dimulai pada index 7 (baris ke-8 di Excel)
+
+      uniformList.forEach((item) => {
+        const startR = curRowIdx;
+        item.sizes.forEach((sz, sIdx) => {
+          rows.push([sIdx === 0 ? item.name : '', sz, '']);
+          curRowIdx++;
         });
-
-        // Lebar kolom
-        worksheet.getColumn(1).width = 38; // JENIS BARANG
-        worksheet.getColumn(2).width = 16; // UKURAN
-        worksheet.getColumn(3).width = 20; // TOTAL (PCS)
-
-        // Header Dokumen SPK
-        worksheet.getCell('A1').value = `SURAT PERINTAH KERJA (SPK) PRODUKSI - JENJANG ${lvl}`;
-        worksheet.getCell('A1').font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF0F172A' } };
-
-        worksheet.getCell('A2').value = `Tahun Ajaran: ${targetYear}`;
-        worksheet.getCell('A2').font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF334155' } };
-
-        worksheet.getCell('A3').value = `Vendor / Mitra: ${vendor.name}`;
-        worksheet.getCell('A3').font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF334155' } };
-
-        worksheet.getCell('A4').value = `PIC: ${vendor.contact_person || '-'} | No. Telp: ${vendor.phone || '-'}`;
-        worksheet.getCell('A4').font = { name: 'Calibri', size: 9, color: { argb: 'FF64748B' } };
-
-        // Sekolah yang dilayani vendor pada jenjang ini
-        const plottedSchools = Array.from(
-          new Set(
-            effectivePlottings
-              .filter(
-                (p) =>
-                  p.vendor_id === vendor.id &&
-                  normalizeLevel(p.app_users?.school_level || '') === normalizeLevel(lvl)
-              )
-              .map((p) => p.app_users?.school_name)
-              .filter(Boolean)
-          )
-        );
-
-        const schoolStr = plottedSchools.length > 0
-          ? `Sekolah Jenjang ${lvl} yang Dilayani (${plottedSchools.length} Sekolah): ${plottedSchools.join(', ')}`
-          : `Sekolah Jenjang ${lvl} yang Dilayani: Belum ada sekolah yang di-plot`;
-
-        worksheet.getCell('A5').value = schoolStr;
-        worksheet.getCell('A5').font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } };
-
-        // Header Tabel di baris 7
-        worksheet.getRow(7).height = 26;
-        const colHeaders = ['JENIS BARANG', 'UKURAN', 'TOTAL (PCS)'];
-        colHeaders.forEach((title, idx) => {
-          const cell = worksheet.getCell(7, idx + 1);
-          cell.value = title;
-          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          cell.fill = headerFill;
-          cell.border = thinBorder;
-        });
-
-        let curRow = 8;
-        uniformList.forEach((item) => {
-          const startR = curRow;
-          item.sizes.forEach((sz) => {
-            const row = worksheet.getRow(curRow);
-            row.height = 20;
-
-            const cellA = worksheet.getCell(curRow, 1);
-            cellA.value = item.name;
-            cellA.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E293B' } };
-            cellA.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-            cellA.border = thinBorder;
-
-            const cellB = worksheet.getCell(curRow, 2);
-            cellB.value = sz;
-            cellB.font = { name: 'Calibri', size: 10, bold: false, color: { argb: 'FF1E293B' } };
-            cellB.alignment = { vertical: 'middle', horizontal: 'center' };
-            cellB.border = thinBorder;
-
-            const cellC = worksheet.getCell(curRow, 3);
-            cellC.value = null;
-            cellC.numFmt = '#,##0';
-            cellC.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
-            cellC.alignment = { vertical: 'middle', horizontal: 'right' };
-            cellC.border = thinBorder;
-
-            curRow++;
+        const endR = curRowIdx - 1;
+        if (endR > startR) {
+          merges.push({
+            s: { r: startR, c: 0 },
+            e: { r: endR, c: 0 }
           });
-
-          const endR = curRow - 1;
-          if (endR > startR) {
-            worksheet.mergeCells(`A${startR}:A${endR}`);
-          }
-        });
+        }
       });
 
-      const buffer = await workbook.xlsx.writeBuffer();
-      const cleanVendorName = vendor.name.replace(/[/\\?*[\]:\s]/g, '_');
-      saveAs(
-        new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-        `SPK_${cleanVendorName}_${targetYear.replace(/[/\\?*[\]:]/g, '_')}.xlsx`
-      );
+      const worksheet = XLSX.utils.aoa_to_sheet(rows);
+      if (merges.length > 0) {
+        worksheet['!merges'] = merges;
+      }
+      worksheet['!cols'] = [{ wch: 38 }, { wch: 16 }, { wch: 20 }];
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, lvl);
+      sheetsAdded++;
+    });
+
+    if (sheetsAdded === 0) {
+      alert('Tidak ada daftar seragam yang ditemukan di Manajemen Barang untuk jenjang yang didukung.');
+      return;
     }
+
+    const cleanVendorName = vendor.name.replace(/[/\\?*[\]:\s]/g, '_');
+    const fileName = `SPK_${cleanVendorName}_${targetYear.replace(/[/\\?*[\]:]/g, '_')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
   };
 
   // 2. Ekspor Rencana Global Saat Ini (Termasuk Seragam, Buku, & Angka Prediksi Eksisting)
@@ -3444,7 +3389,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(
-      new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
       `SPK_${vendorAlloc.vendorName.replace(/[/\\?*[\]:\s]/g, '_')}_${targetYear.replace(/[/\\?*[\]:]/g, '_')}.xlsx`
     );
   };
@@ -3653,7 +3598,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(
-      new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
       `Semua_SPK_Vendor_${targetYear.replace(/[/\\?*[\]:]/g, '_')}.xlsx`
     );
   };
@@ -4544,7 +4489,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(
-      new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
       `Matriks_Supplier_Per_Sekolah_${targetYear.replace(/[/\\?*[\]:]/g, '_')}.xlsx`
     );
   };
@@ -5056,12 +5001,16 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                     outline: 'none',
                   }}
                 >
-                  <option value="ALL">Semua Vendor ({vendorAllocations.length})</option>
-                  {vendorAllocations.map((va) => (
-                    <option key={va.vendorId} value={va.vendorId}>
-                      {va.vendorName} ({va.grandTotalPcs} pcs)
-                    </option>
-                  ))}
+                  <option value="ALL">Semua Vendor ({vendors.length})</option>
+                  {vendors.map((v) => {
+                    const va = vendorAllocations.find((a) => a.vendorId === v.id);
+                    const pcsText = va && va.grandTotalPcs > 0 ? ` (${va.grandTotalPcs} pcs)` : '';
+                    return (
+                      <option key={v.id} value={v.id}>
+                        {v.name}{pcsText}
+                      </option>
+                    );
+                  })}
                 </select>
 
                 <button
@@ -5115,7 +5064,11 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                     type="button"
                     onClick={() => {
                       const va = vendorAllocations.find((v) => v.vendorId === selectedVendorFilter);
-                      if (va) handleExportVendorSPKPdf(va);
+                      if (va && va.items.length > 0) {
+                        handleExportVendorSPKPdf(va);
+                      } else {
+                        alert('Vendor terpilih belum memiliki alokasi produksi.');
+                      }
                     }}
                     style={{
                       background: '#dc2626',
