@@ -67,31 +67,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Sinkronisasi sesi antar-tab selama browser masih terbuka
+  // Sinkronisasi sesi antar-tab selama browser masih terbuka (termasuk JWT Supabase Auth)
   useEffect(() => {
-    if (!authChannel) return;
+    let isMounted = true;
 
-    // Jika tab baru dibuka tanpa sesi di sessionStorage, minta sesi dari tab SINARA lain yang sedang aktif
-    if (!user) {
-      authChannel.postMessage({ type: 'REQUEST_SESSION' });
+    const verifyAndSyncSupabaseSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!user) {
+        authChannel?.postMessage({ type: 'REQUEST_SESSION' });
+        return;
+      }
+      // Jika state user ada di React/sessionStorage tetapi token JWT Supabase kosong (Sesi Semu / Tab Baru)
+      if (!session) {
+        authChannel?.postMessage({ type: 'REQUEST_SESSION' });
+        setTimeout(async () => {
+          if (!isMounted) return;
+          const { data: { session: retrySession } } = await supabase.auth.getSession();
+          if (!retrySession) {
+            // Sesi JWT benar-benar sudah habis/hilang, arahkan login ulang agar data RLS tidak tampak kosong (0)
+            setUser(null);
+            sessionStorage.removeItem(AUTH_KEY);
+          }
+        }, 800);
+      }
+    };
+
+    verifyAndSyncSupabaseSession();
+
+    if (!authChannel) {
+      return () => {
+        isMounted = false;
+      };
     }
 
-    const handleMessage = (event: MessageEvent) => {
-      const { type, payload } = event.data || {};
+    const handleMessage = async (event: MessageEvent) => {
+      const { type, payload, tokens } = event.data || {};
       if (type === 'REQUEST_SESSION' && user) {
-        // Tab ini punya sesi aktif, kirimkan ke tab baru yang baru dibuka
-        authChannel.postMessage({ type: 'RECEIVE_SESSION', payload: user });
-      } else if (type === 'RECEIVE_SESSION' && payload && !user) {
-        // Tab baru menerima sesi aktif dari tab lain
-        setUser(payload);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token && session?.refresh_token) {
+          authChannel.postMessage({
+            type: 'RECEIVE_SESSION',
+            payload: user,
+            tokens: {
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            },
+          });
+        }
+      } else if (type === 'RECEIVE_SESSION' && payload) {
+        if (tokens?.access_token && tokens?.refresh_token) {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (!currentSession) {
+            await supabase.auth.setSession({
+              access_token: tokens.access_token,
+              refresh_token: tokens.refresh_token,
+            });
+          }
+        }
+        if (!user && isMounted) {
+          setUser(payload);
+        }
       } else if (type === 'LOGOUT_ALL') {
-        // Jika user logout di satu tab, tab lain ikut logout
-        setUser(null);
+        if (isMounted) {
+          setUser(null);
+        }
       }
     };
 
     authChannel.addEventListener('message', handleMessage);
     return () => {
+      isMounted = false;
       authChannel.removeEventListener('message', handleMessage);
     };
   }, [user]);
@@ -210,7 +255,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       setUser(loggedInUser);
-      authChannel?.postMessage({ type: 'RECEIVE_SESSION', payload: loggedInUser });
+      authChannel?.postMessage({
+        type: 'RECEIVE_SESSION',
+        payload: loggedInUser,
+        tokens: authData?.session
+          ? {
+              access_token: authData.session.access_token,
+              refresh_token: authData.session.refresh_token,
+            }
+          : undefined,
+      });
       return { success: true };
     },
     [isMaintenanceMode]
@@ -347,8 +401,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       };
 
+      const { data: { session: gSession } } = await supabase.auth.getSession();
       setUser(loggedInUser);
-      authChannel?.postMessage({ type: 'RECEIVE_SESSION', payload: loggedInUser });
+      authChannel?.postMessage({
+        type: 'RECEIVE_SESSION',
+        payload: loggedInUser,
+        tokens: gSession
+          ? {
+              access_token: gSession.access_token,
+              refresh_token: gSession.refresh_token,
+            }
+          : undefined,
+      });
       return { success: true };
     },
     [isMaintenanceMode]

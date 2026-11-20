@@ -361,8 +361,20 @@ const VendorManagement = () => {
       })
       .subscribe();
 
+    // Sinkronisasi ulang jika token sesi Supabase baru saja pulih / disinkronkan antar-tab
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        fetchVendors();
+        fetchPlottings();
+        if (!schoolsLoadedRef.current) {
+          fetchSchools();
+        }
+      }
+    });
+
     return () => {
       supabase.removeChannel(channel);
+      authSub.unsubscribe();
     };
   }, []);
 
