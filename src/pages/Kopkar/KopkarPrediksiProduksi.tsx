@@ -22,6 +22,7 @@ export interface ForecastItem {
   sizes: Record<string, number>; // e.g. { SS: 500, S: 750, M: 1250, ... }
   total: number;
   schoolBreakdown?: Record<string, Record<string, number>>; // schoolName -> { size: qty }
+  directVendorSizes?: Record<string, Record<string, number>>; // vendorId -> { size: qty }
 }
 
 export interface VendorAllocatedItem {
@@ -162,6 +163,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const spkFileInputRef = useRef<HTMLInputElement>(null);
 
   // Helper mendapatkan nama resmi barang dari Manajemen Barang (products)
   const getCanonicalProductName = (rawName: string, level?: string): string => {
@@ -194,6 +196,24 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     return cleanRaw;
   };
 
+  // Parser angka aman yang tidak merusak angka desimal/koma (menghindari bug 411.233 -> 4 kuadriliun)
+  const parseCellNumber = (val: any): number => {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return isNaN(val) ? 0 : Math.round(val);
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed) return 0;
+      if (trimmed.includes('+')) {
+        const parts = trimmed.split('+').map((p) => parseFloat(p.trim().replace(',', '.'))).filter((n) => !isNaN(n));
+        if (parts.length > 0) return Math.round(parts.reduce((a, b) => a + b, 0));
+      }
+      const clean = trimmed.replace(/[^0-9.,-]/g, '').replace(',', '.');
+      const num = parseFloat(clean);
+      return isNaN(num) ? 0 : Math.round(num);
+    }
+    return 0;
+  };
+
   // Normalisasi nama barang agar sesuai dengan Manajemen Barang dan tidak ada duplikasi casing
   const normalizeLoadedItems = (items: any[]): ForecastItem[] => {
     const itemMap = new Map<string, ForecastItem>();
@@ -212,6 +232,7 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
           uniformName: canonicalName,
           sizes: { ...(it.sizes || {}) },
           schoolBreakdown: { ...(it.schoolBreakdown || {}) },
+          directVendorSizes: it.directVendorSizes ? JSON.parse(JSON.stringify(it.directVendorSizes)) : undefined,
         });
       } else {
         const existing = itemMap.get(key)!;
@@ -231,6 +252,18 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
             Object.entries(sizes as Record<string, number>).forEach(([sz, qty]) => {
               const num = Number(qty) || 0;
               existing.schoolBreakdown![sch][sz] = (existing.schoolBreakdown![sch][sz] || 0) + num;
+            });
+          });
+        }
+
+        // Merge directVendorSizes
+        if (it.directVendorSizes) {
+          if (!existing.directVendorSizes) existing.directVendorSizes = {};
+          Object.entries(it.directVendorSizes).forEach(([vId, vSizes]) => {
+            if (!existing.directVendorSizes![vId]) existing.directVendorSizes![vId] = {};
+            Object.entries(vSizes as Record<string, number>).forEach(([sz, qty]) => {
+              const num = Number(qty) || 0;
+              existing.directVendorSizes![vId][sz] = (existing.directVendorSizes![vId][sz] || 0) + num;
             });
           });
         }
@@ -1317,11 +1350,47 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
         schoolBreakdownByVendor.set(av.vendorId, {});
       });
 
+      // Cek apakah data ini diinput langsung dari Direct Import SPK Vendor
+      const hasDirectVendor = fcItem.directVendorSizes && Object.keys(fcItem.directVendorSizes).length > 0;
       // Cek apakah data ini memiliki rincian per sekolah (schoolBreakdown)
       const hasBreakdown = fcItem.schoolBreakdown && Object.keys(fcItem.schoolBreakdown).length > 0;
       let matchedBySchool = false;
 
-      if (hasBreakdown) {
+      if (hasDirectVendor) {
+        matchedBySchool = true;
+        activeVendorsForItem.forEach((av) => {
+          const directSizes = fcItem.directVendorSizes?.[av.vendorId];
+          if (directSizes) {
+            const vSizes = allocatedSizesByVendor.get(av.vendorId);
+            if (vSizes) {
+              Object.entries(directSizes).forEach(([sz, qty]) => {
+                vSizes[sz] = (vSizes[sz] || 0) + Number(qty || 0);
+              });
+            }
+
+            // Distribusikan ke rincian per sekolah agar matriks export sekolah tetap terisi proporsional ke sekolah binaan vendor ini
+            const vSchoolBd = schoolBreakdownByVendor.get(av.vendorId);
+            const schoolNamesList = Array.from(av.schoolNames);
+            const numSchools = schoolNamesList.length;
+
+            if (vSchoolBd && numSchools > 0) {
+              Object.entries(directSizes).forEach(([sz, totalSzQty]) => {
+                const numQty = Number(totalSzQty) || 0;
+                if (numQty <= 0) return;
+                const baseQty = Math.floor(numQty / numSchools);
+                let rem = numQty % numSchools;
+
+                schoolNamesList.forEach((sn) => {
+                  if (!vSchoolBd[sn]) vSchoolBd[sn] = {};
+                  const addQty = baseQty + (rem > 0 ? 1 : 0);
+                  if (rem > 0) rem--;
+                  vSchoolBd[sn][sz] = (vSchoolBd[sn][sz] || 0) + addQty;
+                });
+              });
+            }
+          }
+        });
+      } else if (hasBreakdown) {
         // Alokasikan langsung ke vendor yang menaungi sekolah tersebut untuk barang ini
         Object.entries(fcItem.schoolBreakdown!).forEach(([schoolName, schoolSizes]) => {
           const targetPlot = matchedPlottings.find((p) => {
@@ -1867,6 +1936,281 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     }
   };
 
+  // Parser Direct Import SPK Vendor (Bisa satu atau banyak file vendor sekaligus)
+  const processSPKExcelFiles = async (files: File[]) => {
+    if (!files || files.length === 0) return;
+    setLoading(true);
+
+    try {
+      const unrecognizedItems = new Set<string>();
+      const recognizedVendors: string[] = [];
+      const unmappedFiles: string[] = [];
+
+      // Clone data forecast yang ada saat ini ke Map kerja
+      // Key: `${level}___${uniformName.toUpperCase()}`
+      const workingMap = new Map<string, ForecastItem>();
+      forecastItems.forEach((it) => {
+        const uLvl = normalizeLevel(it.level);
+        const canonName = getCanonicalProductName(it.uniformName, uLvl);
+        const key = `${uLvl}___${canonName.toUpperCase()}`;
+        workingMap.set(key, {
+          ...it,
+          level: uLvl,
+          uniformName: canonName,
+          sizes: { ...(it.sizes || {}) },
+          schoolBreakdown: it.schoolBreakdown ? { ...it.schoolBreakdown } : {},
+          directVendorSizes: it.directVendorSizes ? JSON.parse(JSON.stringify(it.directVendorSizes)) : {},
+        });
+      });
+
+      for (const file of files) {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+          unmappedFiles.push(`${file.name} (file kosong)`);
+          continue;
+        }
+
+        // 1. Deteksi Vendor
+        // A. Dari nama file (misal: "ANDRYNA.xlsx" atau "SPK_ANDRYNA.xlsx")
+        const cleanFileName = file.name.replace(/\.xlsx?$|\.xls$/i, '').trim().toLowerCase();
+        let matchedVendor = vendors.find((v) => {
+          const vName = v.name.trim().toLowerCase();
+          return cleanFileName.includes(vName) || vName.includes(cleanFileName);
+        });
+
+        // B. Jika tidak cocok dari nama file, scan cell header A1..D10 pada seluruh sheet
+        if (!matchedVendor) {
+          for (const sName of workbook.SheetNames) {
+            const sheet = workbook.Sheets[sName];
+            if (!sheet) continue;
+            for (let r = 1; r <= 10; r++) {
+              const valA = sheet[`A${r}`]?.v;
+              const valB = sheet[`B${r}`]?.v;
+              const text = `${valA || ''} ${valB || ''}`.trim().toLowerCase();
+              if (text.includes('vendor') || text.includes('mitra')) {
+                matchedVendor = vendors.find((v) => text.includes(v.name.trim().toLowerCase()));
+                if (matchedVendor) break;
+              }
+            }
+            if (matchedVendor) break;
+          }
+        }
+
+        // C. Fallback: jika user sedang memfilter vendor tertentu di dropdown
+        if (!matchedVendor && selectedVendorFilter !== 'ALL') {
+          matchedVendor = vendors.find((v) => v.id === selectedVendorFilter);
+        }
+
+        if (!matchedVendor) {
+          unmappedFiles.push(`${file.name} (nama vendor tidak cocok dengan database)`);
+          continue;
+        }
+
+        recognizedVendors.push(matchedVendor.name);
+        const vendorId = matchedVendor.id;
+
+        // 2. Baca tiap sheet (1 sheet = 1 jenjang)
+        for (const sheetName of workbook.SheetNames) {
+          const cleanSheetName = sheetName.toUpperCase().trim();
+          if (
+            cleanSheetName.startsWith('PETUNJUK') ||
+            cleanSheetName.includes('PANDUAN') ||
+            cleanSheetName.includes('CATATAN')
+          ) {
+            continue;
+          }
+
+          const sheetLevel = normalizeLevel(sheetName);
+          const sheet = workbook.Sheets[sheetName];
+          if (!sheet) continue;
+
+          // Baca sheet sebagai 2D array
+          const rawGrid: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+          if (!rawGrid || rawGrid.length === 0) continue;
+
+          // Cari baris header tabel: kolom 'JENIS BARANG' dan 'UKURAN'
+          let headerRowIdx = -1;
+          let colItemIdx = 0;
+          let colSizeIdx = 1;
+          let colTotalIdx = 2;
+
+          for (let r = 0; r < Math.min(rawGrid.length, 15); r++) {
+            const row = rawGrid[r];
+            if (!Array.isArray(row)) continue;
+
+            let foundItem = -1;
+            let foundSize = -1;
+            let foundTotal = -1;
+
+            row.forEach((cellVal, cIdx) => {
+              const cellStr = String(cellVal || '').toUpperCase().trim();
+              if (
+                cellStr.includes('JENIS BARANG') ||
+                cellStr.includes('NAMA BARANG') ||
+                cellStr.includes('NAMA SERAGAM') ||
+                cellStr === 'BARANG' ||
+                cellStr === 'ITEM' ||
+                cellStr === 'JENIS'
+              ) {
+                foundItem = cIdx;
+              } else if (cellStr.includes('UKURAN') || cellStr === 'SIZE') {
+                foundSize = cIdx;
+              } else if (
+                cellStr.includes('TOTAL') ||
+                cellStr.includes('JUMLAH') ||
+                cellStr.includes('PCS') ||
+                cellStr.includes('QTY')
+              ) {
+                foundTotal = cIdx;
+              }
+            });
+
+            if (foundItem !== -1 && foundSize !== -1) {
+              headerRowIdx = r;
+              colItemIdx = foundItem;
+              colSizeIdx = foundSize;
+              if (foundTotal !== -1) colTotalIdx = foundTotal;
+              break;
+            }
+          }
+
+          if (headerRowIdx === -1) {
+            continue;
+          }
+
+          // Baca data baris di bawah header
+          let currentItemRaw = '';
+
+          for (let r = headerRowIdx + 1; r < rawGrid.length; r++) {
+            const row = rawGrid[r];
+            if (!row || row.length === 0) continue;
+
+            const cellItem = row[colItemIdx];
+            const cellSize = row[colSizeIdx];
+            const cellTotal = row[colTotalIdx];
+
+            const itemStr = cellItem !== undefined && cellItem !== null ? String(cellItem).trim() : '';
+            if (itemStr && !itemStr.toUpperCase().startsWith('TOTAL') && !itemStr.toUpperCase().startsWith('JUMLAH')) {
+              currentItemRaw = itemStr;
+            }
+
+            if (!currentItemRaw) continue;
+
+            const sizeStr = cellSize !== undefined && cellSize !== null ? String(cellSize).trim().toUpperCase() : '';
+            if (!sizeStr || sizeStr.startsWith('TOTAL') || sizeStr.startsWith('JUMLAH')) continue;
+
+            const qty = parseCellNumber(cellTotal);
+
+            // Validasi Single Source of Truth (SSOT) ke database Manajemen Barang
+            const canonicalName = getCanonicalProductName(currentItemRaw, sheetLevel);
+            const candNorm = canonicalName.toUpperCase();
+            const candLvl = normalizeLevel(sheetLevel);
+
+            const isKnownInDb = (products || []).some((p) => {
+              const pName = (p.name || '').trim().toUpperCase();
+              const pLvl = normalizeLevel(p.level || '');
+              return pName === candNorm && (pLvl === candLvl || pLvl === 'SEMUA');
+            });
+
+            if (!isKnownInDb && qty > 0) {
+              unrecognizedItems.add(`• [${sheetLevel}] ${currentItemRaw} (Ukuran: ${sizeStr})`);
+            }
+
+            // Simpan ke workingMap
+            const itemKey = `${sheetLevel}___${candNorm}`;
+            if (!workingMap.has(itemKey)) {
+              workingMap.set(itemKey, {
+                id: `fc_${sheetLevel}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                level: sheetLevel,
+                uniformName: canonicalName,
+                sizes: {},
+                total: 0,
+                directVendorSizes: {},
+              });
+            }
+
+            const existingItem = workingMap.get(itemKey)!;
+            if (!existingItem.directVendorSizes) {
+              existingItem.directVendorSizes = {};
+            }
+            if (!existingItem.directVendorSizes[vendorId]) {
+              existingItem.directVendorSizes[vendorId] = {};
+            }
+
+            if (qty > 0) {
+              existingItem.directVendorSizes[vendorId][sizeStr] = qty;
+            }
+          }
+        }
+      }
+
+      // 3. Validasi SSOT: Jika ada barang yang tidak dikenal di Manajemen Barang, tolak import
+      if (unrecognizedItems.size > 0) {
+        setLoading(false);
+        const listStr = Array.from(unrecognizedItems).slice(0, 15).join('\n');
+        const extraCount = unrecognizedItems.size > 15 ? `\n...dan ${unrecognizedItems.size - 15} barang lainnya` : '';
+        alert(
+          `⛔ GAGAL IMPORT SPK VENDOR (SSOT Validation):\n\n` +
+          `Ditemukan ${unrecognizedItems.size} jenis barang pada file Excel yang TIDAK DITEMUKAN di database Manajemen Barang:\n\n` +
+          listStr + extraCount +
+          `\n\nSistem membatalkan proses import untuk menjaga integritas data (Single Source of Truth).\n` +
+          `Silakan sesuaikan nama barang di template atau daftarkan terlebih dahulu di Manajemen Barang.`
+        );
+        return;
+      }
+
+      if (unmappedFiles.length > 0 && recognizedVendors.length === 0) {
+        setLoading(false);
+        alert(`Gagal membaca file:\n${unmappedFiles.join('\n')}`);
+        return;
+      }
+
+      // 4. Hitung ulang total sizes dan total pcs per item dari directVendorSizes
+      const finalItems: ForecastItem[] = [];
+      workingMap.forEach((it) => {
+        if (it.directVendorSizes && Object.keys(it.directVendorSizes).length > 0) {
+          const directSizeTotals: Record<string, number> = {};
+          Object.values(it.directVendorSizes).forEach((vSizes) => {
+            Object.entries(vSizes).forEach(([sz, q]) => {
+              const num = Number(q) || 0;
+              if (num > 0) {
+                directSizeTotals[sz] = (directSizeTotals[sz] || 0) + num;
+              }
+            });
+          });
+          it.sizes = directSizeTotals;
+          it.total = Object.values(directSizeTotals).reduce((a, b) => a + b, 0);
+        }
+        if (it.total > 0 || (it.sizes && Object.keys(it.sizes).length > 0)) {
+          finalItems.push(it);
+        }
+      });
+
+      setForecastItems(finalItems);
+      await handleSaveForecast(finalItems);
+      setLoading(false);
+
+      let summaryMsg = `✅ Berhasil mengimpor SPK untuk vendor: ${Array.from(new Set(recognizedVendors)).join(', ')}.`;
+      if (unmappedFiles.length > 0) {
+        summaryMsg += `\n(Catatan: ${unmappedFiles.length} file dilewati: ${unmappedFiles.join(', ')})`;
+      }
+      alert(summaryMsg);
+    } catch (err: any) {
+      setLoading(false);
+      console.error('Error processing SPK Excel:', err);
+      alert('Terjadi kesalahan saat memproses file SPK: ' + (err?.message || 'Error tidak diketahui'));
+    }
+  };
+
+  const handleSPKFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
+      processSPKExcelFiles(files);
+      e.target.value = '';
+    }
+  };
+
   // =========================================================================
   // 3. GENERATOR TEMPLATE EXCEL & EKSPOR RENCANA GLOBAL MULTI-SHEET
   //    Format: Baris = Item per Ukuran, Kolom = Nama Sekolah
@@ -2109,6 +2453,153 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
     });
 
     XLSX.writeFile(workbook, `Template_Prediksi_Produksi_${targetYear.replace('/', '_')}.xlsx`);
+  };
+
+  // 1b. Download Template Excel SPK Vendor per Jenjang (SSOT Manajemen Barang)
+  const handleDownloadVendorSPKTemplate = async () => {
+    if (vendors.length === 0) {
+      alert('Belum ada data vendor yang terdaftar di sistem.');
+      return;
+    }
+
+    const targetVendors = selectedVendorFilter !== 'ALL'
+      ? vendors.filter((v) => v.id === selectedVendorFilter)
+      : vendors;
+
+    if (targetVendors.length === 0) {
+      alert('Pilih vendor terlebih dahulu atau pastikan data vendor tersedia.');
+      return;
+    }
+
+    if (selectedVendorFilter === 'ALL' && targetVendors.length > 1) {
+      const confirmAll = window.confirm(
+        `Anda sedang memilih 'Semua Vendor'. Apakah Anda ingin mengunduh template SPK untuk seluruh ${targetVendors.length} vendor sekaligus?`
+      );
+      if (!confirmAll) return;
+    }
+
+    const sheetOrder = ['TK', 'SD', 'SMP', 'SMA', 'SPK-SD', 'SPK-SMP', 'SPK-SMA'];
+
+    for (const vendor of targetVendors) {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Koperasi Konsumen Karyawan BPK PENABUR Jakarta';
+      workbook.created = new Date();
+
+      const thinBorder: Partial<ExcelJS.Borders> = {
+        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+      };
+
+      const headerFill: ExcelJS.Fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF1F5F9' },
+      };
+
+      sheetOrder.forEach((lvl) => {
+        const uniformList = getItemsAndSizesForLevel(lvl);
+        if (uniformList.length === 0) return;
+
+        const worksheet = workbook.addWorksheet(lvl, {
+          views: [{ showGridLines: true }],
+        });
+
+        // Lebar kolom
+        worksheet.getColumn(1).width = 38; // JENIS BARANG
+        worksheet.getColumn(2).width = 16; // UKURAN
+        worksheet.getColumn(3).width = 20; // TOTAL (PCS)
+
+        // Header Dokumen SPK
+        worksheet.getCell('A1').value = `SURAT PERINTAH KERJA (SPK) PRODUKSI - JENJANG ${lvl}`;
+        worksheet.getCell('A1').font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF0F172A' } };
+
+        worksheet.getCell('A2').value = `Tahun Ajaran: ${targetYear}`;
+        worksheet.getCell('A2').font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF334155' } };
+
+        worksheet.getCell('A3').value = `Vendor / Mitra: ${vendor.name}`;
+        worksheet.getCell('A3').font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF334155' } };
+
+        worksheet.getCell('A4').value = `PIC: ${vendor.contact_person || '-'} | No. Telp: ${vendor.phone || '-'}`;
+        worksheet.getCell('A4').font = { name: 'Calibri', size: 9, color: { argb: 'FF64748B' } };
+
+        // Sekolah yang dilayani vendor pada jenjang ini
+        const plottedSchools = Array.from(
+          new Set(
+            effectivePlottings
+              .filter(
+                (p) =>
+                  p.vendor_id === vendor.id &&
+                  normalizeLevel(p.app_users?.school_level || '') === normalizeLevel(lvl)
+              )
+              .map((p) => p.app_users?.school_name)
+              .filter(Boolean)
+          )
+        );
+
+        const schoolStr = plottedSchools.length > 0
+          ? `Sekolah Jenjang ${lvl} yang Dilayani (${plottedSchools.length} Sekolah): ${plottedSchools.join(', ')}`
+          : `Sekolah Jenjang ${lvl} yang Dilayani: Belum ada sekolah yang di-plot`;
+
+        worksheet.getCell('A5').value = schoolStr;
+        worksheet.getCell('A5').font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } };
+
+        // Header Tabel di baris 7
+        worksheet.getRow(7).height = 26;
+        const colHeaders = ['JENIS BARANG', 'UKURAN', 'TOTAL (PCS)'];
+        colHeaders.forEach((title, idx) => {
+          const cell = worksheet.getCell(7, idx + 1);
+          cell.value = title;
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.fill = headerFill;
+          cell.border = thinBorder;
+        });
+
+        let curRow = 8;
+        uniformList.forEach((item) => {
+          const startR = curRow;
+          item.sizes.forEach((sz) => {
+            const row = worksheet.getRow(curRow);
+            row.height = 20;
+
+            const cellA = worksheet.getCell(curRow, 1);
+            cellA.value = item.name;
+            cellA.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E293B' } };
+            cellA.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            cellA.border = thinBorder;
+
+            const cellB = worksheet.getCell(curRow, 2);
+            cellB.value = sz;
+            cellB.font = { name: 'Calibri', size: 10, bold: false, color: { argb: 'FF1E293B' } };
+            cellB.alignment = { vertical: 'middle', horizontal: 'center' };
+            cellB.border = thinBorder;
+
+            const cellC = worksheet.getCell(curRow, 3);
+            cellC.value = null;
+            cellC.numFmt = '#,##0';
+            cellC.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+            cellC.alignment = { vertical: 'middle', horizontal: 'right' };
+            cellC.border = thinBorder;
+
+            curRow++;
+          });
+
+          const endR = curRow - 1;
+          if (endR > startR) {
+            worksheet.mergeCells(`A${startR}:A${endR}`);
+          }
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const cleanVendorName = vendor.name.replace(/[/\\?*[\]:\s]/g, '_');
+      saveAs(
+        new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        `SPK_${cleanVendorName}_${targetYear.replace(/[/\\?*[\]:]/g, '_')}.xlsx`
+      );
+    }
   };
 
   // 2. Ekspor Rencana Global Saat Ini (Termasuk Seragam, Buku, & Angka Prediksi Eksisting)
@@ -4644,6 +5135,71 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
                   >
                     <span>📄</span> Ekspor Lampiran SPK (.pdf)
                   </button>
+                )}
+
+                {!readOnly && (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '4px 8px',
+                      borderRadius: '8px',
+                      border: '1px dashed #cbd5e1',
+                      background: '#f8fafc',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={handleDownloadVendorSPKTemplate}
+                      style={{
+                        background: '#ffffff',
+                        color: '#475569',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        padding: '6px 12px',
+                        fontSize: '0.84rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                      title="Unduh Template Excel SPK Vendor per Jenjang (SSOT Manajemen Barang)"
+                    >
+                      <span>📥</span> Unduh Template SPK
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => spkFileInputRef.current?.click()}
+                      style={{
+                        background: '#8b5cf6',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '6px 12px',
+                        fontSize: '0.84rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 1px 2px rgba(139, 92, 246, 0.3)',
+                      }}
+                      title="Import data SPK Vendor langsung dari file Excel (.xlsx). Bisa pilih satu atau beberapa file vendor sekaligus."
+                    >
+                      <span>📤</span> Upload SPK Vendor (.xlsx)
+                    </button>
+                    <input
+                      ref={spkFileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      multiple
+                      onChange={handleSPKFileInputChange}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
                 )}
               </>
             )}
