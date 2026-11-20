@@ -1939,6 +1939,10 @@ export const KopkarPrediksiProduksi: React.FC<Props> = ({
   // Parser Direct Import SPK Vendor (Bisa satu atau banyak file vendor sekaligus)
   const processSPKExcelFiles = async (files: File[]) => {
     if (!files || files.length === 0) return;
+    if (!products || products.length === 0) {
+      alert('Katalog master barang sedang dimuat dari server. Mohon tunggu sejenak lalu ulangi proses upload.');
+      return;
+    }
     setLoading(true);
 
     try {
