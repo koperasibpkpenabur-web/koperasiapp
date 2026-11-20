@@ -140,6 +140,10 @@ const LoginPage = () => {
               className="login-logo-img"
             />
           </div>
+          <p className="login-subtitle">
+            Akses Sistem Administrasi Koperasi<br />
+            BPK PENABUR Jakarta
+          </p>
         </div>
 
         <div className="login-right">

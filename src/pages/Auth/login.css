@@ -1,4 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400..800&display=swap');
+.login-page,
+.login-page input,
+.login-page button,
+.login-page select,
+.login-page textarea,
+.login-page label {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
 
 .login-page {
   display: flex;
@@ -34,16 +41,16 @@
   padding: 34px 24px 28px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
   text-align: center;
   color: white;
 }
 
 .login-left .login-welcome-title {
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: #ffffff;
-  margin: 0 0 14px 0;
+  margin: 0 0 1cm 0;
   font-size: 1.85rem;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -51,7 +58,6 @@
 }
 
 .login-logo-container {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -70,6 +76,17 @@
 
 .login-logo-img:hover {
   transform: scale(1.02);
+}
+
+.login-left .login-subtitle {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #ffffff;
+  margin: 14px 0 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  opacity: 0.95;
 }
 
 .login-right {
@@ -96,6 +113,11 @@
   .login-left .login-welcome-title {
     font-size: 1.2rem;
     white-space: normal;
+    margin-bottom: 0.7cm;
+  }
+  .login-left .login-subtitle {
+    font-size: 0.85rem;
+    margin-top: 10px;
   }
   .login-right {
     padding: 24px 20px 28px;
