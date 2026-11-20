@@ -116,8 +116,18 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleFocus);
 
+    // Reload katalog barang otomatis saat user berhasil login atau sesi JWT pulih
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
+        fetchProducts();
+      } else if (event === 'SIGNED_OUT') {
+        setProducts([]);
+      }
+    });
+
     return () => {
       supabase.removeChannel(channel);
+      authSub.unsubscribe();
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };

@@ -102,8 +102,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       )
       .subscribe();
 
+    // Reload konfigurasi sistem (Tahun Ajaran aktif, Tahap 1/2/Tambahan, GDrive) saat user login atau sesi JWT pulih
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
+        fetchSettings();
+      }
+    });
+
     return () => {
       supabase.removeChannel(channel);
+      authSub.unsubscribe();
     };
   }, [fetchSettings]);
 

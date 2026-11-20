@@ -96,7 +96,17 @@ export function ReturnProvider({ children }: { children: ReactNode }) {
     window.addEventListener('focus', handleNewReturn);
     document.addEventListener('visibilitychange', handleNewReturn);
 
+    // Reload daftar retur otomatis saat user berhasil login atau sesi JWT pulih
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session) {
+        fetchReturns();
+      } else if (event === 'SIGNED_OUT') {
+        setReturns([]);
+      }
+    });
+
     return () => {
+      authSub.unsubscribe();
       window.removeEventListener('new-return-received', handleNewReturn);
       window.removeEventListener('focus', handleNewReturn);
       document.removeEventListener('visibilitychange', handleNewReturn);
