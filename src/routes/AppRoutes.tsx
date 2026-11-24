@@ -46,6 +46,7 @@ const SchoolReturn = lazyWithRetry(() => import('../pages/School/SchoolReturn'))
 const SchoolRekap = lazyWithRetry(() => import('../pages/School/SchoolRekap'));
 const PengurusDashboard = lazyWithRetry(() => import('../pages/Pengurus/PengurusDashboard'));
 const GuruOtsPemesanan = lazyWithRetry(() => import('../pages/GuruOts/GuruOtsPemesanan'));
+const SchoolKanvasOrders = lazyWithRetry(() => import('../pages/School/SchoolKanvasOrders'));
 
 const PageLoader = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px', color: '#64748b', fontSize: '0.95rem', gap: '8px' }}>
@@ -167,6 +168,11 @@ const AppRoutes = () => {
           <Route path="school/pemesanan" element={
             <ProtectedRoute allowedRoles={['admin', 'sekolah', 'guru_ots']}>
               {user?.role === 'guru_ots' ? <GuruOtsPemesanan /> : <SchoolPemesanan />}
+            </ProtectedRoute>
+          } />
+          <Route path="school/kanvas-orders" element={
+            <ProtectedRoute allowedRoles={['admin', 'sekolah', 'kopkar']}>
+              <SchoolKanvasOrders />
             </ProtectedRoute>
           } />
           <Route path="school/pelunasan" element={

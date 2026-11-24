@@ -68,6 +68,16 @@ const Sidebar = () => {
                   <span className="nav-text">Manajemen User</span>
                 </NavLink>
               </li>
+              <li>
+                <NavLink
+                  to="/school/kanvas-orders"
+                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                  onClick={closeMobileNav}
+                >
+                  <span className="nav-icon">🎒</span>
+                  <span className="nav-text">Pesanan Kanvas (Siswa)</span>
+                </NavLink>
+              </li>
             </>
           )}
 
@@ -93,6 +103,16 @@ const Sidebar = () => {
                 >
                   <span className="nav-icon">🛒</span>
                   <span className="nav-text">Manajemen Pesanan</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/school/kanvas-orders"
+                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                  onClick={closeMobileNav}
+                >
+                  <span className="nav-icon">🎒</span>
+                  <span className="nav-text">Pesanan Kanvas (Siswa)</span>
                 </NavLink>
               </li>
               <li>
@@ -224,6 +244,16 @@ const Sidebar = () => {
                 >
                   <span className="nav-icon">🛒</span>
                   <span className="nav-text">Pemesanan Barang</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink
+                  to="/school/kanvas-orders"
+                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                  onClick={closeMobileNav}
+                >
+                  <span className="nav-icon">🎒</span>
+                  <span className="nav-text">Pesanan Kanvas Siswa</span>
                 </NavLink>
               </li>
               {user.role === 'sekolah' && (

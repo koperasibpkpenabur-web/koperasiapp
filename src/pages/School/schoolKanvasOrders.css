@@ -1,0 +1,319 @@
+/* Styles for Pesanan Kanvas Siswa (School & Kopkar) */
+.kanvas-orders-page {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  padding-bottom: 40px;
+}
+
+.kanvas-orders-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.kanvas-orders-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0F2C59;
+  margin: 0 0 4px 0;
+}
+
+.kanvas-orders-subtitle {
+  font-size: 0.88rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.kanvas-school-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border-radius: 9999px;
+}
+
+/* Stat Cards */
+.kanvas-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.kanvas-stat-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kanvas-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 44, 89, 0.08);
+}
+
+.kanvas-stat-card.active {
+  border-color: #0F2C59;
+  background: #f8fafc;
+  box-shadow: 0 0 0 2px rgba(15, 44, 89, 0.15);
+}
+
+.kanvas-stat-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.kanvas-stat-val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0F2C59;
+  margin: 0;
+  line-height: 1;
+}
+
+/* Toolbar & Filters */
+.kanvas-toolbar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kanvas-search-box {
+  flex: 1;
+  min-width: 240px;
+  position: relative;
+}
+
+.kanvas-search-input {
+  width: 100%;
+  padding: 8px 14px 8px 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  transition: all 0.2s;
+}
+
+.kanvas-search-input:focus {
+  outline: none;
+  border-color: #0F2C59;
+  box-shadow: 0 0 0 3px rgba(15, 44, 89, 0.1);
+}
+
+.kanvas-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+/* Table */
+.kanvas-table-wrap {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow-x: auto;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.kanvas-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.kanvas-table th {
+  background: #f8fafc;
+  padding: 12px 14px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.kanvas-table td {
+  padding: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.kanvas-table tr:hover td {
+  background-color: #f8fafc;
+}
+
+/* Status Badges */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-submitted {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.status-processing {
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
+}
+
+.status-ready_for_pickup {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  animation: pulseLight 2s infinite;
+}
+
+.status-completed {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.status-cancelled {
+  background: #ffe4e6;
+  color: #9f1239;
+  border: 1px solid #fecdd3;
+}
+
+@keyframes pulseLight {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+/* Action Buttons */
+.btn-action-sm {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-verify {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.btn-verify:hover {
+  background: #0369a1;
+}
+
+.btn-ready {
+  background: #059669;
+  color: #ffffff;
+}
+
+.btn-ready:hover {
+  background: #047857;
+}
+
+.btn-complete {
+  background: #0F2C59;
+  color: #ffffff;
+}
+
+.btn-complete:hover {
+  background: #1e3a8a;
+}
+
+/* Modal Popup */
+.kanvas-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.2s;
+}
+
+.kanvas-modal-box {
+  background: #ffffff;
+  border-radius: 20px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  padding: 24px;
+}
+
+.kanvas-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 16px;
+}
+
+.kanvas-modal-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0F2C59;
+  margin: 0;
+}
+
+.kanvas-modal-close {
+  background: #f1f5f9;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: #64748b;
+}
+
+.kanvas-modal-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
