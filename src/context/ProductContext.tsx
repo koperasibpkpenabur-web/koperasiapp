@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { ProductItem, SchoolLevel } from '../types';
+import type { OrderItemType, ProductItem, SchoolLevel } from '../types';
 import { supabase } from '../lib/supabase';
 import { resolveItemUnit } from '../utils/formatUnit';
 import { fetchAllSupabasePaged } from '../utils/supabasePagination';
@@ -26,7 +26,7 @@ const ProductContext = createContext<ProductContextType | null>(null);
 
 // Generate code otomatis untuk barang yang tidak memiliki kode di Excel
 function generateProductCode(
-  category: 'seragam' | 'buku',
+  category: OrderItemType,
   level: SchoolLevel,
   existingProducts: ProductItem[],
   offsetIndex: number
@@ -68,6 +68,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       const mapped = allData.map(d => ({
         id: d.id,
         code: d.code,
+        type: d.type || (d.code?.includes('SRG') ? 'SRG' : d.code?.includes('KAK') ? 'KAK' : d.code?.includes('PLK') ? 'PLK' : d.code?.includes('TP') ? 'TP' : d.code?.includes('BK') ? 'BK' : undefined),
         name: d.name,
         category: d.category as any,
         level: d.level as any,

@@ -20,13 +20,14 @@ export interface AuthState {
 
 // --- Master Produk & Harga ---
 
-export type OrderItemType = 'seragam' | 'buku';
+export type OrderItemType = 'seragam' | 'buku' | 'kaos kaki' | 'perlengkapan' | 'topi' | string;
 
 export interface ProductItem {
   id: string;
-  code: string;            // Contoh: SRG-SMP-01, BK-SD-02
+  code: string;            // Contoh: A-SRG-001, B-KAK-001, C-PLK-001, D-TP-001, E-BK-001
+  type?: string;           // SRG / KAK / PLK / TP / BK
   name: string;            // Nama barang
-  category: OrderItemType; // seragam / buku
+  category: OrderItemType; // Seragam / Kaos Kaki / Perlengkapan / Topi / Buku
   level: SchoolLevel;      // TK / SD / SMP / SMA / SPK-SD / SPK-SMP / SPK-SMA / SEMUA
   priceKopkar: number;     // Harga Koperasi (HPP/Modal)
   feeSchool: number;       // Fee Sekolah (Margin Hak Sekolah)

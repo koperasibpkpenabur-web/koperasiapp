@@ -4,7 +4,7 @@ import { useOrders } from '../../context/OrderContext';
 import { useProducts } from '../../context/ProductContext';
 import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
-import type { Order, OrderItem, ProductItem, SchoolLevel } from '../../types';
+import type { Order, OrderItem, OrderItemType, ProductItem, SchoolLevel } from '../../types';
 import { buildAcademicYearOptions, resolveAcademicYear } from '../../utils/academicYear';
 import { resolveItemUnit } from '../../utils/formatUnit';
 import KwitansiPrint from '../Kopkar/KwitansiPrint';
@@ -74,7 +74,7 @@ const getMasterStudentPrice = (
 interface ProductGroup {
   key: string;
   name: string;
-  category: 'seragam' | 'buku';
+  category: OrderItemType;
   level: SchoolLevel;
   firstCode: string;
   variants: ProductItem[];
