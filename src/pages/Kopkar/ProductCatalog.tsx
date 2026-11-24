@@ -48,7 +48,10 @@ const ProductCatalog = () => {
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.code.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = levelFilter === 'all' || p.level === levelFilter;
-    const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
+    const matchesCategory =
+      categoryFilter === 'all' ||
+      String(p.category || '').toLowerCase() === categoryFilter.toLowerCase() ||
+      String(p.type || '').toUpperCase() === categoryFilter.toUpperCase();
     return matchesSearch && matchesLevel && matchesCategory;
   });
 
@@ -268,8 +271,11 @@ const ProductCatalog = () => {
 
           <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); handleFilterChange(); }}>
             <option value="all">Semua Kategori</option>
-            <option value="seragam">Seragam</option>
-            <option value="buku">Buku</option>
+            <option value="Seragam">👕 Seragam (SRG)</option>
+            <option value="Kaos Kaki">🧦 Kaos Kaki (KAK)</option>
+            <option value="Perlengkapan">🎗️ Perlengkapan (PLK)</option>
+            <option value="Topi">🧢 Topi (TP)</option>
+            <option value="Buku">📚 Buku (BK)</option>
           </select>
         </div>
 
@@ -300,6 +306,12 @@ const ProductCatalog = () => {
                 <td style={{ color: '#586b84', fontWeight: 600 }}>{indexOfFirstItem + idx + 1}</td>
                 <td>
                   <strong>{p.name}</strong>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', display: 'flex', gap: '6px', marginTop: '2px', alignItems: 'center' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{p.code}</span>
+                    <span style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', textTransform: 'capitalize' }}>
+                      {p.category || 'Seragam'}
+                    </span>
+                  </div>
                 </td>
                 <td>{p.size || '-'}</td>
                 <td>
@@ -450,8 +462,11 @@ const ProductCatalog = () => {
                       }
                     }}
                   >
-                    <option value="seragam">Seragam</option>
-                    <option value="buku">Buku</option>
+                    <option value="Seragam">Seragam (SRG)</option>
+                    <option value="Kaos Kaki">Kaos Kaki (KAK)</option>
+                    <option value="Perlengkapan">Perlengkapan (PLK)</option>
+                    <option value="Topi">Topi (TP)</option>
+                    <option value="Buku">Buku (BK)</option>
                   </select>
                 </div>
 
