@@ -48,7 +48,18 @@ CREATE POLICY "parent_order_items_update_all" ON public.parent_order_items
   USING (true)
   WITH CHECK (true);
 
--- 5. Index performa tinggi untuk pencarian pesanan berdasarkan sekolah dan status
+-- 5. Pastikan izin DELETE (RLS) terbuka untuk parent_orders dan parent_order_items (Khusus Admin / Pembersihan Data Testing)
+DROP POLICY IF EXISTS "parent_orders_delete_all" ON public.parent_orders;
+CREATE POLICY "parent_orders_delete_all" ON public.parent_orders
+  FOR DELETE TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "parent_order_items_delete_all" ON public.parent_order_items;
+CREATE POLICY "parent_order_items_delete_all" ON public.parent_order_items
+  FOR DELETE TO anon, authenticated
+  USING (true);
+
+-- 6. Index performa tinggi untuk pencarian pesanan berdasarkan sekolah dan status
 CREATE INDEX IF NOT EXISTS idx_parent_orders_school_status 
   ON public.parent_orders (school_name, status);
 

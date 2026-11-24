@@ -222,7 +222,14 @@ export default function SchoolKanvasOrders() {
         .eq('id', order.id);
 
       if (error) {
-        alert(`Gagal memperbarui status: ${error.message}`);
+        if (error.message.includes('parent_orders_status_check')) {
+          alert(
+            `Gagal memperbarui status: Aturan database Supabase belum diizinkan untuk status "${newStatus}".\n\n` +
+            `Solusi: Buka Supabase SQL Editor dan jalankan skrip migrasi "supabase_fix_parent_orders_rls.sql" untuk memperbarui constraint status.`
+          );
+        } else {
+          alert(`Gagal memperbarui status: ${error.message}`);
+        }
         return;
       }
 
@@ -239,6 +246,59 @@ export default function SchoolKanvasOrders() {
     } catch (err) {
       console.error('Error updating parent order:', err);
       alert('Terjadi kesalahan sistem saat memperbarui status.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Action: Delete Order (Khusus Role Admin / Pembersihan Testing)
+  const handleDeleteOrder = async (order: ParentOrder) => {
+    if (user?.role !== 'admin') {
+      alert('Akses Ditolak: Hanya role Admin yang berhak menghapus data transaksi.');
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `[PERINGATAN KHUSUS ADMIN]\n\n` +
+      `Apakah Anda yakin ingin MENGHAPUS PERMANEN pesanan #${order.id} milik "${order.student_name}" (${order.school_name})?\n\n` +
+      `Tindakan ini akan menghapus data pesanan & item terkait secara permanen dari database Supabase untuk pembersihan data testing.`
+    );
+
+    if (!confirmDelete) return;
+
+    setIsUpdating(true);
+    try {
+      // 1. Hapus item barang pesanan terlebih dahulu (menjaga integritas foreign key)
+      const { error: itemsErr } = await supabase
+        .from('parent_order_items')
+        .delete()
+        .eq('parent_order_id', order.id);
+
+      if (itemsErr) {
+        console.warn('Hapus parent_order_items:', itemsErr.message);
+      }
+
+      // 2. Hapus data utama parent_orders
+      const { error: orderErr } = await supabase
+        .from('parent_orders')
+        .delete()
+        .eq('id', order.id);
+
+      if (orderErr) {
+        alert(`Gagal menghapus pesanan: ${orderErr.message}`);
+        return;
+      }
+
+      // 3. Update state di UI lokal
+      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+      if (selectedOrder && selectedOrder.id === order.id) {
+        setSelectedOrder(null);
+      }
+
+      alert(`Pesanan #${order.id} berhasil dihapus permanen dari sistem.`);
+    } catch (err) {
+      console.error('Error deleting order:', err);
+      alert('Terjadi kesalahan saat menghapus pesanan.');
     } finally {
       setIsUpdating(false);
     }
@@ -590,6 +650,17 @@ export default function SchoolKanvasOrders() {
                         >
                           Detail & Cetak
                         </button>
+
+                        {user?.role === 'admin' && (
+                          <button
+                            onClick={() => handleDeleteOrder(ord)}
+                            disabled={isUpdating}
+                            className="btn-action-sm btn-delete-admin"
+                            title="Hapus pesanan permanen (Khusus Admin / Bersihkan Data Testing)"
+                          >
+                            🗑️ Hapus
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -728,7 +799,19 @@ export default function SchoolKanvasOrders() {
             </div>
 
             {/* Action Buttons in Modal */}
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap', alignItems: 'center' }}>
+              {user?.role === 'admin' && (
+                <button
+                  onClick={() => handleDeleteOrder(selectedOrder)}
+                  disabled={isUpdating}
+                  className="btn-action-sm btn-delete-admin-modal"
+                  style={{ marginRight: 'auto' }}
+                  title="Hapus pesanan permanen dari database (Khusus Admin / Pembersihan Testing)"
+                >
+                  🗑️ Hapus Pesanan Permanen (Admin)
+                </button>
+              )}
+
               <button
                 onClick={() => window.print()}
                 className="btn-action-sm"

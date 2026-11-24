@@ -258,6 +258,27 @@
   background: #1e3a8a;
 }
 
+.btn-delete-admin {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.btn-delete-admin:hover {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.btn-delete-admin-modal {
+  background: #ef4444;
+  color: #ffffff;
+  border: none;
+}
+
+.btn-delete-admin-modal:hover {
+  background: #dc2626;
+}
+
 /* Modal Popup */
 .kanvas-modal-overlay {
   position: fixed;
