@@ -207,7 +207,7 @@ export default function SchoolKanvasOrders() {
       if (newStatus === 'processing') {
         updates.verified_at = now;
         updates.verified_by = staffName;
-        updates.payment_status = 'verified';
+        updates.payment_status = 'paid';
       } else if (newStatus === 'ready_for_pickup') {
         updates.ready_at = now;
         updates.ready_by = staffName;
